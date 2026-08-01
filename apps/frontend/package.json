@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@zeteo/shared-types": "*",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
