@@ -1,34 +1,32 @@
-import { GameState, PublicPlayer } from '@zeteo/shared-types';
-import { RoomInternalState } from './room';
+import { GameState, PublicPlayer } from '@zeteo/shared-types'
+import { RoomInternalState } from './room'
 
 // TODO(Day 4): vote.ts가 생기면 이 두 함수는 지우고 거기서 import
 function countVotes(votes: Record<string, string | null>): Record<string, number> {
-  const counts: Record<string, number> = {};
+  const counts: Record<string, number> = {}
   for (const targetId of Object.values(votes)) {
-    if (!targetId) continue;
-    counts[targetId] = (counts[targetId] ?? 0) + 1;
+    if (!targetId) continue
+    counts[targetId] = (counts[targetId] ?? 0) + 1
   }
-  return counts;
+  return counts
 }
 
 function countLifeVotes(lifeVotes: Record<string, boolean>): { kill: number; spare: number } {
-  const counts = { kill: 0, spare: 0 };
+  const counts = { kill: 0, spare: 0 }
   for (const kill of Object.values(lifeVotes)) {
-    if (kill) counts.kill++;
-    else counts.spare++;
+    if (kill) counts.kill++
+    else counts.spare++
   }
-  return counts;
+  return counts
 }
 
 export function buildGameStateFor(room: RoomInternalState, playerId: string): GameState {
-  const me = room.players.find((p) => p.id === playerId);
-  if (!me) throw new Error(`player ${playerId} not in room`);
+  const me = room.players.find(p => p.id === playerId)
+  if (!me) throw new Error(`player ${playerId} not in room`)
 
-  const publicPlayers: PublicPlayer[] = room.players.map((p) => ({
-    id: p.id,
-    name: p.name,
-    isAlive: p.isAlive,
-  }));
+  const publicPlayers: PublicPlayer[] = room.players.map(p => ({
+    id: p.id, name: p.name, isAlive: p.isAlive,
+  }))
 
   return {
     roomId: room.roomId,
@@ -50,6 +48,12 @@ export function buildGameStateFor(room: RoomInternalState, playerId: string): Ga
     myLifeVote: room.lifeVotes[playerId] ?? null,
     lifeVoteCounts: countLifeVotes(room.lifeVotes),
     revealedRole: room.revealedRole,
-    liarGameResult: room.liarGameResult,
-  };
+    // ★ 변경: result phase 전엔 무조건 null로 감춤 (내부적으론 이미 계산돼 있어도 노출 안 함)
+    liarGameResult: room.phase === 'result' ? room.liarGameResult : null,
+
+    // result phase에서만 실제 값
+    revealedBotId: room.phase === 'result'
+      ? (room.players.find(p => p.isBot)?.id ?? null)
+      : null,
+  }
 }
