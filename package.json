@@ -1,0 +1,19 @@
+{
+  "name": "zeteo",
+  "version": "1.0.0",
+  "description": "라이어 게임 속에 숨은 단 하나의 봇을 찾는 소셜 디덕션 게임",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "format": "prettier --write \"**/*.{ts,tsx,css,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,css,json,md}\""
+  },
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "prettier": "^3.9.6"
+  }
+}
