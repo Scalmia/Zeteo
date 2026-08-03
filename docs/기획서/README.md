@@ -6,5 +6,5 @@ Zeteo 기획서는 Claude Artifact로 작성됩니다. 이 폴더는 저장소�
 
 | 버전 | 날짜       | 링크                                                                 | 비고      |
 | ---- | ---------- | ---------------------------------------------------------------------- | --------- |
-| v2.0 | 2026-08-03 | [Artifact](https://claude.ai/code/artifact/5bffdf17-ca28-4b81-84cf-f8cde506f736) | 모노레포 구조·소켓 규약·루프 상태기계 반영, 미결정 8건 명시 |
+| v2.0 | 2026-08-03 | [Artifact](https://claude.ai/code/artifact/011d9c0e-e07d-47d6-ab29-aca7e05fedda) | 모노레포 구조·소켓 규약·루프 상태기계 반영, 미결정 8건 명시 |
 | v1.0 | 2026-08-03 | [Artifact](https://claude.ai/code/artifact/8139ba59-bac5-4ba3-acce-d9f5278d4b4c) | 최초 기획서 |
