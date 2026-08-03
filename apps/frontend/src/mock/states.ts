@@ -40,6 +40,23 @@ const debateLog: Message[] = [
   msg('p4', '저도 박진님 좀 이상했어요', 'debate'),
 ];
 
+/** 2라운드 진입 경로 2종. 로그는 지우지 않고 누적한다 —
+ *  룰북 S4의 "매 라운드 정보가 누적되어 자연히 수렴한다"가 설계 전제이므로
+ *  로그를 비우면 그 전제가 깨진다. 라운드 경계는 시스템 메시지가 만든다. */
+const revoteLog: Message[] = [
+  ...debateLog,
+  msg('p3', '저는 유민성님이요', 'debate'),
+  msg('system', '동점입니다. 재투표를 시작합니다.', 'debate'),
+];
+
+const sparedLog: Message[] = [
+  ...debateLog,
+  msg('system', '박진님이 최다 득표로 지목되었습니다.', 'finalDefense'),
+  msg('p2', '아니 저 진짜 시민이에요 제시어 알아요', 'finalDefense'),
+  msg('p1', '그럼 말해보세요', 'finalDefense'),
+  msg('system', '박진님이 살아남았습니다. 토론을 재개합니다.', 'debate'),
+];
+
 const base: GameState = {
   roomId: 'MOCK',
   phase: 'roleReveal',
@@ -101,6 +118,27 @@ export const MOCK_STATES: Record<string, GameState> = {
     voteCounts: { p2: 2, p3: 1 },
     myVote: 'p2',
   },
+  /** 동점 → 재투표. 표는 리셋되고 로그는 남는다 */
+  'debate-round2-revote': {
+    ...base,
+    phase: 'debate',
+    round: 2,
+    deadlineAt: inSec(161),
+    messages: revoteLog,
+    voteCounts: {},
+    myVote: null,
+  },
+  /** "살린다" → S2 복귀. accused도 함께 풀린다 */
+  'debate-round2-spared': {
+    ...base,
+    phase: 'debate',
+    round: 2,
+    deadlineAt: inSec(161),
+    messages: sparedLog,
+    voteCounts: {},
+    myVote: null,
+    accused: null,
+  },
 
   // ── S3 ─────────────────────────────────────────────
   'finalDefense-other': {
@@ -144,6 +182,15 @@ export const MOCK_STATES: Record<string, GameState> = {
     accused: 'p2',
     revealedRole: 'citizen',
     liarGameResult: 'liarWin',
+  },
+  /** 라이어 적발 — 게임의 클라이맥스. 승패는 아직 미정이므로 liarGameResult는 null.
+   *  제시어 추측(S5-a) 결과가 나와야 확정된다. */
+  'reveal-liar': {
+    ...base,
+    phase: 'reveal',
+    accused: 'p2',
+    revealedRole: 'liar',
+    liarGameResult: null,
   },
   'guessWord-liar': {
     ...base,

@@ -184,13 +184,27 @@
   flex: 0 0 4.5em;
   color: var(--color-muted, #9a9aa8);
 }
+/* 시스템 메시지가 라운드 경계선 역할을 한다.
+ * 로그를 지우지 않고 누적하므로, 이 구분선이 "여기부터 2라운드"를 만든다. */
 .zt-msg.is-system {
   justify-content: center;
+  margin: var(--space-2, 8px) 0;
+  padding: 4px 0;
   font-size: 0.8rem;
   color: var(--color-muted, #9a9aa8);
+  border-top: 1px solid var(--color-line, #2a2a36);
+  border-bottom: 1px solid var(--color-line, #2a2a36);
 }
 .zt-msg.is-system .zt-msg-name {
   display: none;
+}
+
+.zt-round {
+  margin-right: var(--space-2, 8px);
+  padding: 2px 8px;
+  color: var(--color-text, #e8e8ee);
+  border: 1px solid var(--color-line, #2a2a36);
+  border-radius: 999px;
 }
 .zt-chat-input {
   display: flex;
