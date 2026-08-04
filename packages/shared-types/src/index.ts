@@ -72,7 +72,7 @@ export type ClientEvent =
   | { t: 'lifeVote'; kill: boolean }
   | { t: 'guessWord'; word: string }
   | { t: 'botVote'; targetId: string }
-  | { t: 'survey'; resonIds: number[]; freeText: string};
+  | { t: 'survey'; reasonIds: number[]; freeText: string};
   
 
 // 서버 → 클라이언트

@@ -44,8 +44,8 @@ function enterPhase(room: RoomInternalState) {
   const duration = PHASE_DURATIONS[room.phase];
   if (duration) {
     setPhaseTimer(room, duration, () => {
-      if (room.phase === "guessWord" && room.liarGameResult === null) {
-        room.liarGameResult = "citizenWin"; // 시간 초과 = 추측 실패
+      if (room.phase === "guessWord" && room.pendingLiarGameResult === null) {
+        room.pendingLiarGameResult = "citizenWin"; // 시간 초과 = 추측 실패
       }
       advancePhase(room);
     });
@@ -160,7 +160,7 @@ async function maybeTriggerBot(room: RoomInternalState) {
   if (action.t === "lifeVote") room.lifeVotes[bot.id] = action.kill;
   if (action.t === "guessWord") {
     const correct = action.word.trim() === room.word.trim();
-    room.liarGameResult = correct ? "liarWin" : "citizenWin";
+    room.pendingLiarGameResult = correct ? "liarWin" : "citizenWin";
     clearPhaseTimer(room.roomId);
     advancePhase(room);
     return;
@@ -308,7 +308,7 @@ io.on("connection", (socket) => {
 
           clearPhaseTimer(room.roomId);
           const correct = action.word.trim() === room.word.trim();
-          room.liarGameResult = correct ? "liarWin" : "citizenWin";
+          room.pendingLiarGameResult = correct ? "liarWin" : "citizenWin";
           advancePhase(room);
           return;
         }
