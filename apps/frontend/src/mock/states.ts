@@ -176,12 +176,15 @@ export const MOCK_STATES: Record<string, GameState> = {
   },
 
   // ── S5 ─────────────────────────────────────────────
+  /** 시민을 잘못 죽인 경우. 이 시점에 라이어 승이 확정되지만 화면에는 띄우지 않는다 —
+   *  라이어 적발 때만 결과를 숨기면 "결과가 안 뜬다" 자체가 스포일러가 되므로,
+   *  두 경우를 화면에서 구분할 수 없게 둘 다 S7까지 미룬다. (기획서 v2.0 §4) */
   'reveal-citizen': {
     ...base,
     phase: 'reveal',
     accused: 'p2',
     revealedRole: 'citizen',
-    liarGameResult: 'liarWin',
+    liarGameResult: null,
   },
   /** 라이어 적발 — 게임의 클라이맥스. 승패는 아직 미정이므로 liarGameResult는 null.
    *  제시어 추측(S5-a) 결과가 나와야 확정된다. */
