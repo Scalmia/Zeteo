@@ -57,12 +57,23 @@ export function pushSystemMessage(room: RoomInternalState, text: string) {
 }
 
 let idCounter = 0
+
+function assignLabel(room: RoomInternalState): string {
+  const used = new Set(room.players.map(p => p.label))
+  let label: string
+  do {
+    const n = 1 + Math.floor(Math.random() * 20) // room 정원보다 넉넉하게
+    label = `참가자 ${n}`
+  } while (used.has(label))
+  return label
+}
+
 export function joinRoom(roomId: string, name: string, isBot = false): InternalPlayer {
   const room = getRoom(roomId)
   if (!room) throw new Error(`room ${roomId} not found`)
   const player: InternalPlayer = { 
     id: `p${++idCounter}`, name, isAlive: true, isBot, role: 'citizen',
-    label: assginLabel(room),
+    label: assignLabel(room),
   }
   room.players.push(player)
   return player
