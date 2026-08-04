@@ -1,13 +1,151 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>frontend</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Zeteo — Vote &amp; Result Preview</title>
+<link rel="stylesheet" href="tokens.css">
+<script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>body{margin:0;}</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState } = React;
+
+function VoteScreen({ timerSeconds, candidates, myVote: initialVote, votedCount, totalCount, onConfirm }) {
+  const [myVote, setMyVote] = useState(initialVote);
+  const mm = Math.floor(timerSeconds / 60);
+  const ss = String(timerSeconds % 60).padStart(2, "0");
+
+  return (
+    <div style={{ minHeight: "100vh", background: "var(--color-bg)", display: "flex", justifyContent: "center", padding: "var(--space-8) var(--space-4)" }}>
+      <div style={{ width: "100%", maxWidth: 440, border: "1px solid var(--color-divider)", borderRadius: "var(--radius-lg)", background: "var(--color-surface)", padding: "var(--space-6)", boxShadow: "var(--shadow-md)" }}>
+        <div style={{ textAlign: "center", marginBottom: "var(--space-4)" }}>
+          <div className="text-muted" style={{ fontSize: 13, marginBottom: "var(--space-2)" }}>그런데, 이 중 한 명은 사람이 아니었습니다</div>
+          <div style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 38, color: "var(--color-accent-700, var(--color-accent))", fontVariantNumeric: "tabular-nums" }}>{mm}:{ss}</div>
+        </div>
+        <div className="hr" />
+        <h3 style={{ textAlign: "center", marginBottom: "var(--space-1)" }}>누가 봇이었을까요?</h3>
+        <div className="tag tag-outline" style={{ display: "block", textAlign: "center", margin: "0 auto var(--space-4)", width: "fit-content" }}>익명 투표</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
+          {candidates.map(c => {
+            const selected = myVote === c.id;
+            return (
+              <label key={c.id} className="radio" onClick={() => setMyVote(c.id)} style={{ justifyContent: "space-between", padding: "var(--space-3)", border: `1px solid ${selected ? "var(--color-accent)" : "var(--color-divider)"}`, borderRadius: "var(--radius-md)", cursor: "pointer" }}>
+                <span style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                  <span style={{ width: 16, height: 16, flex: "none", borderRadius: "50%", border: `1.5px solid ${selected ? "var(--color-accent)" : "var(--color-divider)"}`, background: selected ? "var(--color-accent)" : "transparent" }} />
+                  <span style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 16 }}>{c.name}</span>
+                </span>
+                {selected && <span style={{ color: "var(--color-accent)", fontSize: 13 }}>✓</span>}
+              </label>
+            );
+          })}
+        </div>
+        <div className="text-muted" style={{ fontSize: 12, textAlign: "center", marginBottom: "var(--space-3)" }}>투표 현황 · {votedCount} / {totalCount}명 완료</div>
+        <button className="btn btn-primary btn-block" disabled={myVote === null} onClick={() => myVote !== null && onConfirm(myVote)}>확정</button>
+      </div>
+    </div>
+  );
+}
+
+function ResultScreen({ winner, botDetectSummary, reveals, reasons, checkedReasonIds: initialChecked, freeText: initialFreeText, onSubmit }) {
+  const [checked, setChecked] = useState(initialChecked);
+  const [freeText, setFreeText] = useState(initialFreeText);
+  const toggle = id => setChecked(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+
+  return (
+    <div style={{ minHeight: "100vh", background: "var(--color-bg)", display: "flex", justifyContent: "center", padding: "var(--space-8) var(--space-4)" }}>
+      <div style={{ width: "100%", maxWidth: 520, display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
+        <div style={{ textAlign: "center", border: "1px solid var(--color-divider)", borderRadius: "var(--radius-lg)", background: "var(--color-surface)", padding: "var(--space-6)", boxShadow: "var(--shadow-md)" }}>
+          <div className="text-muted" style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "var(--space-2)" }}>GAME OVER</div>
+          <h1 style={{ marginBottom: "var(--space-3)" }}>라이어 게임</h1>
+          <div className="tag tag-accent" style={{ fontSize: 14, padding: "6px 16px", marginBottom: "var(--space-4)" }}>{winner}</div>
+          <div className="hr" />
+          <div style={{ marginTop: "var(--space-3)" }}>
+            <div className="card-title" style={{ fontSize: 20 }}>봇 색출</div>
+            <div className="text-muted" style={{ fontSize: 13 }}>{botDetectSummary}</div>
+          </div>
+        </div>
+        <div style={{ border: "1px solid var(--color-divider)", borderRadius: "var(--radius-lg)", background: "var(--color-surface)", padding: "var(--space-4)" }}>
+          <h4 style={{ marginBottom: "var(--space-3)" }}>정체 공개</h4>
+          <div>
+            {reveals.map(r => (
+              <div key={r.id ?? r.name} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "var(--space-2) 0", borderBottom: "1px solid var(--color-divider)" }}>
+                <span style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 16 }}>{r.name}</span>
+                <span className={`tag ${r.isMatch ? "tag-accent" : "tag-neutral"}`}>{r.roleLabel}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div style={{ border: "1px solid var(--color-divider)", borderRadius: "var(--radius-lg)", background: "var(--color-surface)", padding: "var(--space-4)" }}>
+          <h4 style={{ marginBottom: "var(--space-1)" }}>왜 봇이라고 생각했나요?</h4>
+          <div className="text-muted" style={{ fontSize: 12, marginBottom: "var(--space-3)" }}>적중자 대상 · 해당하는 이유 선택 (복수)</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", marginBottom: "var(--space-3)" }}>
+            {reasons.map(reason => {
+              const isChecked = checked.includes(reason.id);
+              return (
+                <label key={reason.id} className="radio" onClick={() => toggle(reason.id)} style={{ justifyContent: "flex-start", padding: "var(--space-2) var(--space-3)", border: `1px solid ${isChecked ? "var(--color-accent)" : "var(--color-divider)"}`, borderRadius: "var(--radius-md)", cursor: "pointer" }}>
+                  <span style={{ width: 16, height: 16, flex: "none", borderRadius: 3, border: `1.5px solid ${isChecked ? "var(--color-accent)" : "var(--color-divider)"}`, background: isChecked ? "var(--color-accent)" : "transparent", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "white" }}>{isChecked ? "✓" : ""}</span>
+                  <span style={{ fontSize: 14 }}>{reason.label}</span>
+                </label>
+              );
+            })}
+          </div>
+          <div className="field" style={{ marginBottom: "var(--space-3)" }}>
+            <label>기타 (자유 서술)</label>
+            <textarea className="input" value={freeText} onChange={e => setFreeText(e.target.value)} placeholder="직접 입력해주세요"></textarea>
+          </div>
+          <button className="btn btn-primary btn-block" onClick={() => onSubmit(checked, freeText)}>제출</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const CANDIDATES = [
+  { id: 0, name: "김정현" },
+  { id: 1, name: "박진" },
+  { id: 2, name: "이현우" },
+  { id: 3, name: "유민성" },
+  { id: 4, name: "조은비" }
+];
+const REVEALS = [
+  { id: 0, name: "김정현", roleLabel: "사람 / 시민", isMatch: false },
+  { id: 1, name: "박진", roleLabel: "봇 / 라이어", isMatch: true },
+  { id: 2, name: "이현우", roleLabel: "사람 / 시민", isMatch: false },
+  { id: 3, name: "유민성", roleLabel: "사람 / 시민", isMatch: false },
+  { id: 4, name: "조은비", roleLabel: "사람 / 시민", isMatch: false }
+];
+const REASONS = [
+  { id: 0, label: "문체 완결성" },
+  { id: 1, label: "과잉 논리" },
+  { id: 2, label: "기억이 정확함" },
+  { id: 3, label: "뒤끝 없음" },
+  { id: 4, label: "말수 균일" },
+  { id: 5, label: "대화 앵커링 실패" }
+];
+
+function App() {
+  const [screen, setScreen] = useState("vote");
+  return (
+    <div>
+      <div style={{ display: "flex", justifyContent: "center", gap: "var(--space-2)", paddingTop: "var(--space-4)" }}>
+        <button className={`btn ${screen === "vote" ? "btn-primary" : "btn-secondary"}`} onClick={() => setScreen("vote")}>투표 화면</button>
+        <button className={`btn ${screen === "result" ? "btn-primary" : "btn-secondary"}`} onClick={() => setScreen("result")}>최종 결과 화면</button>
+      </div>
+      {screen === "vote" ? (
+        <VoteScreen timerSeconds={45} candidates={CANDIDATES} myVote={1} votedCount={4} totalCount={4} onConfirm={() => setScreen("result")} />
+      ) : (
+        <ResultScreen winner="라이어 승" botDetectSummary="4명 중 2명 적중" reveals={REVEALS} reasons={REASONS} checkedReasonIds={[1]} freeText="" onSubmit={() => {}} />
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
 </html>
