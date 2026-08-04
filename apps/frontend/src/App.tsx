@@ -1,7 +1,9 @@
 import { useState } from "react";
 import VoteScreen from "./VoteScreen";
 import ResultScreen from "./ResultScreen";
-import type { VoteScreenState, ResultScreenState } from "./types";
+import LandingScreen from "./LandingScreen";
+import LobbyScreen from "./LobbyScreen";
+import type { VoteScreenState, ResultScreenState, LobbyScreenState } from "./types";
 
 /**
  * 파트 D 소유 — 박진
@@ -20,6 +22,16 @@ import type { VoteScreenState, ResultScreenState } from "./types";
  * reveals 등)도 없어서 실제 서버 데이터로 못 그린다. 확인용으로 아래 mock 값을
  * 임시로 붙여둠 — 진짜 연결은 GameState 확장 논의 이후 교체 필요.
  */
+const mockLobbyState: LobbyScreenState = {
+  roomId: "AB12",
+  players: [
+    { id: "p1", name: "김정현", isReady: true },
+    { id: "p2", name: "박진", isReady: false },
+    { id: "p3", name: "이현우", isReady: true },
+  ],
+  myId: "p2",
+};
+
 const mockVoteState: VoteScreenState = {
   timerSeconds: 45,
   candidates: [
@@ -52,10 +64,42 @@ const mockResultState: ResultScreenState = {
   freeText: "",
 };
 
-type MockPhase = "lobby" | "botVote" | "result";
+type MockPhase = "landing" | "lobby" | "botVote" | "result";
 
 export function App() {
-  const [phase, setPhase] = useState<MockPhase>("lobby");
+  const [phase, setPhase] = useState<MockPhase>("landing");
+  const [myReady, setMyReady] = useState(false);
+
+  if (phase === "landing") {
+    return (
+      <LandingScreen
+        onJoin={(name, roomId) => {
+          console.log("[mock] join", name, roomId);
+          setPhase("lobby");
+        }}
+      />
+    );
+  }
+
+  if (phase === "lobby") {
+    return (
+      <div>
+        <LobbyScreen
+          {...mockLobbyState}
+          myReady={myReady}
+          onToggleReady={() => setMyReady((r) => !r)}
+        />
+        <div style={{ display: "flex", gap: 8, justifyContent: "center", paddingBottom: 16 }}>
+          <button className="btn btn-secondary" onClick={() => setPhase("botVote")}>
+            botVote 미리보기
+          </button>
+          <button className="btn btn-secondary" onClick={() => setPhase("result")}>
+            result 미리보기
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (phase === "botVote") {
     return (
@@ -76,26 +120,4 @@ export function App() {
       />
     );
   }
-
-  return (
-    <div className="zt-screen zt-center">
-      <div className="zt-card">
-        <p className="zt-label">Zeteo</p>
-        <p className="zt-role">파트 D 작업 예정</p>
-        <p className="zt-muted">
-          랜딩 · 방 입장 · 봇 지목 · 최종 결과
-          <br />
-          게임 화면은 <a href="?mock=">?mock=</a> 에서 확인
-        </p>
-        <div style={{ marginTop: 16, display: "flex", gap: 8, justifyContent: "center" }}>
-          <button className="btn btn-secondary" onClick={() => setPhase("botVote")}>
-            botVote 미리보기
-          </button>
-          <button className="btn btn-secondary" onClick={() => setPhase("result")}>
-            result 미리보기
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 }
