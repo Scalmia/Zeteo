@@ -87,5 +87,3 @@ export function buildGameStateFor(room: RoomInternalState, playerId: string): Ga
     reasons: room.phase === 'result' ? SURVEY_REASONS : [],
   }
 }
-  }
-}
