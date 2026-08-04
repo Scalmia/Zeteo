@@ -33,3 +33,15 @@ export interface ResultScreenState {
   checkedReasonIds: number[];
   freeText: string;
 }
+
+export interface LobbyPlayer {
+  id: PlayerId;
+  name: string;
+  isReady: boolean;
+}
+
+export interface LobbyScreenState {
+  roomId: string;
+  players: LobbyPlayer[];
+  myId: PlayerId;
+}
