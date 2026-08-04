@@ -313,6 +313,23 @@ io.on("connection", (socket) => {
           return;
         }
         
+        case "botVote": {
+          const meta = socketMeta.get(socket.id);
+          if (!meta) throw new Error("아직 방에 입장하지 않았습니다");
+          const room = getRoom(meta.roomId);
+          if (!room) throw new Error("room not found");
+          if (room.phase !== "botVote") throw new Error("지금은 봇 지목 단계가 아닙니다");
+
+          room.botVotes[meta.playerId] = action.targetId;
+
+          if (isVotingComplete(room)) {
+            clearPhaseTimer(room.roomId);
+            advancePhase(room);
+            return;
+          }
+          break;
+        }
+
         case "survey": {
           const meta = socketMeta.get(socket.id);
           if (!meta) throw new Error("아직 방에 입장하지 않았습니다");
