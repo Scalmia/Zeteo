@@ -26,18 +26,17 @@ export default function VoteScreen({
         background: "var(--color-bg)",
         display: "flex",
         justifyContent: "center",
-        padding: "var(--space-8) var(--space-4)"
+        padding: "var(--space-4)"
       }}
     >
       <div
         style={{
           width: "100%",
           maxWidth: 440,
-          border: "1px solid var(--color-divider)",
-          borderRadius: "var(--radius-lg)",
+          border: "1px solid var(--color-line)",
+          borderRadius: "var(--radius)",
           background: "var(--color-surface)",
-          padding: "var(--space-6)",
-          boxShadow: "var(--shadow-md)"
+          padding: "var(--space-4)"
         }}
       >
         <div style={{ textAlign: "center", marginBottom: "var(--space-4)" }}>
@@ -46,10 +45,10 @@ export default function VoteScreen({
           </div>
           <div
             style={{
-              fontFamily: "var(--font-heading)",
-              fontWeight: "var(--font-heading-weight)" as any,
+              fontFamily: "var(--font-body)",
+              fontWeight: 600,
               fontSize: 38,
-              color: "var(--color-accent-700, var(--color-accent))",
+              color: "var(--color-accent)",
               fontVariantNumeric: "tabular-nums"
             }}
           >
@@ -59,7 +58,7 @@ export default function VoteScreen({
 
         <div className="hr" />
 
-        <h3 style={{ textAlign: "center", marginBottom: "var(--space-1)" }}>누가 봇이었을까요?</h3>
+        <h3 style={{ textAlign: "center", marginBottom: "var(--space-2)" }}>누가 봇이었을까요?</h3>
         <div
           className="tag tag-outline"
           style={{ display: "block", textAlign: "center", margin: "0 auto var(--space-4)", width: "fit-content" }}
@@ -77,9 +76,9 @@ export default function VoteScreen({
                 onClick={() => setMyVote(c.id)}
                 style={{
                   justifyContent: "space-between",
-                  padding: "var(--space-3)",
-                  border: `1px solid ${selected ? "var(--color-accent)" : "var(--color-divider)"}`,
-                  borderRadius: "var(--radius-md)",
+                  padding: "var(--space-4)",
+                  border: `1px solid ${selected ? "var(--color-accent)" : "var(--color-line)"}`,
+                  borderRadius: "var(--radius)",
                   cursor: "pointer"
                 }}
               >
@@ -90,11 +89,11 @@ export default function VoteScreen({
                       height: 16,
                       flex: "none",
                       borderRadius: "50%",
-                      border: `1.5px solid ${selected ? "var(--color-accent)" : "var(--color-divider)"}`,
+                      border: `1.5px solid ${selected ? "var(--color-accent)" : "var(--color-line)"}`,
                       background: selected ? "var(--color-accent)" : "transparent"
                     }}
                   />
-                  <span style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 16 }}>{c.name}</span>
+                  <span style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 16 }}>{c.name}</span>
                 </span>
                 {selected && <span style={{ color: "var(--color-accent)", fontSize: 13 }}>✓</span>}
               </label>
@@ -102,7 +101,7 @@ export default function VoteScreen({
           })}
         </div>
 
-        <div className="text-muted" style={{ fontSize: 12, textAlign: "center", marginBottom: "var(--space-3)" }}>
+        <div className="text-muted" style={{ fontSize: 12, textAlign: "center", marginBottom: "var(--space-4)" }}>
           투표 현황 · {votedCount} / {totalCount}명 완료
         </div>
 

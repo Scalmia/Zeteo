@@ -28,18 +28,17 @@ export default function ResultScreen({
         background: "var(--color-bg)",
         display: "flex",
         justifyContent: "center",
-        padding: "var(--space-8) var(--space-4)"
+        padding: "var(--space-4)"
       }}
     >
       <div style={{ width: "100%", maxWidth: 520, display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
         <div
           style={{
             textAlign: "center",
-            border: "1px solid var(--color-divider)",
-            borderRadius: "var(--radius-lg)",
+            border: "1px solid var(--color-line)",
+            borderRadius: "var(--radius)",
             background: "var(--color-surface)",
-            padding: "var(--space-6)",
-            boxShadow: "var(--shadow-md)"
+            padding: "var(--space-4)"
           }}
         >
           <div
@@ -48,19 +47,19 @@ export default function ResultScreen({
           >
             GAME OVER
           </div>
-          <h1 style={{ marginBottom: "var(--space-3)" }}>라이어 게임</h1>
+          <h1 style={{ marginBottom: "var(--space-4)" }}>라이어 게임</h1>
           <div className="tag tag-accent" style={{ fontSize: 14, padding: "6px 16px", marginBottom: "var(--space-4)" }}>
             {winner}
           </div>
           <div className="hr" />
-          <div style={{ marginTop: "var(--space-3)" }}>
+          <div style={{ marginTop: "var(--space-4)" }}>
             <div className="card-title" style={{ fontSize: 20 }}>봇 색출</div>
             <div className="text-muted" style={{ fontSize: 13 }}>{botDetectSummary}</div>
           </div>
         </div>
 
-        <div style={{ border: "1px solid var(--color-divider)", borderRadius: "var(--radius-lg)", background: "var(--color-surface)", padding: "var(--space-4)" }}>
-          <h4 style={{ marginBottom: "var(--space-3)" }}>정체 공개</h4>
+        <div style={{ border: "1px solid var(--color-line)", borderRadius: "var(--radius)", background: "var(--color-surface)", padding: "var(--space-4)" }}>
+          <h4 style={{ marginBottom: "var(--space-4)" }}>정체 공개</h4>
           <div>
             {reveals.map((r: Reveal) => (
               <div
@@ -70,23 +69,23 @@ export default function ResultScreen({
                   alignItems: "center",
                   justifyContent: "space-between",
                   padding: "var(--space-2) 0",
-                  borderBottom: "1px solid var(--color-divider)"
+                  borderBottom: "1px solid var(--color-line)"
                 }}
               >
-                <span style={{ fontFamily: "var(--font-heading)", fontWeight: 600, fontSize: 16 }}>{r.name}</span>
+                <span style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 16 }}>{r.name}</span>
                 <span className={`tag ${r.isMatch ? "tag-accent" : "tag-neutral"}`}>{r.roleLabel}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <div style={{ border: "1px solid var(--color-divider)", borderRadius: "var(--radius-lg)", background: "var(--color-surface)", padding: "var(--space-4)" }}>
-          <h4 style={{ marginBottom: "var(--space-1)" }}>왜 봇이라고 생각했나요?</h4>
-          <div className="text-muted" style={{ fontSize: 12, marginBottom: "var(--space-3)" }}>
+        <div style={{ border: "1px solid var(--color-line)", borderRadius: "var(--radius)", background: "var(--color-surface)", padding: "var(--space-4)" }}>
+          <h4 style={{ marginBottom: "var(--space-2)" }}>왜 봇이라고 생각했나요?</h4>
+          <div className="text-muted" style={{ fontSize: 12, marginBottom: "var(--space-4)" }}>
             적중자 대상 · 해당하는 이유 선택 (복수)
           </div>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", marginBottom: "var(--space-3)" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
             {reasons.map((reason: Reason) => {
               const isChecked = checked.includes(reason.id);
               return (
@@ -96,9 +95,9 @@ export default function ResultScreen({
                   onClick={() => toggle(reason.id)}
                   style={{
                     justifyContent: "flex-start",
-                    padding: "var(--space-2) var(--space-3)",
-                    border: `1px solid ${isChecked ? "var(--color-accent)" : "var(--color-divider)"}`,
-                    borderRadius: "var(--radius-md)",
+                    padding: "var(--space-2) var(--space-4)",
+                    border: `1px solid ${isChecked ? "var(--color-accent)" : "var(--color-line)"}`,
+                    borderRadius: "var(--radius)",
                     cursor: "pointer"
                   }}
                 >
@@ -108,7 +107,7 @@ export default function ResultScreen({
                       height: 16,
                       flex: "none",
                       borderRadius: 3,
-                      border: `1.5px solid ${isChecked ? "var(--color-accent)" : "var(--color-divider)"}`,
+                      border: `1.5px solid ${isChecked ? "var(--color-accent)" : "var(--color-line)"}`,
                       background: isChecked ? "var(--color-accent)" : "transparent",
                       display: "flex",
                       alignItems: "center",
@@ -125,7 +124,7 @@ export default function ResultScreen({
             })}
           </div>
 
-          <div className="field" style={{ marginBottom: "var(--space-3)" }}>
+          <div className="field" style={{ marginBottom: "var(--space-4)" }}>
             <label>기타 (자유 서술)</label>
             <textarea
               className="input"
