@@ -69,12 +69,13 @@ type MockPhase = "landing" | "lobby" | "botVote" | "result";
 export function App() {
   const [phase, setPhase] = useState<MockPhase>("landing");
   const [myReady, setMyReady] = useState(false);
+  const [joinInfo, setJoinInfo] = useState({ name: "", roomId: "" });
 
   if (phase === "landing") {
     return (
       <LandingScreen
         onJoin={(name, roomId) => {
-          console.log("[mock] join", name, roomId);
+          setJoinInfo({ name, roomId });
           setPhase("lobby");
         }}
       />
@@ -82,10 +83,17 @@ export function App() {
   }
 
   if (phase === "lobby") {
+    const players = mockLobbyState.players.map((p) =>
+      p.id === mockLobbyState.myId
+        ? { ...p, name: joinInfo.name || p.name, isReady: myReady }
+        : p
+    );
     return (
       <div>
         <LobbyScreen
           {...mockLobbyState}
+          roomId={joinInfo.roomId || mockLobbyState.roomId}
+          players={players}
           myReady={myReady}
           onToggleReady={() => setMyReady((r) => !r)}
         />
