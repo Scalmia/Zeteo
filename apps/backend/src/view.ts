@@ -25,7 +25,7 @@ export function buildGameStateFor(room: RoomInternalState, playerId: string): Ga
   if (!me) throw new Error(`player ${playerId} not in room`)
 
   const publicPlayers: PublicPlayer[] = room.players.map(p => ({
-    id: p.id, name: p.name, isAlive: p.isAlive,
+    id: p.id, label: p.label, isAlive: p.isAlive,
   }))
 
   return {

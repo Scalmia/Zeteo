@@ -60,7 +60,10 @@ let idCounter = 0
 export function joinRoom(roomId: string, name: string, isBot = false): InternalPlayer {
   const room = getRoom(roomId)
   if (!room) throw new Error(`room ${roomId} not found`)
-  const player: InternalPlayer = { id: `p${++idCounter}`, name, isAlive: true, isBot, role: 'citizen' }
+  const player: InternalPlayer = { 
+    id: `p${++idCounter}`, name, isAlive: true, isBot, role: 'citizen',
+    label: assginLabel(room),
+  }
   room.players.push(player)
   return player
 }
