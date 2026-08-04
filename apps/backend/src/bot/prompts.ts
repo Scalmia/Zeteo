@@ -97,3 +97,13 @@ ${
 
 한 문장으로 말하세요.`;
 }
+
+export function guessWordPrompt(ctx: BotContext): string {
+  return `지금까지의 대화입니다.
+${formatTranscript(ctx)}
+
+당신이 라이어라는 게 밝혀졌습니다. 마지막 기회로 제시어를 맞히면 라이어의 승리입니다.
+지금까지 나온 묘사들을 종합해서 제시어를 추측하세요.
+
+단어 하나만 출력하세요. 설명하거나 문장으로 쓰지 마세요.`;
+}

@@ -100,7 +100,7 @@ async function main(): Promise<void> {
       console.error(err instanceof Error ? err.message : err);
       console.error(
         '\n확인할 것:\n' +
-          '  1. apps/backend/.env 가 있는가 (cp apps/backend/.env.example apps/backend/.env)\n' +
+          '  1. apps/backend/.env 가 있는가\n' +
           '  2. BOT_API_KEY / BOT_BASE_URL / BOT_MODEL 이 채워져 있는가\n' +
           '  3. BOT_MODEL 이 그 엔드포인트가 실제로 서빙하는 모델 이름인가\n',
       );
