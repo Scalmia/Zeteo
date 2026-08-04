@@ -185,13 +185,23 @@
   color: var(--color-muted, #9a9aa8);
 }
 /* 시스템 메시지가 라운드 경계선 역할을 한다.
- * 로그를 지우지 않고 누적하므로, 이 구분선이 "여기부터 2라운드"를 만든다. */
+ * 로그를 지우지 않고 누적하므로, 이 띠가 "여기부터 2라운드"를 만든다.
+ *
+ * 테두리만으로는 --color-line 과 --color-surface 의 대비가 낮아 경계가 읽히지
+ * 않았다(실측). 채팅판(--color-surface)보다 한 톤 어두운 --color-bg 를 깔아
+ * 가로 밴드로 만든다. 새 색을 만들지 않고 이미 있는 두 토큰의 단차를 빌려 쓰므로,
+ * D가 다크 값을 조정해도 관계가 유지된다.
+ *
+ * 글자는 muted 가 아니라 text 로 올린다. 재투표인지 생환인지를 구분하는 정보가
+ * 오직 이 문장에만 있기 때문이다(★7 기각의 전제). 읽히지 않으면 구분도 없다. */
 .zt-msg.is-system {
   justify-content: center;
-  margin: var(--space-2, 8px) 0;
-  padding: 4px 0;
-  font-size: 0.8rem;
-  color: var(--color-muted, #9a9aa8);
+  margin: var(--space-4, 16px) 0;
+  padding: var(--space-2, 8px) 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-text, #e8e8ee);
+  background: var(--color-bg, #0f0f14);
   border-top: 1px solid var(--color-line, #2a2a36);
   border-bottom: 1px solid var(--color-line, #2a2a36);
 }
