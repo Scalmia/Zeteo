@@ -1,6 +1,6 @@
-import { GameState, PublicPlayer, SurveyReason } from '@zeteo/shared-types'
-import { RoomInternalState } from './room'
-import { tallyBotVoteResults } from './vote'
+import { GameState, PublicPlayer, SurveyReason } from '@zeteo/shared-types';
+import { RoomInternalState } from './room';
+import { tallyBotVoteResults } from './vote';
 
 // TODO(박진/기획): 실제 문구는 설문 기획 확정되면 교체 — 지금은 타입/개수만 맞춘 placeholder
 const SURVEY_REASONS: SurveyReason[] = [
@@ -8,41 +8,43 @@ const SURVEY_REASONS: SurveyReason[] = [
   { id: 2, label: '반응이 느렸다' },
   { id: 3, label: '다른 사람들과 다른 정보를 아는 것 같았다' },
   { id: 4, label: '그냥 감이었다' },
-]
+];
 
 function countBotVoteProgress(room: RoomInternalState): { voted: number; total: number } {
   // isVotingComplete(index.ts)와 같은 기준: 봇 제외, 죽은 사람도 투표 대상에 포함
-  const humans = room.players.filter(p => !p.isBot)
-  const voted = humans.filter(p => room.botVotes[p.id] !== undefined).length
-  return { voted, total: humans.length }
+  const humans = room.players.filter((p) => !p.isBot);
+  const voted = humans.filter((p) => room.botVotes[p.id] !== undefined).length;
+  return { voted, total: humans.length };
 }
 
 // TODO(Day 4): vote.ts가 생기면 이 두 함수는 지우고 거기서 import
 function countVotes(votes: Record<string, string | null>): Record<string, number> {
-  const counts: Record<string, number> = {}
+  const counts: Record<string, number> = {};
   for (const targetId of Object.values(votes)) {
-    if (!targetId) continue
-    counts[targetId] = (counts[targetId] ?? 0) + 1
+    if (!targetId) continue;
+    counts[targetId] = (counts[targetId] ?? 0) + 1;
   }
-  return counts
+  return counts;
 }
 
 function countLifeVotes(lifeVotes: Record<string, boolean>): { kill: number; spare: number } {
-  const counts = { kill: 0, spare: 0 }
+  const counts = { kill: 0, spare: 0 };
   for (const kill of Object.values(lifeVotes)) {
-    if (kill) counts.kill++
-    else counts.spare++
+    if (kill) counts.kill++;
+    else counts.spare++;
   }
-  return counts
+  return counts;
 }
 
 export function buildGameStateFor(room: RoomInternalState, playerId: string): GameState {
-  const me = room.players.find(p => p.id === playerId)
-  if (!me) throw new Error(`player ${playerId} not in room`)
+  const me = room.players.find((p) => p.id === playerId);
+  if (!me) throw new Error(`player ${playerId} not in room`);
 
-  const publicPlayers: PublicPlayer[] = room.players.map(p => ({
-    id: p.id, label: p.label, isAlive: p.isAlive,
-  }))
+  const publicPlayers: PublicPlayer[] = room.players.map((p) => ({
+    id: p.id,
+    label: p.label,
+    isAlive: p.isAlive,
+  }));
 
   return {
     roomId: room.roomId,
@@ -74,16 +76,12 @@ export function buildGameStateFor(room: RoomInternalState, playerId: string): Ga
 
     // ★ 설계원칙 5 (봇 정보 유출 금지) — 아래 세 필드는 반드시 result phase에서만 채운다.
     // 한 단계라도 먼저 노출되면 개발자도구로 결과를 미리 볼 수 있게 된다.
-    botVoteCorrectCount: room.phase === 'result'
-      ? Object.values(tallyBotVoteResults(room)).filter(Boolean).length
-      : 0,
-    revealedBotId: room.phase === 'result'
-      ? (room.players.find(p => p.isBot)?.id ?? null)
-      : null,
-    revealedLiarId: room.phase === 'result'
-      ? (room.players.find(p => p.role === 'liar')?.id ?? null)
-      : null,
+    botVoteCorrectCount:
+      room.phase === 'result' ? Object.values(tallyBotVoteResults(room)).filter(Boolean).length : 0,
+    revealedBotId: room.phase === 'result' ? (room.players.find((p) => p.isBot)?.id ?? null) : null,
+    revealedLiarId:
+      room.phase === 'result' ? (room.players.find((p) => p.role === 'liar')?.id ?? null) : null,
 
     reasons: room.phase === 'result' ? SURVEY_REASONS : [],
-  }
+  };
 }
