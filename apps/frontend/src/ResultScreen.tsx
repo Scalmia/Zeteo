@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Reason, Reveal, ResultScreenState } from "./types";
-import "./tokens.css";
+import "./styles/tokens.css";
 
 interface ResultScreenProps extends ResultScreenState {
   onSubmit: (checkedReasonIds: number[], freeText: string) => void;

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Candidate, PlayerId, VoteScreenState } from "./types";
-import "./tokens.css";
+import "./styles/tokens.css";
 
 interface VoteScreenProps extends VoteScreenState {
   onConfirm: (votedId: PlayerId) => void;
