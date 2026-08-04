@@ -32,7 +32,7 @@ const transitions: Record<Phase, Transition> = {
     }
 
     const accused = room.players.find(p => p.id === accusedId)
-    pushSystemMessage(room, `${accused?.name ?? '누군가'}님이 최다 득표로 지목되었습니다.`)
+    pushSystemMessage(room, `${accused?.label ?? '누군가'}님이 최다 득표로 지목되었습니다.`)
 
     return 'finalDefense'
   },
@@ -57,7 +57,7 @@ const transitions: Record<Phase, Transition> = {
 
     // 살린다 선택 → 횟수 제한 없이 매번 debate로 복귀
     const accused = room.players.find(p => p.id === room.accusedId)
-    pushSystemMessage(room, `${accused?.name ?? '누군가'}님이 살아남았습니다. 토론을 재개합니다.`)
+    pushSystemMessage(room, `${accused?.label ?? '누군가'}님이 살아남았습니다. 토론을 재개합니다.`)
 
     room.accusedId = null
     room.votes = {}

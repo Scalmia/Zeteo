@@ -37,6 +37,11 @@ export interface Message {
   phase: Phase; // 발언이 속한 단계
   at: number;   // epoch ms
 }
+/** S7 설문 — "왜 봇이라 생각했나" 선택지 1개 */
+export interface SurveyReason {
+  id: number;
+  label: string;
+}
 
 /** 서버가 각 플레이어에게 개별 생성해 보내는 상태 */
 export interface GameState {
@@ -60,7 +65,11 @@ export interface GameState {
   lifeVoteCounts: { kill: number; spare: number }; // S4 생사 투표 집계
   revealedRole: Role | null;                       // S5 처형자 역할 공개
   liarGameResult: 'liarWin' | 'citizenWin' | null; // S5 라이어 게임 승패
-  revealedBotId: string | null;
+  botVoteCounts: { voted: number; total: number }; // S6 익명 투표 진행도
+  botVoteCorrectCount: number;                     // S7 봇을 맞힌 인원 수 (result 이전엔 0)
+  revealedBotId: string | null;                    // S7 봇이었던 사람 (result 이전엔 null)
+  revealedLiarId: string | null;                   // S7 라이어였던 사람 (result 이전엔 null)
+  reasons: SurveyReason[];                         // S7 "왜 봇이라 생각했나" 설문 선택지
 }
 
 // 클라이언트 → 서버
