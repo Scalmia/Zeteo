@@ -1,0 +1,76 @@
+/* 파트 D 소유 — 박진
+ *
+ * 파트 C의 game.css 가 이 11개 이름을 var(--토큰, fallback) 형태로 참조한다.
+ * 기획서 v2.0 §1: 테마 다크 확정. 이름은 바꾸지 말 것 — C가 참조 중이다.
+ * 색상값(블랙 앤 레드)은 1차 초안 — 팀원들과 조율 후 재조정 예정.
+ */
+
+:root {
+  --color-bg: #0d0d0f;
+  --color-surface: #19181b;
+  --color-line: color-mix(in srgb, #f2efe9 14%, transparent);
+  --color-text: #f2efe9;
+  --color-muted: color-mix(in srgb, #f2efe9 55%, transparent);
+  --color-accent: #b3261e;
+  --color-danger: #ff5449;
+
+  --space-2: 8px;
+  --space-4: 16px;
+
+  --radius: 6px;
+
+  --font-body: "Lora", system-ui, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; font-size: 15px; line-height: 1.55; font-weight: 400; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); }
+h1, h2, h3, h4, h5, h6 { font-family: var(--font-body); font-weight: 600; line-height: 1.15; margin: 0 0 var(--space-2); }
+h1 { font-size: 42px; }
+h2 { font-size: 32px; }
+h3 { font-size: 25px; }
+h4 { font-size: 20px; }
+p { margin: 0 0 var(--space-4); }
+a { color: var(--color-accent); text-underline-offset: 3px; }
+.text-muted { color: var(--color-muted); }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+
+.hr { height: 1px; border: 0; margin: var(--space-4) 0; background: var(--color-line); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; text-decoration: none;
+  font-family: var(--font-body); font-weight: 600;
+  font-size: 14px; line-height: 1.2; color: var(--color-text);
+  background: transparent; border: 1px solid transparent;
+  padding: var(--space-2) calc(var(--space-2) * 3);
+  border-radius: var(--radius);
+}
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary { color: var(--color-accent); border-color: var(--color-accent); }
+.btn-primary:hover { background: color-mix(in srgb, var(--color-accent) 14%, transparent); }
+.btn-primary:active { background: color-mix(in srgb, var(--color-accent) 24%, transparent); }
+.btn-secondary { border-color: var(--color-line); }
+.btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.btn-block { width: 100%; margin-top: var(--space-2); }
+
+.field > label { display: block; font-size: 12px; margin-bottom: 5px; color: var(--color-muted); }
+.input {
+  width: 100%; min-height: 36px; padding: 6px 10px; font: inherit; font-size: 14px;
+  color: var(--color-text); caret-color: var(--color-accent); background: transparent;
+  border: 1px solid var(--color-line); border-radius: var(--radius);
+}
+.input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+textarea.input { min-height: 90px; resize: vertical; }
+
+.radio { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
+
+.tag { display: inline-flex; align-items: center; font-size: 11px; letter-spacing: 0.02em; padding: 3px 10px; border-radius: calc(var(--radius) * 0.75); }
+.tag-accent { background: color-mix(in srgb, var(--color-accent) 22%, transparent); color: var(--color-accent); }
+.tag-neutral { background: color-mix(in srgb, var(--color-text) 12%, transparent); color: var(--color-text); }
+.tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+.tag-danger { background: color-mix(in srgb, var(--color-danger) 20%, transparent); color: var(--color-danger); }
+
+.card-title { font-family: var(--font-body); font-weight: 600; font-size: 17px; line-height: 1.2; }
