@@ -1,5 +1,6 @@
 import { useState } from "react";
-import type { Candidate, PlayerId, VoteScreenState } from "./types";
+import type { PublicPlayer } from "@zeteo/shared-types";
+import type { PlayerId, VoteScreenState } from "./types";
 import "./styles/tokens.css";
 
 interface VoteScreenProps extends VoteScreenState {
@@ -10,8 +11,7 @@ export default function VoteScreen({
   timerSeconds,
   candidates,
   myVote: initialVote,
-  votedCount,
-  totalCount,
+  botVoteCounts,
   onConfirm
 }: VoteScreenProps) {
   const [myVote, setMyVote] = useState<PlayerId | null>(initialVote);
@@ -67,7 +67,7 @@ export default function VoteScreen({
         </div>
 
         <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-2)", marginBottom: "var(--space-4)" }}>
-          {candidates.map((c: Candidate) => {
+          {candidates.map((c: PublicPlayer) => {
             const selected = myVote === c.id;
             return (
               <label
@@ -93,7 +93,7 @@ export default function VoteScreen({
                       background: selected ? "var(--color-accent)" : "transparent"
                     }}
                   />
-                  <span style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 16 }}>{c.name}</span>
+                  <span style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 16 }}>{c.label}</span>
                 </span>
                 {selected && <span style={{ color: "var(--color-accent)", fontSize: 13 }}>✓</span>}
               </label>
@@ -102,7 +102,7 @@ export default function VoteScreen({
         </div>
 
         <div className="text-muted" style={{ fontSize: 12, textAlign: "center", marginBottom: "var(--space-4)" }}>
-          투표 현황 · {votedCount} / {totalCount}명 완료
+          투표 현황 · {botVoteCounts.voted} / {botVoteCounts.total}명 완료
         </div>
 
         <button

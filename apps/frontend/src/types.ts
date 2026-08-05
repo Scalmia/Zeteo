@@ -1,23 +1,12 @@
-export type PlayerId = string;
+import type { PublicPlayer } from "@zeteo/shared-types";
 
-export interface Candidate {
-  id: PlayerId;
-  name: string;
-}
+export type PlayerId = string;
 
 export interface VoteScreenState {
   timerSeconds: number;
-  candidates: Candidate[];
+  candidates: PublicPlayer[];
   myVote: PlayerId | null;
-  votedCount: number;
-  totalCount: number;
-}
-
-export interface Reveal {
-  id: PlayerId;
-  name: string;
-  isMatch: boolean;
-  roleLabel: string;
+  botVoteCounts: { voted: number; total: number };
 }
 
 export interface Reason {
@@ -27,8 +16,10 @@ export interface Reason {
 
 export interface ResultScreenState {
   winner: string;
-  botDetectSummary: string;
-  reveals: Reveal[];
+  totalVoters: number;
+  botVoteCorrectCount: number;
+  revealedBotName: string | null;
+  revealedLiarName: string | null;
   reasons: Reason[];
   checkedReasonIds: number[];
   freeText: string;
@@ -36,7 +27,7 @@ export interface ResultScreenState {
 
 export interface LobbyPlayer {
   id: PlayerId;
-  name: string;
+  label: string;
   isReady: boolean;
 }
 

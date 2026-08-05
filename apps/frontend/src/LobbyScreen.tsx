@@ -52,7 +52,7 @@ export default function LobbyScreen({ roomId, players, myId, myReady, onToggleRe
               }}
             >
               <span style={{ fontWeight: p ? 600 : 400, color: p ? "var(--color-text)" : "var(--color-muted)" }}>
-                {p ? p.name : "대기중"}
+                {p ? p.label : "대기중"}
                 {p && p.id === myId ? " (나)" : ""}
               </span>
               {p && (

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { Reason, Reveal, ResultScreenState } from "./types";
+import type { Reason, ResultScreenState } from "./types";
 import "./styles/tokens.css";
 
 interface ResultScreenProps extends ResultScreenState {
@@ -8,8 +8,10 @@ interface ResultScreenProps extends ResultScreenState {
 
 export default function ResultScreen({
   winner,
-  botDetectSummary,
-  reveals,
+  totalVoters,
+  botVoteCorrectCount,
+  revealedBotName,
+  revealedLiarName,
   reasons,
   checkedReasonIds: initialChecked,
   freeText: initialFreeText,
@@ -54,28 +56,42 @@ export default function ResultScreen({
           <div className="hr" />
           <div style={{ marginTop: "var(--space-4)" }}>
             <div className="card-title" style={{ fontSize: 20 }}>봇 색출</div>
-            <div className="text-muted" style={{ fontSize: 13 }}>{botDetectSummary}</div>
+            <div className="text-muted" style={{ fontSize: 13 }}>
+              {totalVoters}명 중 {botVoteCorrectCount}명이 봇을 정확히 지목했습니다
+            </div>
           </div>
         </div>
 
         <div style={{ border: "1px solid var(--color-line)", borderRadius: "var(--radius)", background: "var(--color-surface)", padding: "var(--space-4)" }}>
           <h4 style={{ marginBottom: "var(--space-4)" }}>정체 공개</h4>
           <div>
-            {reveals.map((r: Reveal) => (
-              <div
-                key={r.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  padding: "var(--space-2) 0",
-                  borderBottom: "1px solid var(--color-line)"
-                }}
-              >
-                <span style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 16 }}>{r.name}</span>
-                <span className={`tag ${r.isMatch ? "tag-accent" : "tag-neutral"}`}>{r.roleLabel}</span>
-              </div>
-            ))}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "var(--space-2) 0",
+                borderBottom: "1px solid var(--color-line)"
+              }}
+            >
+              <span style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 16 }}>
+                {revealedBotName ?? "—"}
+              </span>
+              <span className="tag tag-accent">봇</span>
+            </div>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "var(--space-2) 0"
+              }}
+            >
+              <span style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 16 }}>
+                {revealedLiarName ?? "—"}
+              </span>
+              <span className="tag tag-neutral">라이어</span>
+            </div>
           </div>
         </div>
 
