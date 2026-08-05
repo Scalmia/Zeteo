@@ -3,13 +3,20 @@ import type { GameState, Message, PublicPlayer } from '@zeteo/shared-types';
 // ⚠️ 이 파일은 파트 C·D 공동 소유. 변경 시 상대에게 알린다.
 //    키 네이밍 규칙: <phase>-<변형>
 
-/** 5인 = 사람 4 + 봇 1. 룰북 캡션의 "4인 게임이면 3표"는 MVP 기준과 맞지 않으므로 쓰지 않는다. */
+/** 5인 = 사람 4 + 봇 1. 룰북 캡션의 "4인 게임이면 3표"는 MVP 기준과 맞지 않으므로 쓰지 않는다.
+ *
+ *  게임 중에는 실명이 아니라 서버가 방마다 무작위 배정하는 label("참가자 N")만 보인다.
+ *  실명은 S7의 revealedNames 로만 공개된다 — 참고용 대응은 아래와 같다.
+ *    p1 김정현 · p2 박진 · p3 이현우(=나) · p4 유민성 · p5 최서연(봇)
+ *
+ *  label 값을 일부러 비순차로 둔 것은 서버 assignLabel 이 1~20 중 무작위로 뽑기 때문이다.
+ *  화면이 "label 번호 = 입장 순서"를 가정하고 있으면 여기서 드러난다. */
 const players: PublicPlayer[] = [
-  { id: 'p1', label: '김정현', isAlive: true, isReady: true },
-  { id: 'p2', label: '박진', isAlive: true, isReady: true },
-  { id: 'p3', label: '이현우', isAlive: true, isReady: true },
-  { id: 'p4', label: '유민성', isAlive: true, isReady: true },
-  { id: 'p5', label: '최서연', isAlive: true, isReady: true }, // 실제로는 봇. 클라이언트는 알 수 없어야 한다.
+  { id: 'p1', label: '참가자 4', isAlive: true, isReady: true },
+  { id: 'p2', label: '참가자 1', isAlive: true, isReady: true },
+  { id: 'p3', label: '참가자 7', isAlive: true, isReady: true },
+  { id: 'p4', label: '참가자 3', isAlive: true, isReady: true },
+  { id: 'p5', label: '참가자 9', isAlive: true, isReady: true }, // 실제로는 봇. 클라이언트는 알 수 없어야 한다.
 ];
 
 const ME = 'p3';
