@@ -72,14 +72,13 @@ export function pushSystemMessage(room: RoomInternalState, text: string) {
 
 let idCounter = 0;
 
+const LABEL_POOL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
 function assignLabel(room: RoomInternalState): string {
   const used = new Set(room.players.map((p) => p.label));
-  let label: string;
-  do {
-    const n = 1 + Math.floor(Math.random() * 20); // room 정원보다 넉넉하게
-    label = `참가자 ${n}`;
-  } while (used.has(label));
-  return label;
+  const available = LABEL_POOL.filter((l) => !used.has(l));
+  if (available.length === 0) throw new Error('label pool exhausted');
+  return available[Math.floor(Math.random() * available.length)]!;
 }
 
 export function joinRoom(roomId: string, name: string, isBot = false): InternalPlayer {
