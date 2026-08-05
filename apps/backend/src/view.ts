@@ -78,10 +78,14 @@ export function buildGameStateFor(room: RoomInternalState, playerId: string): Ga
     // 한 단계라도 먼저 노출되면 개발자도구로 결과를 미리 볼 수 있게 된다.
     botVoteCorrectCount:
       room.phase === 'result' ? Object.values(tallyBotVoteResults(room)).filter(Boolean).length : 0,
-    revealedBotId: room.phase === 'result' ? (room.players.find((p) => p.isBot)?.id ?? null) : null,
+    revealedBotId: 
+      room.phase === 'result' ? (room.players.find((p) => p.isBot)?.id ?? null) : null,
     revealedLiarId:
       room.phase === 'result' ? (room.players.find((p) => p.role === 'liar')?.id ?? null) : null,
 
-    reasons: room.phase === 'result' ? SURVEY_REASONS : [],
+    revealedNames:                         // ★ 추가
+    room.phase === 'result'
+    ? Object.fromEntries(room.players.map((p) => [p.id, p.name]))
+    : null,
   };
 }

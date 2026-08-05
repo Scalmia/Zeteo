@@ -127,12 +127,14 @@ async function maybeTriggerBot(room: RoomInternalState) {
     players: room.players.map((p) => ({ id: p.id, label: p.label, isAlive: p.isAlive })),
     transcript: room.messages,
     voteCounts,
+    accusedId: room.accusedId,           
+    myVote: room.votes[bot.id] ?? null,  
   };
 
   const action = await decideBotAction(ctx);
   if (room.phase !== phaseWhenAsked) return; // 응답 오는 사이 phase 바뀌었으면 무시
 
-  if (action.t === 'speak') {
+  if (action.t === 'describe') {
     recordSpeak(room, bot.id, action.text);
     if (isDescribeComplete(room)) {
       clearPhaseTimer(room.roomId);
