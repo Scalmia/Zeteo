@@ -33,9 +33,12 @@ type ThinkingConfig = { type: 'enabled'; budget_tokens: number } | { type: 'enab
 /**
  * BOT_MODEL(qwen3.8-max 등)이 thinking 기본값을 xhigh · budget 131072로 잡는 모델이라
  * 채팅 한 줄 뽑는 데도 추론에 수십 초가 걸린다. Anthropic 프로토콜이 허용하는
- * budget_tokens 최솟값(1024)을 기본으로 써서 턴제 채팅(describe/finalDefense)의
- * 지연을 줄인다. guessWord처럼 호출이 드물고 품질이 중요한 곳은 호출부에서
- * reasoning_effort: 'max'로 오버라이드한다.
+ * budget_tokens 최솟값(1024)을 기본으로 써서 지연을 줄인다.
+ * guessWord처럼 호출이 드물고 품질이 중요한 곳은 호출부에서 오버라이드한다.
+ *
+ * maxTokens 기본값이 큰 것은 API가 max_tokens > budget_tokens를 요구하기 때문이지
+ * 답이 길어서가 아니다. budget_tokens 없이 reasoning_effort만 주는 호출은
+ * 이 제약을 받지 않으므로 훨씬 작은 값을 써도 된다.
  */
 const DEFAULT_THINKING: ThinkingConfig = { type: 'enabled', budget_tokens: 1024 };
 
