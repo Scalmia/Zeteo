@@ -30,7 +30,7 @@ export interface PublicPlayer {
   id: string;
   label: string;
   isAlive: boolean;
-  isReady : boolen;
+  isReady : boolean;
 }
 
 export interface Message {
@@ -39,11 +39,6 @@ export interface Message {
   text: string;
   phase: Phase; // 발언이 속한 단계
   at: number; // epoch ms
-}
-/** S7 설문 — "왜 봇이라 생각했나" 선택지 1개 */
-export interface SurveyReason {
-  id: number;
-  label: string;
 }
 /** S7 설문 — "왜 봇이라 생각했나" 선택지 1개 */
 export interface SurveyReason {
