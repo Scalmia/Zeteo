@@ -27,6 +27,17 @@ const GAME_SCREEN_PHASES = new Set([
   "guessWord",
 ]);
 
+// 서버가 이 필드들을 빠뜨리고 보내면 하위 화면(state.players.find 등)이 그대로 크래시한다.
+// 각 phase로 넘어가기 직전, 그 phase가 실제로 쓰는 필드만 여기서 한 번에 확인한다 —
+// 통과하면 그 아래로는 필드가 있다고 안심하고 그대로 써도 된다.
+function MissingData({ label }: { label: string }) {
+  return (
+    <div style={{ textAlign: "center", padding: 32, color: "var(--color-danger)" }}>
+      {label} 정보를 받지 못했습니다. 잠시 후 다시 시도해주세요.
+    </div>
+  );
+}
+
 function renderScreen(state: GameState | null, onEvent: (e: ClientEvent) => void) {
   if (!state) {
     return (
@@ -37,6 +48,7 @@ function renderScreen(state: GameState | null, onEvent: (e: ClientEvent) => void
   }
 
   if (state.phase === "lobby") {
+    if (!state.players) return <MissingData label="플레이어" />;
     const me = state.players.find((p) => p.id === state.myId);
     return (
       <LobbyScreen
@@ -50,10 +62,14 @@ function renderScreen(state: GameState | null, onEvent: (e: ClientEvent) => void
   }
 
   if (GAME_SCREEN_PHASES.has(state.phase)) {
+    if (!state.players || !state.messages || !state.voteCounts || !state.lifeVoteCounts) {
+      return <MissingData label="게임" />;
+    }
     return <GameScreen state={state} onEvent={onEvent} />;
   }
 
   if (state.phase === "botVote") {
+    if (!state.players || !state.botVoteCounts) return <MissingData label="투표" />;
     return (
       <VoteScreen
         deadlineAt={state.deadlineAt}
@@ -66,6 +82,9 @@ function renderScreen(state: GameState | null, onEvent: (e: ClientEvent) => void
   }
 
   if (state.phase === "result") {
+    if (!state.players || !state.botVoteCounts || !state.reasons) {
+      return <MissingData label="결과" />;
+    }
     const nameOf = (id: string | null) =>
       id ? (state.revealedNames?.[id] ?? state.players.find((p) => p.id === id)?.label ?? null) : null;
     const winner =
