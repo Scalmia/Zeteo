@@ -3,13 +3,20 @@ import type { GameState, Message, PublicPlayer } from '@zeteo/shared-types';
 // ⚠️ 이 파일은 파트 C·D 공동 소유. 변경 시 상대에게 알린다.
 //    키 네이밍 규칙: <phase>-<변형>
 
-/** 5인 = 사람 4 + 봇 1. 룰북 캡션의 "4인 게임이면 3표"는 MVP 기준과 맞지 않으므로 쓰지 않는다. */
+/** 5인 = 사람 4 + 봇 1. 룰북 캡션의 "4인 게임이면 3표"는 MVP 기준과 맞지 않으므로 쓰지 않는다.
+ *
+ *  게임 중에는 실명이 아니라 서버가 방마다 무작위 배정하는 label("참가자 N")만 보인다.
+ *  실명은 S7의 revealedNames 로만 공개된다 — 참고용 대응은 아래와 같다.
+ *    p1 김정현 · p2 박진 · p3 이현우(=나) · p4 유민성 · p5 최서연(봇)
+ *
+ *  label 값을 일부러 비순차로 둔 것은 서버 assignLabel 이 1~20 중 무작위로 뽑기 때문이다.
+ *  화면이 "label 번호 = 입장 순서"를 가정하고 있으면 여기서 드러난다. */
 const players: PublicPlayer[] = [
-  { id: 'p1', name: '김정현', isAlive: true },
-  { id: 'p2', name: '박진', isAlive: true },
-  { id: 'p3', name: '이현우', isAlive: true },
-  { id: 'p4', name: '유민성', isAlive: true },
-  { id: 'p5', name: '최서연', isAlive: true }, // 실제로는 봇. 클라이언트는 알 수 없어야 한다.
+  { id: 'p1', label: '참가자 4', isAlive: true },
+  { id: 'p2', label: '참가자 1', isAlive: true },
+  { id: 'p3', label: '참가자 7', isAlive: true },
+  { id: 'p4', label: '참가자 3', isAlive: true },
+  { id: 'p5', label: '참가자 9', isAlive: true }, // 실제로는 봇. 클라이언트는 알 수 없어야 한다.
 ];
 
 const ME = 'p3';
@@ -35,9 +42,9 @@ const describeLog: Message[] = [
 const debateLog: Message[] = [
   ...describeLog,
   msg('system', '묘사가 한 바퀴 끝났습니다. 토론을 시작합니다.', 'debate'),
-  msg('p1', '박진님 묘사가 너무 두루뭉술한데요', 'debate'),
+  msg('p1', '참가자 1님 묘사가 너무 두루뭉술한데요', 'debate'),
   msg('p2', '아 진짜 아니라니까', 'debate'),
-  msg('p4', '저도 박진님 좀 이상했어요', 'debate'),
+  msg('p4', '저도 참가자 1님 좀 이상했어요', 'debate'),
 ];
 
 /** 2라운드 진입 경로 2종. 로그는 지우지 않고 누적한다 —
@@ -45,16 +52,16 @@ const debateLog: Message[] = [
  *  로그를 비우면 그 전제가 깨진다. 라운드 경계는 시스템 메시지가 만든다. */
 const revoteLog: Message[] = [
   ...debateLog,
-  msg('p3', '저는 유민성님이요', 'debate'),
+  msg('p3', '저는 참가자 3님이요', 'debate'),
   msg('system', '동점입니다. 재투표를 시작합니다.', 'debate'),
 ];
 
 const sparedLog: Message[] = [
   ...debateLog,
-  msg('system', '박진님이 최다 득표로 지목되었습니다.', 'finalDefense'),
+  msg('system', '참가자 1님이 최다 득표로 지목되었습니다.', 'finalDefense'),
   msg('p2', '아니 저 진짜 시민이에요 제시어 알아요', 'finalDefense'),
   msg('p1', '그럼 말해보세요', 'finalDefense'),
-  msg('system', '박진님이 살아남았습니다. 토론을 재개합니다.', 'debate'),
+  msg('system', '참가자 1님이 살아남았습니다. 토론을 재개합니다.', 'debate'),
 ];
 
 const base: GameState = {
@@ -78,6 +85,15 @@ const base: GameState = {
   lifeVoteCounts: { kill: 0, spare: 0 },
   revealedRole: null,
   liarGameResult: null,
+
+  // S6·S7 (파트 D). 서버가 result 진입 직전에만 채우므로,
+  // 파트 C mock 은 전부 result 이전 페이즈라 항상 기본값이다.
+  botVoteCounts: { voted: 0, total: 0 },
+  botVoteCorrectCount: 0,
+  revealedBotId: null,
+  revealedLiarId: null,
+  revealedNames: null,
+  reasons: [],
 };
 
 export const MOCK_STATES: Record<string, GameState> = {

@@ -31,7 +31,7 @@ export function PlayerList({ players, myId, turnOrder, currentTurn, accused }: P
             .trim()}
         >
           <span className="zt-player-marker">{p.id === currentTurn ? '▶' : ''}</span>
-          <span className="zt-player-name">{p.name}</span>
+          <span className="zt-player-name">{p.label}</span>
           {p.id === myId && <span className="zt-player-me">나</span>}
         </li>
       ))}

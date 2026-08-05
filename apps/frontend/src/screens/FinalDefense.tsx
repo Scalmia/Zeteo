@@ -24,7 +24,7 @@ export function FinalDefense({
 
       <div className="zt-accused">
         <span className="zt-badge">지목됨</span>
-        <strong>{accused?.name}</strong>
+        <strong>{accused?.label}</strong>
         <span className="zt-vote-count">{votes}표</span>
       </div>
 
