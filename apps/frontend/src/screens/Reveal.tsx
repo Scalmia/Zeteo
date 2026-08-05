@@ -28,7 +28,7 @@ export function Reveal({
 
         <div className="zt-card">
           <span className="zt-badge">라이어 적발</span>
-          <p className="zt-role is-liar">{executed?.name}</p>
+          <p className="zt-role is-liar">{executed?.label}</p>
           <p className="zt-muted">주제: {state.category}</p>
 
           {canGuess ? (
@@ -67,7 +67,7 @@ export function Reveal({
       </header>
 
       <div className="zt-card">
-        <p className="zt-label">{executed?.name}은(는)</p>
+        <p className="zt-label">{executed?.label}은(는)</p>
         <p className={wasLiar ? 'zt-role is-liar' : 'zt-role'}>
           {state.revealedRole === 'liar' ? '라이어' : '시민'}
         </p>
