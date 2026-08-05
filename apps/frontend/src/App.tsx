@@ -4,6 +4,7 @@ import LandingScreen from "./LandingScreen";
 import LobbyScreen from "./LobbyScreen";
 import { GameScreen } from "./screens/GameScreen";
 import { useGameState } from "./hooks/useGameState";
+import type { ClientEvent, GameState } from "@zeteo/shared-types";
 
 /**
  * 파트 D 소유 — 박진
@@ -26,21 +27,12 @@ const GAME_SCREEN_PHASES = new Set([
   "guessWord",
 ]);
 
-export function App() {
-  const { state, onEvent, error } = useGameState();
-
+function renderScreen(state: GameState | null, onEvent: (e: ClientEvent) => void) {
   if (!state) {
     return (
-      <div>
-        {error && (
-          <div style={{ textAlign: "center", padding: 8, color: "var(--color-danger)" }}>
-            {error}
-          </div>
-        )}
-        <LandingScreen
-          onJoin={(name, roomId) => onEvent({ t: "join", roomId, name })}
-        />
-      </div>
+      <LandingScreen
+        onJoin={(name, roomId) => onEvent({ t: "join", roomId, name })}
+      />
     );
   }
 
@@ -102,4 +94,24 @@ export function App() {
 
   // survey 등 아직 전용 화면이 없는 페이즈
   return <div className="text-muted" style={{ textAlign: "center", padding: 32 }}>다음 단계 준비 중…</div>;
+}
+
+export function App() {
+  const { state, onEvent, connected, error } = useGameState();
+
+  return (
+    <div>
+      {!connected && (
+        <div style={{ textAlign: "center", padding: 8, color: "var(--color-danger)" }}>
+          서버와 연결이 끊겼습니다. 재연결 시도 중…
+        </div>
+      )}
+      {error && (
+        <div style={{ textAlign: "center", padding: 8, color: "var(--color-danger)" }}>
+          {error}
+        </div>
+      )}
+      {renderScreen(state, onEvent)}
+    </div>
+  );
 }
