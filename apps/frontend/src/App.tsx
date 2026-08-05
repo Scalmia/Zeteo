@@ -33,7 +33,7 @@ export function App() {
     return (
       <div>
         {error && (
-          <div className="text-danger" style={{ textAlign: "center", padding: 8 }}>
+          <div style={{ textAlign: "center", padding: 8, color: "var(--color-danger)" }}>
             {error}
           </div>
         )}
@@ -62,12 +62,9 @@ export function App() {
   }
 
   if (state.phase === "botVote") {
-    const timerSeconds = state.deadlineAt
-      ? Math.max(0, Math.round((state.deadlineAt - Date.now()) / 1000))
-      : 0;
     return (
       <VoteScreen
-        timerSeconds={timerSeconds}
+        deadlineAt={state.deadlineAt}
         candidates={state.players}
         myVote={state.myVote}
         botVoteCounts={state.botVoteCounts}

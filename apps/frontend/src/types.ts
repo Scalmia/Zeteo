@@ -3,7 +3,7 @@ import type { PublicPlayer } from "@zeteo/shared-types";
 export type PlayerId = string;
 
 export interface VoteScreenState {
-  timerSeconds: number;
+  deadlineAt: number | null;
   candidates: PublicPlayer[];
   myVote: PlayerId | null;
   botVoteCounts: { voted: number; total: number };

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { PublicPlayer } from "@zeteo/shared-types";
 import type { PlayerId, VoteScreenState } from "./types";
 import "./styles/tokens.css";
@@ -8,7 +8,7 @@ interface VoteScreenProps extends VoteScreenState {
 }
 
 export default function VoteScreen({
-  timerSeconds,
+  deadlineAt,
   candidates,
   myVote: initialVote,
   botVoteCounts,
@@ -16,6 +16,16 @@ export default function VoteScreen({
 }: VoteScreenProps) {
   const [myVote, setMyVote] = useState<PlayerId | null>(initialVote);
 
+  // Timer.tsx와 동일한 패턴: deadlineAt - now를 매 틱 새로 계산해야
+  // 백그라운드 탭에서 setInterval이 throttle 돼도 시간이 밀리지 않는다.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (deadlineAt === null) return;
+    const id = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(id);
+  }, [deadlineAt]);
+
+  const timerSeconds = deadlineAt === null ? 0 : Math.max(0, Math.round((deadlineAt - now) / 1000));
   const mm = Math.floor(timerSeconds / 60);
   const ss = String(timerSeconds % 60).padStart(2, "0");
 
