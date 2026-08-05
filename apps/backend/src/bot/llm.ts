@@ -9,8 +9,8 @@ function required(name: string, value: string | undefined): string {
   if (!value) {
     throw new Error(
       `환경변수 ${name} 이(가) 없습니다.\n` +
-        `  apps/backend/.env.example 을 .env 로 복사한 뒤 값을 채우세요.\n` +
-        `  cp apps/backend/.env.example apps/backend/.env`,
+        `  apps/backend/.env 에 BOT_API_KEY / BOT_BASE_URL / BOT_MODEL 을 채우세요.\n` +
+        `  값은 Alibaba Token Plan 콘솔에서 발급합니다.`,
     );
   }
   return value;
@@ -28,18 +28,31 @@ function getClient(): Anthropic {
   return client;
 }
 
+type ThinkingConfig = { type: 'enabled'; budget_tokens: number } | { type: 'enabled'; reasoning_effort: 'high' | 'max' } | { type: 'disabled' };
+
 /**
- * 봇 발화 한 번을 생성한다.
+ * BOT_MODEL(qwen3.8-max 등)이 thinking 기본값을 xhigh · budget 131072로 잡는 모델이라
+ * 채팅 한 줄 뽑는 데도 추론에 수십 초가 걸린다. Anthropic 프로토콜이 허용하는
+ * budget_tokens 최솟값(1024)을 기본으로 써서 지연을 줄인다.
+ * guessWord처럼 호출이 드물고 품질이 중요한 곳은 호출부에서 오버라이드한다.
  *
- * Anthropic 프로토콜 호환 엔드포인트를 쓰므로, Anthropic 고유 파라미터
- * (thinking, effort 등)는 넣지 않는다. 어느 제공자에서도 통하는 최소 집합만 사용한다.
+ * maxTokens 기본값이 큰 것은 API가 max_tokens > budget_tokens를 요구하기 때문이지
+ * 답이 길어서가 아니다. budget_tokens 없이 reasoning_effort만 주는 호출은
+ * 이 제약을 받지 않으므로 훨씬 작은 값을 써도 된다.
  */
-export async function generate(system: string, user: string, maxTokens = 200): Promise<string> {
+const DEFAULT_THINKING: ThinkingConfig = { type: 'enabled', budget_tokens: 1024 };
+
+export async function generate(
+  system: string,
+  user: string,
+  { maxTokens = 1536, thinking = DEFAULT_THINKING }: { maxTokens?: number; thinking?: ThinkingConfig } = {},
+): Promise<string> {
   const res = await getClient().messages.create({
     model: required('BOT_MODEL', model),
     max_tokens: maxTokens,
     system,
     messages: [{ role: 'user', content: user }],
+    thinking: thinking as unknown as Anthropic.Messages.ThinkingConfigParam,
   });
 
   const text = res.content
