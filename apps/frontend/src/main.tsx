@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import { ErrorBoundary } from './ErrorBoundary';
 import { MockHarness } from './mock/MockHarness';
 import './styles/tokens.css';
 
@@ -10,5 +11,7 @@ import './styles/tokens.css';
 const useMock = new URLSearchParams(location.search).has('mock');
 
 createRoot(document.getElementById('root')!).render(
-  <StrictMode>{useMock ? <MockHarness /> : <App />}</StrictMode>,
+  <StrictMode>
+    <ErrorBoundary>{useMock ? <MockHarness /> : <App />}</ErrorBoundary>
+  </StrictMode>,
 );
