@@ -28,9 +28,9 @@ app.use(express.static(path.join(__dirname, '../../frontend/dist')));
 const socketMeta = new Map<string, { roomId: string; playerId: string }>();
 
 // phase별 제한시간. TODO: Day 0에 팀이 정하기로 한 실제 값으로 교체 필요, 지금은 테스트용 임시값
+// describe는 B-7(나)로 전환하면서 턴별 타이머로 분리됨 → 아래 DESCRIBE_TURN_DURATION 참고
 const PHASE_DURATIONS: Partial<Record<Phase, number>> = {
   roleReveal: 5000,
-  describe: 5000, // TODO: 실제 값 확정 필요 (1인당 1회씩, 시간은 팀 협의)
   debate: 60000,
   finalDefense: 5000,
   lifeVote: 60000,
@@ -39,8 +39,22 @@ const PHASE_DURATIONS: Partial<Record<Phase, number>> = {
   botVote: 30000,
 };
 
+// describe 턴 하나당 제한시간. LLM 응답 6~13초 + 사람 타이핑 여유를 감안한 상한.
+// 20~25초 사이에서 우선 20초로 잡음 — 필요하면 이 값만 조정하면 됨.
+const DESCRIBE_TURN_DURATION = 20000;
+
 // 현재 phase에 맞는 타이머를 건다 + 봇 차례인지 체크
 function enterPhase(room: RoomInternalState) {
+  if (room.phase === 'describe') {
+    if (isDescribeComplete(room)) {
+      // 정상 흐름에서는 발생하지 않지만(턴 0명 등) 방어적으로 처리
+      advancePhase(room);
+      return;
+    }
+    startDescribeTurnTimer(room);
+    return;
+  }
+
   const duration = PHASE_DURATIONS[room.phase];
   if (duration) {
     setPhaseTimer(room, duration, () => {
@@ -49,6 +63,10 @@ function enterPhase(room: RoomInternalState) {
       }
       advancePhase(room);
     });
+  } else {
+    // 타이머 없는 phase(lobby, result 등) 진입 시, clearPhaseTimer는 deadlineAt을
+    // 안 지워주므로 직전 phase/턴의 deadline이 잔상으로 남는 걸 막아준다.
+    room.deadlineAt = null;
   }
   void maybeTriggerBot(room);
 }
@@ -64,6 +82,30 @@ function advancePhase(room: RoomInternalState) {
 
   enterPhase(room);
   broadcastRoom(room.roomId);
+}
+
+// describe 턴 하나 시작: 그 턴 전용 타이머를 걸고 봇 차례인지 체크
+function startDescribeTurnTimer(room: RoomInternalState) {
+  setPhaseTimer(room, DESCRIBE_TURN_DURATION, () => skipDescribeTurn(room));
+  void maybeTriggerBot(room);
+}
+
+// describe 턴 하나가 끝났을 때(발화/침묵/타임아웃 공용) 다음 턴으로 넘기거나 phase를 마감
+function advanceDescribeTurn(room: RoomInternalState) {
+  clearPhaseTimer(room.roomId);
+  if (isDescribeComplete(room)) {
+    advancePhase(room); // describe 종료 → 다음 phase. broadcast는 advancePhase 안에서 처리됨
+    return;
+  }
+  startDescribeTurnTimer(room);
+  broadcastRoom(room.roomId);
+}
+
+// describe 턴 제한시간 초과: 그 사람 묘사는 건너뛰고 다음 턴으로
+// (룰북상 묘사는 한 바퀴 도는 것 — 놓친 사람은 정보를 안 준 셈이 되고 그게 의심 근거가 됨)
+function skipDescribeTurn(room: RoomInternalState) {
+  room.currentTurnIndex += 1;
+  advanceDescribeTurn(room);
 }
 
 // debate/lifeVote/botVote에서 전원 투표했는지 판정 (사람 케이스 + 봇 케이스 공용)
@@ -93,6 +135,19 @@ function isDescribeComplete(room: RoomInternalState): boolean {
   return room.currentTurnIndex >= room.turnOrder.length;
 }
 
+// 응답을 기다리는 사이에 phase나(describe라면) turn이 이미 넘어갔는지 확인.
+// 턴제 타이머로 바뀌면서 phase만 검사하는 걸로는 "타임아웃으로 다음 턴 넘어간 뒤
+// 늦게 도착한 봇 응답이 남의 턴에 끼어드는" 케이스를 못 걸러서 turn까지 같이 본다.
+function isStaleBotAction(
+  room: RoomInternalState,
+  phaseWhenAsked: Phase,
+  turnWhenAsked: number,
+): boolean {
+  if (room.phase !== phaseWhenAsked) return true;
+  if (room.phase === 'describe' && room.currentTurnIndex !== turnWhenAsked) return true;
+  return false;
+}
+
 // 봇 차례 처리 (테스트용 decideBotAction 호출)
 async function maybeTriggerBot(room: RoomInternalState) {
   const bot = room.players.find((p) => p.isBot && p.isAlive);
@@ -102,8 +157,10 @@ async function maybeTriggerBot(room: RoomInternalState) {
     if (room.currentTurnIndex >= room.turnOrder.length) return;
     if (room.turnOrder[room.currentTurnIndex] !== bot.id) return;
   } else if (room.phase === 'debate') {
-    if (room.votes[bot.id] !== undefined) return;
-  } else if (room.phase === 'lifeVote') {
+    // 투표를 이미 했어도 토론 채팅에는 계속 참여할 수 있어야 한다
+  } else if (room.phase === 'finalDefense') {
+    if (bot.id !== room.accusedId) return;
+  }else if (room.phase === 'lifeVote') {
     if (room.lifeVotes[bot.id] !== undefined) return;
   } else if (room.phase === 'guessWord') {
     if (bot.id !== room.accusedId) return;
@@ -118,6 +175,7 @@ async function maybeTriggerBot(room: RoomInternalState) {
   }
 
   const phaseWhenAsked = room.phase;
+  const turnWhenAsked = room.currentTurnIndex;
   const ctx: BotContext = {
     phase: room.phase,
     myRole: bot.role,
@@ -127,37 +185,54 @@ async function maybeTriggerBot(room: RoomInternalState) {
     players: room.players.map((p) => ({ id: p.id, label: p.label, isAlive: p.isAlive, isReady: room.readyIds.has(p.id) })),
     transcript: room.messages,
     voteCounts,
-    accusedId: room.accusedId,           
-    myVote: room.votes[bot.id] ?? null,  
+    accusedId: room.accusedId,
+    myVote: room.votes[bot.id] ?? null,
   };
 
-  const action = await decideBotAction(ctx);
-  if (room.phase !== phaseWhenAsked) return; // 응답 오는 사이 phase 바뀌었으면 무시
+  // B-6: decideBotAction 호출 실패(LLM API 에러 등) 시 unhandled rejection으로
+  // 서버 프로세스가 죽는 걸 막는다. 실패하면 이번 트리거는 조용히 포기하고
+  // 이후 진행은 phase/턴 타이머가 만료될 때 이어진다.
+  let action: Awaited<ReturnType<typeof decideBotAction>>;
+  try {
+    action = await decideBotAction(ctx);
+  } catch (e) {
+    console.error(`[${room.roomId}] decideBotAction 실패 (phase=${phaseWhenAsked}, bot=${bot.id}):`, e);
+    return;
+  }
+  if (isStaleBotAction(room, phaseWhenAsked, turnWhenAsked)) return;
 
+  if ('delayMs' in action) {
+    await new Promise((resolve) => setTimeout(resolve, action.delayMs));
+    if (isStaleBotAction(room, phaseWhenAsked, turnWhenAsked)) return;
+  }
   if (action.t === 'describe') {
     recordSpeak(room, bot.id, action.text);
-    if (isDescribeComplete(room)) {
-      clearPhaseTimer(room.roomId);
-      advancePhase(room);
-      return;
-    }
-    broadcastRoom(room.roomId);
-    void maybeTriggerBot(room);
+    advanceDescribeTurn(room);
     return;
   }
 
   if (action.t === 'silent') {
-    room.currentTurnIndex += 1;
-    if (isDescribeComplete(room)) {
-      clearPhaseTimer(room.roomId);
-      advancePhase(room);
+    if (room.phase === 'describe') {
+      room.currentTurnIndex += 1;
+      advanceDescribeTurn(room);
       return;
     }
     broadcastRoom(room.roomId);
     void maybeTriggerBot(room);
     return;
   }
-
+  if (action.t === 'chat') {
+    room.messages.push({
+      id: `m${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      speakerId: bot.id,
+      text: action.text,
+      phase: room.phase,
+      at: Date.now(),
+    });
+    broadcastRoom(room.roomId);
+    void maybeTriggerBot(room);
+    return;
+  }
   if (action.t === 'vote') room.votes[bot.id] = action.targetId;
   if (action.t === 'lifeVote') room.lifeVotes[bot.id] = action.kill;
   if (action.t === 'guessWord') {
@@ -235,15 +310,8 @@ io.on('connection', (socket) => {
           if (meta.playerId !== currentTurnId) throw new Error('지금은 당신 차례가 아닙니다');
 
           recordSpeak(room, meta.playerId, action.text);
-
-          if (isDescribeComplete(room)) {
-            clearPhaseTimer(room.roomId);
-            advancePhase(room);
-            return;
-          }
-
-          void maybeTriggerBot(room);
-          break;
+          advanceDescribeTurn(room);
+          return;
         }
         case 'ready': {
           const meta = socketMeta.get(socket.id);
