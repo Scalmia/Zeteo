@@ -23,7 +23,7 @@ export function Chat({ messages, players, locked, lockedLabel, placeholder, onSe
   const nameOf = (speakerId: string) =>
     speakerId === 'system'
       ? '시스템'
-      : (players.find((p) => p.id === speakerId)?.name ?? speakerId);
+      : (players.find((p) => p.id === speakerId)?.label ?? speakerId);
 
   const submit = () => {
     const t = text.trim();

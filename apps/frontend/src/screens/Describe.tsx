@@ -13,7 +13,7 @@ export function Describe({
   onEvent: (e: ClientEvent) => void;
 }) {
   const isMyTurn = state.currentTurn === state.myId;
-  const turnName = state.players.find((p) => p.id === state.currentTurn)?.name ?? '';
+  const turnName = state.players.find((p) => p.id === state.currentTurn)?.label ?? '';
 
   return (
     <div className="zt-screen">

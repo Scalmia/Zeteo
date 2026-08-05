@@ -24,7 +24,7 @@ export function VotePanel({ players, voteCounts, myVote, myId, onVote }: Props) 
               onClick={() => onVote(p.id)}
             >
               <span>
-                {p.name}
+                {p.label}
                 {p.id === myId && ' (나)'}
               </span>
               <span className="zt-vote-count">{voteCounts[p.id] ?? 0}표</span>
@@ -35,7 +35,7 @@ export function VotePanel({ players, voteCounts, myVote, myId, onVote }: Props) 
 
       <div className="zt-vote-mine">
         <span>내 선택</span>
-        <strong>{myVote ? (players.find((p) => p.id === myVote)?.name ?? myVote) : '—'}</strong>
+        <strong>{myVote ? (players.find((p) => p.id === myVote)?.label ?? myVote) : '—'}</strong>
         {/* 기권 허용: 총 표 수가 인원보다 적을 수 있다 */}
         <button onClick={() => onVote(null)} disabled={myVote === null}>
           기권

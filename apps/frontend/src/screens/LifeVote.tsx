@@ -42,7 +42,7 @@ export function LifeVote({
 
       <div className="zt-card">
         <p className="zt-label">대상</p>
-        <p className="zt-role">{target?.name}</p>
+        <p className="zt-role">{target?.label}</p>
 
         <div className="zt-choices">
           <button

@@ -5,7 +5,7 @@ import LandingScreen from "./LandingScreen";
 import LobbyScreen from "./LobbyScreen";
 import { GameScreen } from "./screens/GameScreen";
 import { MOCK_STATES } from "./mock/states";
-import type { ClientEvent } from "@zeteo/shared-types";
+import type { ClientEvent, PublicPlayer } from "@zeteo/shared-types";
 import type { VoteScreenState, ResultScreenState, LobbyScreenState } from "./types";
 
 /**
@@ -103,6 +103,11 @@ export function App() {
       ? list.map((p) => (p.id === MY_ID ? { ...p, name: joinInfo.name } : p))
       : list;
 
+  const withMyLabel = (list: PublicPlayer[]): PublicPlayer[] =>
+    joinInfo.name
+      ? list.map((p) => (p.id === MY_ID ? { ...p, label: joinInfo.name } : p))
+      : list;
+
   if (phase === "landing") {
     return (
       <LandingScreen
@@ -154,7 +159,7 @@ export function App() {
     const stateKey = PLAYTHROUGH_SEQUENCE[gameStep];
     const gameState = {
       ...MOCK_STATES[stateKey],
-      players: withMyName(MOCK_STATES[stateKey].players),
+      players: withMyLabel(MOCK_STATES[stateKey].players),
     };
     const onEvent = (e: ClientEvent) => console.log("[mock] game event", e);
     const isLastStep = gameStep === PLAYTHROUGH_SEQUENCE.length - 1;

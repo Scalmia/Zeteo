@@ -5,11 +5,11 @@ import type { GameState, Message, PublicPlayer } from '@zeteo/shared-types';
 
 /** 5인 = 사람 4 + 봇 1. 룰북 캡션의 "4인 게임이면 3표"는 MVP 기준과 맞지 않으므로 쓰지 않는다. */
 const players: PublicPlayer[] = [
-  { id: 'p1', name: '김정현', isAlive: true },
-  { id: 'p2', name: '박진', isAlive: true },
-  { id: 'p3', name: '이현우', isAlive: true },
-  { id: 'p4', name: '유민성', isAlive: true },
-  { id: 'p5', name: '최서연', isAlive: true }, // 실제로는 봇. 클라이언트는 알 수 없어야 한다.
+  { id: 'p1', label: '김정현', isAlive: true },
+  { id: 'p2', label: '박진', isAlive: true },
+  { id: 'p3', label: '이현우', isAlive: true },
+  { id: 'p4', label: '유민성', isAlive: true },
+  { id: 'p5', label: '최서연', isAlive: true }, // 실제로는 봇. 클라이언트는 알 수 없어야 한다.
 ];
 
 const ME = 'p3';
@@ -61,6 +61,12 @@ const base: GameState = {
   lifeVoteCounts: { kill: 0, spare: 0 },
   revealedRole: null,
   liarGameResult: null,
+  botVoteCounts: { voted: 0, total: 0 },
+  botVoteCorrectCount: 0,
+  revealedBotId: null,
+  revealedLiarId: null,
+  revealedNames: null,
+  reasons: [],
 };
 
 export const MOCK_STATES: Record<string, GameState> = {
