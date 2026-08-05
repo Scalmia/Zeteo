@@ -44,6 +44,7 @@ export function buildGameStateFor(room: RoomInternalState, playerId: string): Ga
     id: p.id,
     label: p.label,
     isAlive: p.isAlive,
+    isReady: room.readyIds.has(p.id),
   }));
 
   return {
@@ -84,8 +85,9 @@ export function buildGameStateFor(room: RoomInternalState, playerId: string): Ga
       room.phase === 'result' ? (room.players.find((p) => p.role === 'liar')?.id ?? null) : null,
 
     revealedNames:                         // ★ 추가
-    room.phase === 'result'
-    ? Object.fromEntries(room.players.map((p) => [p.id, p.name]))
-    : null,
+      room.phase === 'result'
+        ? Object.fromEntries(room.players.map((p) => [p.id, p.name]))
+        : null,
+    reasons: room.phase === 'result' ? SURVEY_REASONS : [],
   };
 }

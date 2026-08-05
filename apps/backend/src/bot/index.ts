@@ -5,7 +5,7 @@ import { BotContext, BotAction, DecideBotAction } from '@zeteo/shared-types';
 export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise<BotAction> => {
   switch (ctx.phase) {
     case 'describe':
-      return { t: 'speak', text: `${ctx.category}랑 관련 있는 것 같아요.`, delayMs: 1000 };
+      return { t: 'describe', text: `${ctx.category}랑 관련 있는 것 같아요.`, delayMs: 1000 };
 
     case 'debate': {
       const others = ctx.players.filter((p) => p.id !== ctx.selfId && p.isAlive);
@@ -21,6 +21,6 @@ export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise
       return { t: 'guessWord', word: ctx.category };
 
     default:
-      return { t: 'silent' };
+      return { t: 'silent', delayMs: 1000 };
   }
 };

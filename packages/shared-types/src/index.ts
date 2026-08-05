@@ -30,6 +30,7 @@ export interface PublicPlayer {
   id: string;
   label: string;
   isAlive: boolean;
+  isReady : boolen;
 }
 
 export interface Message {

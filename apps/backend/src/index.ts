@@ -124,7 +124,7 @@ async function maybeTriggerBot(room: RoomInternalState) {
     category: room.category,
     word: bot.role === 'liar' ? null : room.word,
     selfId: bot.id,
-    players: room.players.map((p) => ({ id: p.id, label: p.label, isAlive: p.isAlive })),
+    players: room.players.map((p) => ({ id: p.id, label: p.label, isAlive: p.isAlive, isReady: room.readyIds.has(p.id) })),
     transcript: room.messages,
     voteCounts,
     accusedId: room.accusedId,           
