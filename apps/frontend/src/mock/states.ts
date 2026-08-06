@@ -12,11 +12,11 @@ import type { GameState, Message, PublicPlayer } from '@zeteo/shared-types';
  *  label 값을 일부러 비순차로 둔 것은 서버 assignLabel 이 1~20 중 무작위로 뽑기 때문이다.
  *  화면이 "label 번호 = 입장 순서"를 가정하고 있으면 여기서 드러난다. */
 const players: PublicPlayer[] = [
-  { id: 'p1', label: '참가자 4', isAlive: true },
-  { id: 'p2', label: '참가자 1', isAlive: true },
-  { id: 'p3', label: '참가자 7', isAlive: true },
-  { id: 'p4', label: '참가자 3', isAlive: true },
-  { id: 'p5', label: '참가자 9', isAlive: true }, // 실제로는 봇. 클라이언트는 알 수 없어야 한다.
+  { id: 'p1', label: '참가자 4', isAlive: true, isReady: true },
+  { id: 'p2', label: '참가자 1', isAlive: true, isReady: true },
+  { id: 'p3', label: '참가자 7', isAlive: true, isReady: true },
+  { id: 'p4', label: '참가자 3', isAlive: true, isReady: true },
+  { id: 'p5', label: '참가자 9', isAlive: true, isReady: true }, // 실제로는 봇. 클라이언트는 알 수 없어야 한다.
 ];
 
 const ME = 'p3';
