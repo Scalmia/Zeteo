@@ -7,7 +7,7 @@ import type { GameState, Message, PublicPlayer } from '@zeteo/shared-types';
  *
  *  게임 중에는 실명이 아니라 서버가 방마다 무작위 배정하는 label("참가자 N")만 보인다.
  *  실명은 S7의 revealedNames 로만 공개된다 — 참고용 대응은 아래와 같다.
- *    p1 봇담당 · p2 레이아웃담당 · p3 화면담당(=나) · p4 서버담당 · p5 최서연(봇)
+ *    p1 김정현 · p2 박진 · p3 이현우(=나) · p4 유민성 · p5 최서연(봇)
  *
  *  label 값을 일부러 비순차로 둔 것은 서버 assignLabel 이 1~20 중 무작위로 뽑기 때문이다.
  *  화면이 "label 번호 = 입장 순서"를 가정하고 있으면 여기서 드러난다. */
@@ -47,15 +47,9 @@ const debateLog: Message[] = [
   msg('p4', '저도 참가자 1님 좀 이상했어요', 'debate'),
 ];
 
-/** 2라운드 진입 경로 2종. 로그는 지우지 않고 누적한다 —
+/** 2라운드 진입("살린다" 복귀). 로그는 지우지 않고 누적한다 —
  *  룰북 S4의 "매 라운드 정보가 누적되어 자연히 수렴한다"가 설계 전제이므로
  *  로그를 비우면 그 전제가 깨진다. 라운드 경계는 시스템 메시지가 만든다. */
-const revoteLog: Message[] = [
-  ...debateLog,
-  msg('p3', '저는 참가자 3님이요', 'debate'),
-  msg('system', '동점입니다. 재투표를 시작합니다.', 'debate'),
-];
-
 const sparedLog: Message[] = [
   ...debateLog,
   msg('system', '참가자 1님이 최다 득표로 지목되었습니다.', 'finalDefense'),
@@ -118,14 +112,6 @@ export const MOCK_STATES: Record<string, GameState> = {
   },
 
   // ── S2 ─────────────────────────────────────────────
-  'debate-novote': {
-    ...base,
-    phase: 'debate',
-    deadlineAt: inSec(161),
-    messages: debateLog,
-    voteCounts: { p2: 2, p3: 1 },
-    myVote: null,
-  },
   'debate-voted': {
     ...base,
     phase: 'debate',
@@ -133,16 +119,6 @@ export const MOCK_STATES: Record<string, GameState> = {
     messages: debateLog,
     voteCounts: { p2: 2, p3: 1 },
     myVote: 'p2',
-  },
-  /** 동점 → 재투표. 표는 리셋되고 로그는 남는다 */
-  'debate-round2-revote': {
-    ...base,
-    phase: 'debate',
-    round: 2,
-    deadlineAt: inSec(161),
-    messages: revoteLog,
-    voteCounts: {},
-    myVote: null,
   },
   /** "살린다" → S2 복귀. accused도 함께 풀린다 */
   'debate-round2-spared': {
