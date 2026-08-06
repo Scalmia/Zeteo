@@ -59,7 +59,6 @@ export interface GameState {
   voteCounts: Record<string, number>; // 득표 수만 공개
   myVote: string | null; // S2 내 지목 선택
   accused: string | null; // 최후 변론 대상
-
   myId: string; // 자기 자신의 플레이어 id
   round: number; // 동점 재투표·복귀 시 phase 유지로 구분
   myLifeVote: boolean | null; // S4 내 kill/spare 선택

@@ -93,6 +93,7 @@ export function joinRoom(roomId: string, name: string, isBot = false): InternalP
     label: assignLabel(room),
   };
   room.players.push(player);
+  shufflePlayers(room);
   return player;
 }
 
@@ -102,6 +103,17 @@ export function assignRoles(room: RoomInternalState) {
   if (!liar) return; // 참가자가 없으면 아무것도 안 함
   room.players.forEach((p) => (p.role = 'citizen'));
   liar.role = 'liar';
+}
+
+// A-1: 봇이 항상 입장 순서(=배열 0번)에 고정되던 문제 수정.
+// view.ts의 publicPlayers가 room.players 순서를 그대로 따라가므로, 이 배열을
+// 섞으면 클라이언트에 보이는 목록 순서도 같이 섞인다. joinRoom에서 매 입장마다
+// 호출되어, 대기실 단계부터 순서가 입장 순서와 무관해지도록 한다.
+export function shufflePlayers(room: RoomInternalState) {
+  for (let i = room.players.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [room.players[i], room.players[j]] = [room.players[j]!, room.players[i]!];
+  }
 }
 export function markReady(room: RoomInternalState, playerId: string) {
   room.readyIds.add(playerId);
