@@ -14,10 +14,14 @@ interface Props {
 
 export function Chat({ messages, players, locked, lockedLabel, placeholder, onSend }: Props) {
   const [text, setText] = useState('');
-  const endRef = useRef<HTMLDivElement>(null);
+  const logRef = useRef<HTMLDivElement>(null);
 
+  // 로그 요소만 직접 내린다. scrollIntoView 는 스크롤 가능한 조상을 찾아 거슬러 올라가므로,
+  // 로그가 스크롤 컨테이너가 아닌 순간 페이지 전체를 끌어내린다 — 2판 테스트에서
+  // 타이머와 투표 패널 윗부분이 화면 밖으로 밀려난 원인이었다. scrollTop 은 이 요소만 움직인다.
   useEffect(() => {
-    endRef.current?.scrollIntoView({ block: 'end' });
+    const el = logRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [messages.length]);
 
   const nameOf = (speakerId: string) =>
@@ -34,14 +38,13 @@ export function Chat({ messages, players, locked, lockedLabel, placeholder, onSe
 
   return (
     <div className="zt-chat">
-      <div className="zt-chat-log">
+      <div className="zt-chat-log" ref={logRef}>
         {messages.map((m) => (
           <div key={m.id} className={m.speakerId === 'system' ? 'zt-msg is-system' : 'zt-msg'}>
             <span className="zt-msg-name">{nameOf(m.speakerId)}</span>
             <span className="zt-msg-text">{m.text}</span>
           </div>
         ))}
-        <div ref={endRef} />
       </div>
 
       {locked ? (
