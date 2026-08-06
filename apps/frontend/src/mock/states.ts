@@ -87,6 +87,7 @@ const base: GameState = {
   revealedBotId: null,
   revealedLiarId: null,
   revealedNames: null,
+  botVoteResults: null,
   reasons: [],
 };
 
