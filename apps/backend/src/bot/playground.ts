@@ -202,26 +202,43 @@ const ctx: BotContext = {
   myVote: null,
 };
 
+/** 봇은 남이 말을 얹어야 반응한다. 여기서 사람 발언을 넣어주지 않으면 한 번 말하고 계속 침묵한다. */
+const HUMAN_FILLERS = [
+  '음 글쎄',
+  '난 아직 모르겠는데',
+  '그건 좀 아니지 않나?',
+  '아 그런가',
+  '다들 너무 애매하게 말하는듯',
+  '난 그냥 느낌대로 갈래',
+];
+
 /**
  * 실제 서버는 봇의 발언을 기록하고 표를 반영한 뒤 다시 물어본다.
  * 그 갱신을 흉내내지 않으면 매 호출이 같은 상황이라 첫 분기만 반복해서 확인된다.
  *
- * 단 서버가 반복 호출하는 단계는 debate뿐이다. 묘사는 1인 1회라서 여기서도 갱신하지 않고
- * 같은 상황을 매번 새로 샘플링해야 발화가 얼마나 다양한지 볼 수 있다.
+ * 묘사는 1인 1회라 갱신하지 않는다. 같은 상황을 매번 새로 샘플링해야
+ * 발화가 얼마나 다양한지 볼 수 있기 때문이다.
  */
 function applyToContext(action: Awaited<ReturnType<typeof decideBotAction>>): void {
-  if (ctx.phase !== 'debate') return;
+  if (ctx.phase !== 'debate' && ctx.phase !== 'finalDefense') return;
 
   if (action.t === 'chat') {
-    ctx.transcript.push(msg(SELF, action.text, 'debate'));
-    return;
-  }
-  if (action.t === 'vote') {
+    ctx.transcript.push(msg(SELF, action.text, ctx.phase));
+  } else if (action.t === 'vote') {
     if (ctx.myVote !== null) ctx.voteCounts[ctx.myVote] = (ctx.voteCounts[ctx.myVote] ?? 1) - 1;
     if (action.targetId !== null) {
       ctx.voteCounts[action.targetId] = (ctx.voteCounts[action.targetId] ?? 0) + 1;
     }
     ctx.myVote = action.targetId;
+  }
+
+  // 30%는 아무도 말하지 않은 채로 두어 "남을 기다리는" 분기도 확인할 수 있게 한다.
+  if (Math.random() < 0.7) {
+    const others = players.filter((p) => p.id !== SELF);
+    const who = others[Math.floor(Math.random() * others.length)]!;
+    const line = HUMAN_FILLERS[Math.floor(Math.random() * HUMAN_FILLERS.length)]!;
+    ctx.transcript.push(msg(who.id, line, ctx.phase));
+    console.log(`    ↳ (테스트용) ${who.label}: ${line}\n`);
   }
 }
 
