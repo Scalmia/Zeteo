@@ -133,14 +133,6 @@ export const MOCK_STATES: Record<string, GameState> = {
   },
 
   // ── S3 ─────────────────────────────────────────────
-  'finalDefense-other': {
-    ...base,
-    phase: 'finalDefense',
-    deadlineAt: inSec(60),
-    messages: debateLog,
-    voteCounts: { p2: 2, p3: 1 },
-    accused: 'p2',
-  },
   'finalDefense-accused': {
     ...base,
     phase: 'finalDefense',
