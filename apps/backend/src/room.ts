@@ -106,10 +106,9 @@ export function assignRoles(room: RoomInternalState) {
 }
 
 // A-1: 봇이 항상 입장 순서(=배열 0번)에 고정되던 문제 수정.
-// view.ts의 publicPlayers가 room.players 순서를 그대로 따라가므로, 게임 시작
-// 시점(roleReveal 진입 직전)에 이 배열 자체를 한 번 섞어 순서를 고정한다.
-// 그 뒤로는 이 순서를 그대로 유지 — 매 브로드캐스트마다 다시 섞으면 화면이
-// 흔들려 보이므로 여기서 딱 한 번만 섞는다.
+// view.ts의 publicPlayers가 room.players 순서를 그대로 따라가므로, 이 배열을
+// 섞으면 클라이언트에 보이는 목록 순서도 같이 섞인다. joinRoom에서 매 입장마다
+// 호출되어, 대기실 단계부터 순서가 입장 순서와 무관해지도록 한다.
 export function shufflePlayers(room: RoomInternalState) {
   for (let i = room.players.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));

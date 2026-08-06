@@ -71,6 +71,12 @@ function enterPhase(room: RoomInternalState) {
   }
   void maybeTriggerBot(room);
 }
+
+// 팀 피드백: 게임이 끝난 시점(result 진입)에 전체 대화 로그를 터미널에 띄워달라는 요청.
+// 친구들과 테스트할 때나 나중에 대화 흐름을 복기할 때 유용하도록,
+// (1) 서버 콘솔에 한 번에(증분 아님) 출력하고 (2) apps/backend/logs/ 에 json/txt/md 세 형식으로도 남긴다.
+// isBot/role은 클라이언트로는 절대 안 나가지만, 이건 서버 터미널/로컬 파일 전용이라
+// 팀이 직접 복기할 때 누가 봇이었는지 바로 보이도록 표시해준다.
 const LOG_DIR = path.join(__dirname, '../logs');
 
 function logTranscript(room: RoomInternalState) {
@@ -122,6 +128,7 @@ function logTranscript(room: RoomInternalState) {
     console.error(`[${room.roomId}] 대화 로그 파일 저장 실패:`, e);
   }
 }
+
 // stateMachine으로 다음 phase 계산 → 필요한 부수효과 처리 → 다음 타이머 설정 → 브로드캐스트
 function advancePhase(room: RoomInternalState) {
   nextPhase(room);
@@ -131,10 +138,11 @@ function advancePhase(room: RoomInternalState) {
     room.currentTurnIndex = 0;
   }
 
-  enterPhase(room);
   if (room.phase === 'result') {
     logTranscript(room);
   }
+
+  enterPhase(room);
   broadcastRoom(room.roomId);
 }
 
@@ -461,24 +469,26 @@ io.on('connection', (socket) => {
         }
 
         case 'survey': {
-          const meta = socketMeta.get(socket.id);
-          if (!meta) throw new Error('아직 방에 입장하지 않았습니다');
-          const room = getRoom(meta.roomId);
-          if (!room) throw new Error('room not found');
-          if (room.phase !== 'survey') throw new Error('지금은 설문 단계가 아닙니다');
+      const meta = socketMeta.get(socket.id);
+        if (!meta) throw new Error('아직 방에 입장하지 않았습니다');
+        const room = getRoom(meta.roomId);
+        if (!room) throw new Error('room not found');
+        if (room.phase !== 'survey') throw new Error('지금은 설문 단계가 아닙니다');
 
-          // TODO: DB 붙이면 여기서 실제 저장 (박진님 기능). 지금은 받기만 하고 버림.
-          console.log(
-            `[${room.roomId}] 설문 수신 (${meta.playerId}):`,
-            action.reasonIds,
-            action.freeText,
-          );
-          return; // 게임 상태에 영향 없으니 broadcast 불필요
-        }
-        default:
-          console.log('아직 처리 안 하는 액션:', action);
-          return;
-      }
+      // TODO: DB 붙이면 여기서 실제 저장 (박진님 기능). 지금은 받기만 하고 버림.
+      console.log(
+        `[${room.roomId}] 설문 수신 (${meta.playerId}):`,
+        action.reasonIds,
+        action.freeText,
+      );
+
+      // 설문 제출 = 게임 완전히 끝. disconnect를 기다리지 않고 제출 시점에 바로
+      // 방에서 제거한다 (emit 직후 프론트가 소켓을 끊는 타이밍에 기대는 것보다 안전).
+      removePlayerFromLobby(meta.roomId, meta.playerId);
+      socketMeta.delete(socket.id);
+      socket.leave(meta.roomId);
+      return; // 게임 상태에 영향 없으니 broadcast 불필요
+    }
 
       const meta = socketMeta.get(socket.id);
       if (meta) broadcastRoom(meta.roomId);
@@ -500,13 +510,15 @@ io.on('connection', (socket) => {
     if (room.phase === 'lobby') {
       removePlayerFromLobby(meta.roomId, meta.playerId);
       broadcastRoom(meta.roomId); // 남은 사람들한테 갱신된 인원 알려줌 (방이 삭제됐으면 자동으로 no-op)
+      return;
     }
+
     if (room.phase === 'survey') {
-        // 게임이 완전히 끝난 뒤라 "중도 탈락 없음" 원칙과 무관. 다들 나가서
-        // 방이 비면 정리해서 메모리에 안 남게 한다.
-        removePlayerFromLobby(meta.roomId, meta.playerId);
-      }
-      // 그 외(게임 진행 중)엔 기획서 원칙대로 그대로 둠 — 중도 탈락 없음
+      // 게임이 완전히 끝난 뒤라 "중도 탈락 없음" 원칙과 무관. 다들 나가서
+      // 방이 비면 정리해서 메모리에 안 남게 한다.
+      removePlayerFromLobby(meta.roomId, meta.playerId);
+    }
+    // 그 외(게임 진행 중)엔 기획서 원칙대로 그대로 둠 — 중도 탈락 없음
   });
 });
 

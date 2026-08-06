@@ -88,6 +88,7 @@ export function buildGameStateFor(room: RoomInternalState, playerId: string): Ga
     // 채운다. 한 단계라도 먼저 노출되면 개발자도구로 결과를 미리 볼 수 있게 된다.
     botVoteCorrectCount:
       isPostGame ? Object.values(tallyBotVoteResults(room)).filter(Boolean).length : 0,
+      botVoteResults: isPostGame ? room.botVotes : null, 
     revealedBotId:
       isPostGame ? (room.players.find((p) => p.isBot)?.id ?? null) : null,
     revealedLiarId:
