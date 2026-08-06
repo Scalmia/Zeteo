@@ -99,7 +99,6 @@ export function buildGameStateFor(room: RoomInternalState, playerId: string): Ga
         ? Object.fromEntries(room.players.map((p) => [p.id, p.name]))
         : null,
     // 설문 선택지는 survey 화면에서만 필요하다 (result·survey 공통이 아니라 survey 단독).
-    botVoteResults: isPostGame ? room.botVotes : null,
     reasons: room.phase === 'survey' ? SURVEY_REASONS : [],
   };
 }
