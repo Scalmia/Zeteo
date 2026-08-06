@@ -82,3 +82,27 @@ interface PublicPlayer { id: string; label: string; isAlive: boolean; }  // name
 - **사고**: abort 과정에서 `App.tsx`의 미커밋 작업(`ResultFlow` 등)이 함께 삭제됨 — 직접 재작성해서 복구, `tsc` 통과 확인함. 다른 파일은 영향 없었음.
 - **재발 방지**: `feat/server`가 프론트 파일 히스토리를 계속 안 가져오는 한, 어느 브랜치에 merge하든(feat/layout이든 dev든) 매번 같은 충돌 재발함. 근본 해결은 파트 A가 주기적으로 `dev`를 자기 브랜치에 merge/rebase해서 프론트 파일을 최신으로 유지하는 것.
 - **결정(2026-08-06)**: 지금 임시로 경로 선택 체크아웃하지 않고, **`dev`에 정식 병합될 때까지 대기 → 그 뒤 `feat/layout`에 `dev` merge → 그때 프론트 수정 작업(제시어 노출, 개별 투표 내역 표시, 설문→랜딩 소켓 리셋) 진행**하기로 함
+
+## `dev` merge 및 잔여 작업 완료 (2026-08-06)
+
+`dev`에 파트 A/B/C 전부 병합된 것(`1696512`) 확인 후 `feat/layout`에 `dev` merge 진행. `--no-commit --no-ff`로 먼저 충돌 규모 확인 → **충돌 0건**, 프론트·백엔드 `tsc` 둘 다 통과 확인 후 커밋(`e5da58a`). 이전 `feat/server` 직접 merge 사고와 달리 `dev`는 프론트 파일을 정상적으로 갖고 있어서 깔끔하게 합쳐짐.
+
+merge 후 남은 3건 전부 완료:
+
+1. **제시어 노출**: `types.ts`의 `ResultScreenState`에 `category`/`word` 추가, `App.tsx`에서 `state.category`/`state.word` 그대로 전달, `ResultScreen.tsx`에 "제시어" 카드 추가
+2. **개별 투표 내역**: `types.ts`의 `ResultPlayer`에 `votedFor: string | null` 추가, `App.tsx`에서 `state.botVoteResults[p.id]`로 지목 대상 id를 찾아 label로 변환, `ResultScreen.tsx`에서 각 참가자 줄 아래 "→ X 지목" 표시
+3. **설문 제출 → 랜딩 복귀**: `useGameState.ts`에 `leaveToLanding()` 추가(소켓 disconnect → state를 null로 리셋 → 소켓 재연결, 새 이벤트 불필요). `App.tsx`의 result 분기 `onSubmit`에서 `survey` 이벤트 전송과 함께 `leaveToLanding()` 호출
+
+`npx tsc -b --noEmit`(프론트) 통과 확인.
+
+## 결과→설문 버그 수정 (2026-08-06, 웹 테스트 중 발견)
+
+**증상**: 설문 화면에서 이유 체크박스가 안 보이고 자유서술 textarea만 나옴.
+
+**원인**: `view.ts:101-102` — `reasons`는 `room.phase === 'survey'`일 때만 채워짐(result·survey 공통 아님, survey 단독). 그런데 `index.ts:398-399`를 보면 **결과 화면 "다음" 버튼은 서버에 `{t:'ready'}` 이벤트를 보내야 실제로 `room.phase`가 `result→survey`로 전이되는 구조**로 바뀌어 있었음. 저희 `ResultFlow`는 로컬 `useState`로만 화면을 바꾸고 서버엔 아무 이벤트도 안 보내서, 서버 phase가 계속 `result`에 머물러 `reasons`가 빈 배열로 옴.
+
+**수정**: `dev` merge로 서버가 실제 `survey` phase를 broadcast해주는 게 확인됐으므로, `App.tsx`에서 로컬 상태로 결과→설문을 흉내내던 `ResultFlow`/`useState` 전부 제거. `state.phase`(서버 진실)를 그대로 신뢰해서 `result`/`survey`를 `renderScreen`의 별도 분기로 처리하는 걸로 단순화:
+- 결과 화면 "다음" → `onEvent({ t: "ready" })` 호출 (서버가 phase 전이)
+- `state.phase === "survey"`일 때 `SurveyScreen` 직접 렌더링
+
+`npx tsc -b --noEmit` 재통과 확인.
