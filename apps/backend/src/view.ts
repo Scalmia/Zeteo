@@ -79,15 +79,18 @@ export function buildGameStateFor(room: RoomInternalState, playerId: string): Ga
     // 한 단계라도 먼저 노출되면 개발자도구로 결과를 미리 볼 수 있게 된다.
     botVoteCorrectCount:
       room.phase === 'result' ? Object.values(tallyBotVoteResults(room)).filter(Boolean).length : 0,
-    revealedBotId: 
-      room.phase === 'result' ? (room.players.find((p) => p.isBot)?.id ?? null) : null,
+    revealedBotId: room.phase === 'result' ? (room.players.find((p) => p.isBot)?.id ?? null) : null,
     revealedLiarId:
       room.phase === 'result' ? (room.players.find((p) => p.role === 'liar')?.id ?? null) : null,
 
-    revealedNames:                         // ★ 추가
-      room.phase === 'result'
-        ? Object.fromEntries(room.players.map((p) => [p.id, p.name]))
-        : null,
+    // ★ 추가
+    revealedNames:
+      room.phase === 'result' ? Object.fromEntries(room.players.map((p) => [p.id, p.name])) : null,
+
+    // 봇 지목은 익명 투표다. result 전에 새면 투표 도중에 "누가 나를 찍었나"를
+    // 알게 되어 익명성이 무너진다. 반드시 result 에서만 내보낸다.
+    botVoteResults: room.phase === 'result' ? { ...room.botVotes } : null,
+
     reasons: room.phase === 'result' ? SURVEY_REASONS : [],
   };
 }

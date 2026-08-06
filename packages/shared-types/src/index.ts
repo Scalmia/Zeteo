@@ -71,6 +71,7 @@ export interface GameState {
   revealedBotId: string | null; // S7 봇이었던 사람 (result 이전엔 null)
   revealedLiarId: string | null; // S7 라이어였던 사람 (result 이전엔 null)
   revealedNames: Record<string, string> | null; // S7 playerId → 실명 (result 이전엔 null)
+  botVoteResults: Record<string, string> | null; // S7 투표자 → 지목 대상 (result 이전엔 null)
   reasons: SurveyReason[]; // S7 "왜 봇이라 생각했나" 설문 선택지
 }
 
