@@ -15,7 +15,11 @@ export function Debate({
   return (
     <div className="zt-screen">
       <header className="zt-head">
-        <span className="zt-sub">토론 · 투표 진행 중</span>
+        <span className="zt-sub">
+          {/* round는 "지금 몇 번째 루프인가"라는 상태. 왜 돌아왔는지(사건)는 시스템 메시지가 맡는다 */}
+          <span className="zt-round">{state.round}라운드</span>
+          토론 · 투표 진행 중
+        </span>
         <Timer deadlineAt={state.deadlineAt} />
       </header>
 
