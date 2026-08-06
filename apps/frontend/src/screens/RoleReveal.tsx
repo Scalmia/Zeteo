@@ -1,17 +1,18 @@
-import { useState } from 'react';
 import type { ClientEvent, GameState } from '@zeteo/shared-types';
 import { Timer } from '../components/Timer';
 
 /** S0 역할 배정 — 시민 뷰 / 라이어 뷰 분기.
- *  분기의 유일한 기준은 word === null 이다 (서버가 라이어에게만 null을 보낸다). */
+ *  분기의 유일한 기준은 word === null 이다 (서버가 라이어에게만 null을 보낸다).
+ *
+ *  roleReveal은 준비 버튼이 아니라 서버 타이머(PHASE_DURATIONS.roleReveal)로만
+ *  넘어간다 — 'ready' 이벤트는 lobby 단계에서만 의미가 있고 이 단계에선 서버가
+ *  무시하므로, 누를 게 없는 버튼 대신 남은 시간만 보여준다. */
 export function RoleReveal({
   state,
-  onEvent,
 }: {
   state: GameState;
   onEvent: (e: ClientEvent) => void;
 }) {
-  const [ready, setReady] = useState(false);
   const isLiar = state.myRole === 'liar';
 
   return (
@@ -33,19 +34,7 @@ export function RoleReveal({
           <dd className={state.word === null ? 'is-hidden' : ''}>{state.word ?? '? ? ?'}</dd>
         </dl>
 
-        <div className="zt-ready-row">
-          <button
-            className="zt-primary"
-            disabled={ready}
-            onClick={() => {
-              setReady(true);
-              onEvent({ t: 'ready' });
-            }}
-          >
-            {ready ? '대기 중…' : '준비 완료'}
-          </button>
-          <Timer deadlineAt={state.deadlineAt} />
-        </div>
+        <Timer deadlineAt={state.deadlineAt} />
       </div>
     </div>
   );
