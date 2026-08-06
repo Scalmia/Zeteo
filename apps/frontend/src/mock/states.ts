@@ -93,8 +93,10 @@ const base: GameState = {
 
 export const MOCK_STATES: Record<string, GameState> = {
   // ── S0 ─────────────────────────────────────────────
-  'roleReveal-citizen': { ...base },
-  'roleReveal-liar': { ...base, myRole: 'liar', word: null },
+  // deadlineAt: 실제 서버의 roleReveal 페이즈 제한시간(5초, apps/backend/src/index.ts
+  // PHASE_DURATIONS)과 맞춰 mock에서도 타이머가 실제처럼 카운트다운되게 함
+  'roleReveal-citizen': { ...base, deadlineAt: inSec(5) },
+  'roleReveal-liar': { ...base, myRole: 'liar', word: null, deadlineAt: inSec(5) },
 
   // ── S1 ─────────────────────────────────────────────
   'describe-myturn': {

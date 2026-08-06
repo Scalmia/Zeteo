@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ClientEvent, GameState } from '@zeteo/shared-types';
+import { Timer } from '../components/Timer';
 
 /** S0 역할 배정 — 시민 뷰 / 라이어 뷰 분기.
  *  분기의 유일한 기준은 word === null 이다 (서버가 라이어에게만 null을 보낸다). */
@@ -32,16 +33,19 @@ export function RoleReveal({
           <dd className={state.word === null ? 'is-hidden' : ''}>{state.word ?? '? ? ?'}</dd>
         </dl>
 
-        <button
-          className="zt-primary"
-          disabled={ready}
-          onClick={() => {
-            setReady(true);
-            onEvent({ t: 'ready' });
-          }}
-        >
-          {ready ? '대기 중…' : '준비 완료'}
-        </button>
+        <div className="zt-ready-row">
+          <button
+            className="zt-primary"
+            disabled={ready}
+            onClick={() => {
+              setReady(true);
+              onEvent({ t: 'ready' });
+            }}
+          >
+            {ready ? '대기 중…' : '준비 완료'}
+          </button>
+          <Timer deadlineAt={state.deadlineAt} />
+        </div>
       </div>
     </div>
   );
