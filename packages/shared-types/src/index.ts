@@ -59,7 +59,6 @@ export interface GameState {
   voteCounts: Record<string, number>; // 득표 수만 공개
   myVote: string | null; // S2 내 지목 선택
   accused: string | null; // 최후 변론 대상
-
   myId: string; // 자기 자신의 플레이어 id
   round: number; // 동점 재투표·복귀 시 phase 유지로 구분
   myLifeVote: boolean | null; // S4 내 kill/spare 선택
@@ -68,9 +67,11 @@ export interface GameState {
   liarGameResult: 'liarWin' | 'citizenWin' | null; // S5 라이어 게임 승패
   botVoteCounts: { voted: number; total: number }; // S6 익명 투표 진행도
   botVoteCorrectCount: number; // S7 봇을 맞힌 인원 수 (result 이전엔 0)
+  botVoteResults: Record<string, string> | null; // S7 voterId → targetId (result 이전엔 null)
   revealedBotId: string | null; // S7 봇이었던 사람 (result 이전엔 null)
   revealedLiarId: string | null; // S7 라이어였던 사람 (result 이전엔 null)
   revealedNames: Record<string, string> | null; // S7 playerId → 실명 (result 이전엔 null)
+  botVoteResults: Record<string, string> | null; // S7 voterId → targetId (result 이전엔 null)
   reasons: SurveyReason[]; // S7 "왜 봇이라 생각했나" 설문 선택지
 }
 
