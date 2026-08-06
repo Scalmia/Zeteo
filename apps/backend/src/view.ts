@@ -86,18 +86,18 @@ export function buildGameStateFor(room: RoomInternalState, playerId: string): Ga
 
     // ★ 설계원칙 5 (봇 정보 유출 금지) — 아래 세 필드는 반드시 게임이 끝난 뒤(result·survey)에만
     // 채운다. 한 단계라도 먼저 노출되면 개발자도구로 결과를 미리 볼 수 있게 된다.
-    botVoteCorrectCount:
-      isPostGame ? Object.values(tallyBotVoteResults(room)).filter(Boolean).length : 0,
-      botVoteResults: isPostGame ? room.botVotes : null, 
-    revealedBotId:
-      isPostGame ? (room.players.find((p) => p.isBot)?.id ?? null) : null,
-    revealedLiarId:
-      isPostGame ? (room.players.find((p) => p.role === 'liar')?.id ?? null) : null,
+    botVoteCorrectCount: isPostGame
+      ? Object.values(tallyBotVoteResults(room)).filter(Boolean).length
+      : 0,
+    revealedBotId: isPostGame ? (room.players.find((p) => p.isBot)?.id ?? null) : null,
+    revealedLiarId: isPostGame ? (room.players.find((p) => p.role === 'liar')?.id ?? null) : null,
 
-    revealedNames:                         // ★ 추가
-      isPostGame
-        ? Object.fromEntries(room.players.map((p) => [p.id, p.name]))
-        : null,
+    // ★ 추가
+    revealedNames: isPostGame ? Object.fromEntries(room.players.map((p) => [p.id, p.name])) : null,
+    // 봇 지목은 익명 투표다. 게임이 끝나기 전에 새면 투표 도중에 "누가 나를 찍었나"를
+    // 알게 되어 익명성이 무너진다.
+    botVoteResults: isPostGame ? { ...room.botVotes } : null,
+
     // 설문 선택지는 survey 화면에서만 필요하다 (result·survey 공통이 아니라 survey 단독).
     reasons: room.phase === 'survey' ? SURVEY_REASONS : [],
   };
