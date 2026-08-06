@@ -11,7 +11,6 @@ import {
   markReady,
   isEveryoneReady,
   assignRoles,
-  shufflePlayers,
   removePlayerFromLobby,
   RoomInternalState,
 } from './room';
@@ -131,10 +130,11 @@ function advancePhase(room: RoomInternalState) {
     room.turnOrder = room.players.map((p) => p.id);
     room.currentTurnIndex = 0;
   }
+
+  enterPhase(room);
   if (room.phase === 'result') {
     logTranscript(room);
   }
-  enterPhase(room);
   broadcastRoom(room.roomId);
 }
 
@@ -381,7 +381,6 @@ io.on('connection', (socket) => {
             room.players.length >= MIN_PLAYERS_TO_START &&
             isEveryoneReady(room)
           ) {
-            shufflePlayers(room); // A-1: 봇이 항상 목록 0번에 고정되던 문제 — 시작 시 한 번만 섞음
             assignRoles(room);
             // TODO: 실제 주제 데이터셋 붙기 전까지 테스트용 하드코딩
             room.category = '동물';

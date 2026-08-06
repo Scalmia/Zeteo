@@ -93,6 +93,7 @@ export function joinRoom(roomId: string, name: string, isBot = false): InternalP
     label: assignLabel(room),
   };
   room.players.push(player);
+  shufflePlayers(room);
   return player;
 }
 
