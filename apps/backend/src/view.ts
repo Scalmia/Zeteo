@@ -52,7 +52,9 @@ export function buildGameStateFor(room: RoomInternalState, playerId: string): Ga
     phase: room.phase,
     players: publicPlayers,
     category: room.category,
-    word: me.role === 'liar' ? null : room.word,
+    // ★ A-4 수정: result phase에선 라이어에게도 제시어를 공개해야 한다 (기존엔 phase 조건이
+    // 없어서 게임이 끝나도 라이어는 제시어를 영영 못 봤다).
+    word: me.role === 'liar' && room.phase !== 'result' ? null : room.word,
     myRole: me.role,
     turnOrder: room.turnOrder,
     currentTurn: room.turnOrder[room.currentTurnIndex] ?? null,

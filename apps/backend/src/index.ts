@@ -2,6 +2,7 @@ import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import path from 'path';
+import fs from 'fs';
 import { ClientEvent, ServerEvent, Phase, BotContext } from '@zeteo/shared-types';
 import {
   createRoom,
@@ -10,6 +11,7 @@ import {
   markReady,
   isEveryoneReady,
   assignRoles,
+  shufflePlayers,
   removePlayerFromLobby,
   RoomInternalState,
 } from './room';
@@ -30,13 +32,13 @@ const socketMeta = new Map<string, { roomId: string; playerId: string }>();
 // phase별 제한시간. TODO: Day 0에 팀이 정하기로 한 실제 값으로 교체 필요, 지금은 테스트용 임시값
 // describe는 B-7(나)로 전환하면서 턴별 타이머로 분리됨 → 아래 DESCRIBE_TURN_DURATION 참고
 const PHASE_DURATIONS: Partial<Record<Phase, number>> = {
-  roleReveal: 5000,
+  roleReveal: 10000,
   debate: 60000,
-  finalDefense: 5000,
-  lifeVote: 60000,
-  reveal: 3000,
+  finalDefense: 60000,
+  lifeVote: 30000,
+  reveal: 10000,
   guessWord: 15000,
-  botVote: 30000,
+  botVote: 20000,
 };
 
 // describe 턴 하나당 제한시간. LLM 응답 6~13초 + 사람 타이핑 여유를 감안한 상한.
@@ -70,7 +72,57 @@ function enterPhase(room: RoomInternalState) {
   }
   void maybeTriggerBot(room);
 }
+const LOG_DIR = path.join(__dirname, '../logs');
 
+function logTranscript(room: RoomInternalState) {
+  const describe = (id: string): string => {
+    if (id === 'system') return '[시스템]';
+    const p = room.players.find((pl) => pl.id === id);
+    if (!p) return id;
+    return `${p.name}(${p.label}${p.isBot ? ' · 봇' : ''}${p.role === 'liar' ? ' · 라이어' : ''})`;
+  };
+
+  const plainLines = room.messages.map((m) => {
+    const time = new Date(m.at).toLocaleTimeString('ko-KR', { hour12: false });
+    return `[${time}] (${m.phase}) ${describe(m.speakerId)}: ${m.text}`;
+  });
+
+  console.log(`\n===== [${room.roomId}] 대화 로그 (총 ${plainLines.length}건) =====`);
+  for (const line of plainLines) console.log(line);
+  console.log(`===== [${room.roomId}] 로그 끝 =====\n`);
+
+  try {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const base = path.join(LOG_DIR, `${room.roomId}_${stamp}`);
+
+    const jsonPayload = room.messages.map((m) => ({
+      at: m.at,
+      phase: m.phase,
+      speakerId: m.speakerId,
+      speakerLabel: describe(m.speakerId),
+      text: m.text,
+    }));
+    fs.writeFileSync(`${base}.json`, JSON.stringify(jsonPayload, null, 2), 'utf-8');
+    fs.writeFileSync(`${base}.txt`, plainLines.join('\n') + '\n', 'utf-8');
+
+    const mdLines = [
+      `# [${room.roomId}] 대화 로그`,
+      '',
+      '| 시간 | 단계 | 발언자 | 내용 |',
+      '|---|---|---|---|',
+      ...room.messages.map((m) => {
+        const time = new Date(m.at).toLocaleTimeString('ko-KR', { hour12: false });
+        return `| ${time} | ${m.phase} | ${describe(m.speakerId)} | ${m.text.replace(/\|/g, '\\|')} |`;
+      }),
+    ];
+    fs.writeFileSync(`${base}.md`, mdLines.join('\n') + '\n', 'utf-8');
+
+    console.log(`[${room.roomId}] 대화 로그 파일 저장: ${base}.{json,txt,md}`);
+  } catch (e) {
+    console.error(`[${room.roomId}] 대화 로그 파일 저장 실패:`, e);
+  }
+}
 // stateMachine으로 다음 phase 계산 → 필요한 부수효과 처리 → 다음 타이머 설정 → 브로드캐스트
 function advancePhase(room: RoomInternalState) {
   nextPhase(room);
@@ -79,7 +131,9 @@ function advancePhase(room: RoomInternalState) {
     room.turnOrder = room.players.map((p) => p.id);
     room.currentTurnIndex = 0;
   }
-
+  if (room.phase === 'result') {
+    logTranscript(room);
+  }
   enterPhase(room);
   broadcastRoom(room.roomId);
 }
@@ -327,6 +381,7 @@ io.on('connection', (socket) => {
             room.players.length >= MIN_PLAYERS_TO_START &&
             isEveryoneReady(room)
           ) {
+            shufflePlayers(room); // A-1: 봇이 항상 목록 0번에 고정되던 문제 — 시작 시 한 번만 섞음
             assignRoles(room);
             // TODO: 실제 주제 데이터셋 붙기 전까지 테스트용 하드코딩
             room.category = '동물';

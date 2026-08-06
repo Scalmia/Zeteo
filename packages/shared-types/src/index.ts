@@ -19,8 +19,6 @@ export interface InternalPlayer {
   name: string;
   isAlive: boolean;
   isBot: boolean; // 유출 금지
-  // ★ 추가 — 클라이언트에 노출되는 익명 표시용 라벨 (예: "참가자 3")
-
   role: Role; // 유출 금지
   label: string; // ★ 추가 — 클라이언트에 노출되는 익명 표시용 라벨 (예: "참가자 3")
 }
