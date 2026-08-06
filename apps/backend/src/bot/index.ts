@@ -2,8 +2,14 @@ import type { BotAction, BotContext, DecideBotAction } from '@zeteo/shared-types
 import { generate } from './llm';
 import { debatePrompt, describePrompt, guessWordPrompt, systemPrompt } from './prompts';
 
-/** 투표하기 전에 최소 이만큼은 말한다. 말없이 표만 던지는 참가자는 그 자체로 티가 난다. */
-const CHATS_BEFORE_VOTE = 2;
+/**
+ * 아직 투표하지 않았을 때 입을 열 확률. 나머지는 그 자리에서 투표한다.
+ * 발언 횟수를 세지 않고 확률로 정하는 이유는 두 가지다.
+ *   1. transcript는 게임 전체 누적이라 "이번 라운드 발언 수"를 셀 수단이 계약에 없다.
+ *   2. 매 라운드 발언 수가 똑같으면 그 균일함 자체가 봇 티가 된다(기획서 §6).
+ * 라운드 판정은 ctx.myVote로 한다. 서버가 라운드마다 votes를 비우므로 자연히 라운드 스코프다.
+ */
+const CHAT_BEFORE_VOTE_CHANCE = 0.7;
 /** 투표를 마친 뒤 다시 호출됐을 때 입을 열 확률. 나머지는 침묵. */
 const CHAT_AFTER_VOTE_CHANCE = 0.4;
 
@@ -24,10 +30,10 @@ function silentDelay(): number {
 
 /**
  * API가 죽었을 때 대신 내보낼 말. 제시어를 흘리지 않으면서 사람이 실제로 칠 법한 문장이라야 한다.
- * 침묵으로 대체하지 않는 이유는, 서버의 silent 처리가 묘사 턴 카운터를 건드려
- * 엉뚱한 단계에서 페이즈가 넘어가버리기 때문이다.
+ * 침묵으로 대체하지 않는 이유는, 묘사 단계에서 silent가 자기 턴을 통째로 넘겨버려
+ * 혼자 아무 말 없이 지나간 참가자가 되기 때문이다.
  */
-const FALLBACK_LINES = ['음 뭐라 해야 하지', '아 이거 설명하기 좀 그런데', '잠깐만요', '음… 애매하네'];
+const FALLBACK_LINES = ['음 뭐라 해야 하지', '아 이거 설명하기 좀 그런데', '잠깐만', '음… 애매하네'];
 
 function fallbackLine(): string {
   return FALLBACK_LINES[Math.floor(Math.random() * FALLBACK_LINES.length)]!;
@@ -113,16 +119,11 @@ export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise
 
     /** 서버는 토론 제한시간이 끝날 때까지 이 함수를 반복 호출한다. 매번 하나만 고른다. */
     case 'debate': {
-      const myChats = ctx.transcript.filter(
-        (m) => m.phase === 'debate' && m.speakerId === ctx.selfId,
-      ).length;
-
-      if (myChats < CHATS_BEFORE_VOTE) {
-        const { text, delayMs } = await speak(ctx, debatePrompt(ctx));
-        return { t: 'chat', text, delayMs };
-      }
-
       if (ctx.myVote === null) {
+        if (Math.random() < CHAT_BEFORE_VOTE_CHANCE) {
+          const { text, delayMs } = await speak(ctx, debatePrompt(ctx));
+          return { t: 'chat', text, delayMs };
+        }
         return { t: 'vote', targetId: bandwagonTarget(ctx) };
       }
 
