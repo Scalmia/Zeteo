@@ -373,6 +373,11 @@ io.on('connection', (socket) => {
           const room = getRoom(meta.roomId);
           if (!room) throw new Error('room not found');
 
+          if (room.phase === 'result') {
+            advancePhase(room); // result → survey 전이 (결과 화면 "다음" 버튼)
+            return;
+          }
+
           markReady(room, meta.playerId);
 
           const MIN_PLAYERS_TO_START = 5; // 봇 포함 5명 (기획서 기준)
@@ -460,7 +465,7 @@ io.on('connection', (socket) => {
           if (!meta) throw new Error('아직 방에 입장하지 않았습니다');
           const room = getRoom(meta.roomId);
           if (!room) throw new Error('room not found');
-          if (room.phase !== 'result') throw new Error('지금은 설문 단계가 아닙니다');
+          if (room.phase !== 'survey') throw new Error('지금은 설문 단계가 아닙니다');
 
           // TODO: DB 붙이면 여기서 실제 저장 (박진님 기능). 지금은 받기만 하고 버림.
           console.log(
@@ -496,7 +501,12 @@ io.on('connection', (socket) => {
       removePlayerFromLobby(meta.roomId, meta.playerId);
       broadcastRoom(meta.roomId); // 남은 사람들한테 갱신된 인원 알려줌 (방이 삭제됐으면 자동으로 no-op)
     }
-    // 게임 시작 후("lobby" 아님)엔 기획서 원칙대로 그대로 둠 — 중도 탈락 없음
+    if (room.phase === 'survey') {
+        // 게임이 완전히 끝난 뒤라 "중도 탈락 없음" 원칙과 무관. 다들 나가서
+        // 방이 비면 정리해서 메모리에 안 남게 한다.
+        removePlayerFromLobby(meta.roomId, meta.playerId);
+      }
+      // 그 외(게임 진행 중)엔 기획서 원칙대로 그대로 둠 — 중도 탈락 없음
   });
 });
 
