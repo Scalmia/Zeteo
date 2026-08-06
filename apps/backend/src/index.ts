@@ -43,7 +43,21 @@ const PHASE_DURATIONS: Partial<Record<Phase, number>> = {
 // describe 턴 하나당 제한시간. LLM 응답 6~13초 + 사람 타이핑 여유를 감안한 상한.
 // 20~25초 사이에서 우선 20초로 잡음 — 필요하면 이 값만 조정하면 됨.
 const DESCRIBE_TURN_DURATION = 20000;
+// TODO: 실제 주제 데이터셋 붙기 전까지 테스트용 하드코딩. 카테고리 하나를 고르고
+// 그 안에서 단어 하나를 랜덤으로 뽑는다.
+const WORD_SETS: Record<string, string[]> = {
+  동물: ['강아지', '고양이', '기린', '펭귄', '캥거루'],
+  음식: ['김치찌개', '떡볶이', '초밥', '파스타', '삼겹살'],
+  가전제품: ['냉장고', '세탁기', '전자레인지', '에어컨', '정수기']
+};
 
+function pickRandomCategoryAndWord(): { category: string; word: string } {
+  const categories = Object.keys(WORD_SETS);
+  const category = categories[Math.floor(Math.random() * categories.length)]!;
+  const words = WORD_SETS[category]!;
+  const word = words[Math.floor(Math.random() * words.length)]!;
+  return { category, word };
+}
 // 현재 phase에 맞는 타이머를 건다 + 봇 차례인지 체크
 function enterPhase(room: RoomInternalState) {
   if (room.phase === 'describe') {
@@ -395,9 +409,9 @@ io.on('connection', (socket) => {
             isEveryoneReady(room)
           ) {
             assignRoles(room);
-            // TODO: 실제 주제 데이터셋 붙기 전까지 테스트용 하드코딩
-            room.category = '동물';
-            room.word = '코끼리';
+            const { category, word } = pickRandomCategoryAndWord();
+            room.category = category;
+            room.word = word;
             room.phase = 'roleReveal';
             enterPhase(room);
           }
