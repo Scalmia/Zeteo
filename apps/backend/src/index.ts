@@ -221,8 +221,8 @@ async function maybeTriggerBot(room: RoomInternalState) {
   } else if (room.phase === 'debate') {
     // 투표를 이미 했어도 토론 채팅에는 계속 참여할 수 있어야 한다
   } else if (room.phase === 'finalDefense') {
-    if (bot.id !== room.accusedId) return;
-  }else if (room.phase === 'lifeVote') {
+    // 피고인이 아니어도 질의 형태로 자유 채팅에 참여할 수 있어야 한다
+  } else if (room.phase === 'lifeVote') {
     if (room.lifeVotes[bot.id] !== undefined) return;
   } else if (room.phase === 'guessWord') {
     if (bot.id !== room.accusedId) return;
@@ -310,8 +310,8 @@ async function maybeTriggerBot(room: RoomInternalState) {
     advancePhase(room);
     return;
   }
-
   broadcastRoom(room.roomId);
+  void maybeTriggerBot(room);
 }
 
 function broadcastRoom(roomId: string) {
@@ -469,26 +469,30 @@ io.on('connection', (socket) => {
         }
 
         case 'survey': {
-      const meta = socketMeta.get(socket.id);
-        if (!meta) throw new Error('아직 방에 입장하지 않았습니다');
-        const room = getRoom(meta.roomId);
-        if (!room) throw new Error('room not found');
-        if (room.phase !== 'survey') throw new Error('지금은 설문 단계가 아닙니다');
+          const meta = socketMeta.get(socket.id);
+          if (!meta) throw new Error('아직 방에 입장하지 않았습니다');
+          const room = getRoom(meta.roomId);
+          if (!room) throw new Error('room not found');
+          if (room.phase !== 'survey') throw new Error('지금은 설문 단계가 아닙니다');
 
-      // TODO: DB 붙이면 여기서 실제 저장 (박진님 기능). 지금은 받기만 하고 버림.
-      console.log(
-        `[${room.roomId}] 설문 수신 (${meta.playerId}):`,
-        action.reasonIds,
-        action.freeText,
-      );
+          // TODO: DB 붙이면 여기서 실제 저장 (박진님 기능). 지금은 받기만 하고 버림.
+          console.log(
+            `[${room.roomId}] 설문 수신 (${meta.playerId}):`,
+            action.reasonIds,
+            action.freeText,
+          );
 
-      // 설문 제출 = 게임 완전히 끝. disconnect를 기다리지 않고 제출 시점에 바로
-      // 방에서 제거한다 (emit 직후 프론트가 소켓을 끊는 타이밍에 기대는 것보다 안전).
-      removePlayerFromLobby(meta.roomId, meta.playerId);
-      socketMeta.delete(socket.id);
-      socket.leave(meta.roomId);
-      return; // 게임 상태에 영향 없으니 broadcast 불필요
-    }
+          // 설문 제출 = 게임 완전히 끝. disconnect를 기다리지 않고 제출 시점에 바로
+          // 방에서 제거한다 (emit 직후 프론트가 소켓을 끊는 타이밍에 기대는 것보다 안전).
+          removePlayerFromLobby(meta.roomId, meta.playerId);
+          socketMeta.delete(socket.id);
+          socket.leave(meta.roomId);
+          return; // 게임 상태에 영향 없으니 broadcast 불필요
+        }
+        default:
+          console.log('아직 처리 안 하는 액션:', action);
+          return;
+      }
 
       const meta = socketMeta.get(socket.id);
       if (meta) broadcastRoom(meta.roomId);
