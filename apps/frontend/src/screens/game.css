@@ -32,6 +32,19 @@
   justify-content: center;
 }
 
+/* 채팅이 있는 화면(Describe·Debate·FinalDefense)만 뷰포트 높이에 고정한다.
+ *
+ * min-height 는 "최소" 높이라 높이가 확정되지 않는다. 그러면 그 안의
+ * .zt-body{flex:1} → .zt-chat{flex:1} → .zt-chat-log{overflow-y:auto} 가
+ * 계산할 기준 높이를 못 받고, 로그가 길어지면 스크롤 대신 화면 자체가 늘어난다.
+ * 그 결과 타이머와 투표 패널 윗부분이 화면 밖으로 밀려났다(2판 테스트 B-1·B-2).
+ *
+ * 카드형 화면(RoleReveal·LifeVote·Reveal·mock 목록)은 내용이 길어지면 늘어나야
+ * 하므로 :has() 로 대상을 좁힌다 — 그쪽은 기존 min-height 동작 그대로다. */
+.zt-screen:has(.zt-body) {
+  height: 100vh;
+}
+
 .zt-head {
   display: flex;
   align-items: center;
