@@ -32,7 +32,7 @@ const socketMeta = new Map<string, { roomId: string; playerId: string }>();
 // describe는 B-7(나)로 전환하면서 턴별 타이머로 분리됨 → 아래 DESCRIBE_TURN_DURATION 참고
 const PHASE_DURATIONS: Partial<Record<Phase, number>> = {
   roleReveal: 10000,
-  debate: 60000,
+  debate: 120000,
   finalDefense: 60000,
   lifeVote: 30000,
   reveal: 10000,
@@ -75,6 +75,7 @@ function enterPhase(room: RoomInternalState) {
     setPhaseTimer(room, duration, () => {
       if (room.phase === 'guessWord' && room.pendingLiarGameResult === null) {
         room.pendingLiarGameResult = 'citizenWin'; // 시간 초과 = 추측 실패
+        room.liarGameResult = room.pendingLiarGameResult;
       }
       advancePhase(room);
     });
@@ -182,6 +183,23 @@ function advanceDescribeTurn(room: RoomInternalState) {
 function skipDescribeTurn(room: RoomInternalState) {
   room.currentTurnIndex += 1;
   advanceDescribeTurn(room);
+}
+
+// 생사투표 도중, 아직 투표 안 한 사람이 남아있어도 결과가 이미 확정된 경우를 판정.
+// (kill이 남은 인원 전부 spare로 던져도 못 뒤집을 만큼 앞섰거나, 반대로 spare가
+// 남은 인원 전부 kill로 던져도 방어되는 경우) 이럴 땐 전원 투표를 기다리지 않는다.
+function isLifeVoteDecided(room: RoomInternalState): boolean {
+  const alive = room.players.filter((p) => p.isAlive);
+  let kill = 0;
+  let spare = 0;
+  for (const p of alive) {
+    const v = room.lifeVotes[p.id];
+    if (v === undefined) continue;
+    if (v) kill++;
+    else spare++;
+  }
+  const remaining = alive.length - (kill + spare);
+  return kill > spare + remaining || spare >= kill + remaining;
 }
 
 // debate/lifeVote/botVote에서 전원 투표했는지 판정 (사람 케이스 + 봇 케이스 공용)
@@ -439,13 +457,20 @@ io.on('connection', (socket) => {
           const room = getRoom(meta.roomId);
           if (!room) throw new Error('room not found');
           if (room.phase !== 'lifeVote') throw new Error('지금은 생사 투표 단계가 아닙니다');
-
+          if (room.lifeVotes[meta.playerId] !== undefined) {
+            throw new Error('이미 투표했습니다');
+          }
           room.lifeVotes[meta.playerId] = action.kill;
 
           if (isVotingComplete(room)) {
             clearPhaseTimer(room.roomId);
             advancePhase(room);
             return;
+          }
+          if (!room.lifeVoteDecided && isLifeVoteDecided(room)) {
+            room.lifeVoteDecided = true;
+            setPhaseTimer(room, 3000, () => advancePhase(room)); // 과반 확정 → 3초 뒤 자동 진행
+            break;
           }
           break;
         }
@@ -457,10 +482,10 @@ io.on('connection', (socket) => {
           if (room.phase !== 'guessWord') throw new Error('지금은 제시어 추측 단계가 아닙니다');
           if (meta.playerId !== room.accusedId)
             throw new Error('라이어만 제시어를 추측할 수 있습니다');
-
           clearPhaseTimer(room.roomId);
           const correct = action.word.trim() === room.word.trim();
           room.pendingLiarGameResult = correct ? 'liarWin' : 'citizenWin';
+          room.liarGameResult = room.pendingLiarGameResult; // 제출 즉시 공개
           advancePhase(room);
           return;
         }

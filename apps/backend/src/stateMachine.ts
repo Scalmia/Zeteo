@@ -62,6 +62,7 @@ const transitions: Record<Phase, Transition> = {
     room.accusedId = null;
     room.votes = {};
     room.lifeVotes = {};
+    room.lifeVoteDecided = false;
     room.round += 1;
     room.turnOrder = [];
     room.currentTurnIndex = 0;
