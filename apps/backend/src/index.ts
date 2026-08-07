@@ -410,10 +410,8 @@ io.on('connection', (socket) => {
 
           markReady(room, meta.playerId);
 
-          const MIN_PLAYERS_TO_START = 5; // 봇 포함 5명 (기획서 기준)
           if (
             room.phase === 'lobby' &&
-            room.players.length >= MIN_PLAYERS_TO_START &&
             isEveryoneReady(room)
           ) {
             assignRoles(room);
