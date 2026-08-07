@@ -89,7 +89,7 @@ function enterPhase(room: RoomInternalState) {
 
 // 팀 피드백: 게임이 끝난 시점(result 진입)에 전체 대화 로그를 터미널에 띄워달라는 요청.
 // 친구들과 테스트할 때나 나중에 대화 흐름을 복기할 때 유용하도록,
-// (1) 서버 콘솔에 한 번에(증분 아님) 출력하고 (2) apps/backend/logs/ 에 json/txt/md 세 형식으로도 남긴다.
+// (1) 서버 콘솔에 한 번에(증분 아님) 출력하고 (2) apps/backend/logs/ 에 md 형식으로도 남긴다.
 // isBot/role은 클라이언트로는 절대 안 나가지만, 이건 서버 터미널/로컬 파일 전용이라
 // 팀이 직접 복기할 때 누가 봇이었는지 바로 보이도록 표시해준다.
 const LOG_DIR = path.join(__dirname, '../logs');
@@ -116,16 +116,6 @@ function logTranscript(room: RoomInternalState) {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const base = path.join(LOG_DIR, `${room.roomId}_${stamp}`);
 
-    const jsonPayload = room.messages.map((m) => ({
-      at: m.at,
-      phase: m.phase,
-      speakerId: m.speakerId,
-      speakerLabel: describe(m.speakerId),
-      text: m.text,
-    }));
-    fs.writeFileSync(`${base}.json`, JSON.stringify(jsonPayload, null, 2), 'utf-8');
-    fs.writeFileSync(`${base}.txt`, plainLines.join('\n') + '\n', 'utf-8');
-
     const mdLines = [
       `# [${room.roomId}] 대화 로그`,
       '',
@@ -138,7 +128,7 @@ function logTranscript(room: RoomInternalState) {
     ];
     fs.writeFileSync(`${base}.md`, mdLines.join('\n') + '\n', 'utf-8');
 
-    console.log(`[${room.roomId}] 대화 로그 파일 저장: ${base}.{json,txt,md}`);
+    console.log(`[${room.roomId}] 대화 로그 파일 저장: ${base}.md`);
   } catch (e) {
     console.error(`[${room.roomId}] 대화 로그 파일 저장 실패:`, e);
   }
@@ -420,10 +410,8 @@ io.on('connection', (socket) => {
 
           markReady(room, meta.playerId);
 
-          const MIN_PLAYERS_TO_START = 5; // 봇 포함 5명 (기획서 기준)
           if (
             room.phase === 'lobby' &&
-            room.players.length >= MIN_PLAYERS_TO_START &&
             isEveryoneReady(room)
           ) {
             assignRoles(room);
