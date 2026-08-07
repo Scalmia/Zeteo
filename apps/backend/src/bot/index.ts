@@ -89,14 +89,22 @@ async function speak(ctx: BotContext, prompt: string): Promise<{ text: string; d
 
   let text = await generateOrEmpty(ctx, prompt);
 
-  // 프롬프트로 금지해도 모델이 제시어를 그대로 말해버리는 일이 실제로 벌어졌다.
-  // 시민이 제시어를 흘리면 라이어가 곧바로 정답을 알게 되어 그 판이 끝나므로,
-  // 규칙에만 맡기지 않고 생성 결과를 직접 확인한다. 한 번 더 시켜보고 그래도 새면 버린다.
-  if (leaksWord(ctx, text)) {
-    console.warn('[bot] 제시어 유출 감지, 재생성:', text);
+  // 프롬프트로 금지해도 모델이 제시어를 그대로 말하거나, 답 대신 사고 과정을 뱉는 일이
+  // 실제로 벌어졌다. 둘 다 그대로 내보내면 그 판이 끝나므로 규칙에만 맡기지 않고
+  // 생성 결과를 직접 확인한다. 한 번 더 시켜보고 그래도 걸리면 버린다.
+  const rejected = (t: string): string | null => {
+    if (leaksWord(ctx, t)) return '제시어 유출';
+    if (looksInvalid(t)) return '채팅 한 줄이 아님';
+    return null;
+  };
+
+  let reason = rejected(text);
+  if (reason !== null) {
+    console.warn(`[bot] ${reason} 감지, 재생성:`, text);
     text = await generateOrEmpty(ctx, prompt);
-    if (leaksWord(ctx, text)) {
-      console.warn('[bot] 재생성도 유출, 대체 문구 사용:', text);
+    reason = rejected(text);
+    if (reason !== null) {
+      console.warn(`[bot] 재생성도 ${reason}, 대체 문구 사용:`, text);
       text = '';
     }
   }
@@ -108,6 +116,17 @@ async function speak(ctx: BotContext, prompt: string): Promise<{ text: string; d
 
 function leaksWord(ctx: BotContext, text: string): boolean {
   return ctx.word !== null && ctx.word.length > 0 && text.includes(ctx.word);
+}
+
+/**
+ * 모델이 답 대신 자기 사고 과정을 그대로 뱉는 일이 실제로 있었다(영어 여러 줄).
+ * 그게 채팅창에 올라가면 그 순간 정체가 드러나므로, 채팅 한 줄로 보기 어려운 건 버린다.
+ * 라벨이 알파벳 한 글자라 영문이 조금 섞이는 것 자체는 정상이다.
+ */
+function looksInvalid(text: string): boolean {
+  if (text.length > 80) return true;
+  if (/[\r\n]/.test(text)) return true;
+  return (text.match(/[A-Za-z]/g) ?? []).length > 8;
 }
 
 async function generateOrEmpty(ctx: BotContext, prompt: string): Promise<string> {
