@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Reason, SurveyScreenState } from "./types";
+import Button from "./components/Button";
 import "./styles/tokens.css";
 
 interface SurveyScreenProps extends SurveyScreenState {
@@ -85,9 +86,9 @@ export default function SurveyScreen({
             />
           </div>
 
-          <button className="btn btn-primary btn-block" onClick={() => onSubmit(checked, freeText)}>
+          <Button block onClick={() => onSubmit(checked, freeText)}>
             제출
-          </button>
+          </Button>
         </div>
       </div>
     </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { PublicPlayer } from "@zeteo/shared-types";
 import type { PlayerId, VoteScreenState } from "./types";
+import Button from "./components/Button";
 import "./styles/tokens.css";
 
 interface VoteScreenProps extends VoteScreenState {
@@ -115,13 +116,9 @@ export default function VoteScreen({
           투표 현황 · {botVoteCounts.voted} / {botVoteCounts.total}명 완료
         </div>
 
-        <button
-          className="btn btn-primary btn-block"
-          disabled={myVote === null}
-          onClick={() => myVote !== null && onConfirm(myVote)}
-        >
+        <Button block disabled={myVote === null} onClick={() => myVote !== null && onConfirm(myVote)}>
           확정
-        </button>
+        </Button>
       </div>
     </div>
   );

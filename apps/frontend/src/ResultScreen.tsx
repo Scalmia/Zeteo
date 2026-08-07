@@ -1,4 +1,5 @@
 import type { ResultPlayer, ResultScreenState } from "./types";
+import Button from "./components/Button";
 import "./styles/tokens.css";
 
 interface ResultScreenProps extends ResultScreenState {
@@ -103,9 +104,9 @@ export default function ResultScreen({
           </div>
         </div>
 
-        <button className="btn btn-primary btn-block" onClick={onNext}>
+        <Button block onClick={onNext}>
           다음
-        </button>
+        </Button>
       </div>
     </div>
   );

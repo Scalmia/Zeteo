@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Button from "./components/Button";
 import "./styles/tokens.css";
 
 interface LandingScreenProps {
@@ -57,13 +58,9 @@ export default function LandingScreen({ onJoin }: LandingScreenProps) {
           />
         </div>
 
-        <button
-          className="btn btn-primary btn-block"
-          disabled={!canJoin}
-          onClick={() => canJoin && onJoin(name.trim(), roomId.trim())}
-        >
+        <Button block disabled={!canJoin} onClick={() => canJoin && onJoin(name.trim(), roomId.trim())}>
           입장하기
-        </button>
+        </Button>
       </div>
     </div>
   );

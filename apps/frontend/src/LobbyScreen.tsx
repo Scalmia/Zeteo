@@ -1,4 +1,5 @@
 import type { LobbyPlayer, LobbyScreenState } from "./types";
+import Button from "./components/Button";
 import "./styles/tokens.css";
 
 interface LobbyScreenProps extends LobbyScreenState {
@@ -68,9 +69,9 @@ export default function LobbyScreen({ roomId, players, myId, myReady, onToggleRe
           {players.filter((p) => p.isReady).length} / {players.length}명 준비완료
         </div>
 
-        <button className="btn btn-primary btn-block" onClick={onToggleReady}>
+        <Button block onClick={onToggleReady}>
           {myReady ? "준비 취소" : "준비완료"}
-        </button>
+        </Button>
       </div>
     </div>
   );
