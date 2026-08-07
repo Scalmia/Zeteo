@@ -34,5 +34,15 @@ export function useGameState() {
 
   const onEvent = useCallback((e: ClientEvent) => sendAction(e), []);
 
-  return { state, onEvent, connected, error };
+  // 설문 제출 등 게임이 완전히 끝난 뒤 랜딩 화면으로 되돌아갈 때 사용.
+  // 서버가 설문 제출 시점에 이미 방에서 제거해주므로, 프론트는 소켓을 새로
+  // 잡고 로컬 state만 비우면 된다 — leaveRoom류 이벤트 불필요.
+  const leaveToLanding = useCallback(() => {
+    socket.disconnect();
+    setState(null);
+    setError(null);
+    socket.connect();
+  }, []);
+
+  return { state, onEvent, connected, error, leaveToLanding };
 }

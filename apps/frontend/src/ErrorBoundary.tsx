@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import Button from "./components/Button";
 import "./styles/tokens.css";
 
 interface Props {
@@ -46,9 +47,7 @@ export class ErrorBoundary extends Component<Props, State> {
             문제가 발생했습니다
           </p>
           <p className="text-muted">화면을 표시하는 중 오류가 났습니다. 새로고침해주세요.</p>
-          <button className="btn btn-primary" onClick={() => location.reload()}>
-            새로고침
-          </button>
+          <Button onClick={() => location.reload()}>새로고침</Button>
         </div>
       );
     }

@@ -1,5 +1,6 @@
 import VoteScreen from "./VoteScreen";
 import ResultScreen from "./ResultScreen";
+import SurveyScreen from "./SurveyScreen";
 import LandingScreen from "./LandingScreen";
 import LobbyScreen from "./LobbyScreen";
 import { GameScreen } from "./screens/GameScreen";
@@ -38,7 +39,7 @@ function MissingData({ label }: { label: string }) {
   );
 }
 
-function renderScreen(state: GameState | null, onEvent: (e: ClientEvent) => void) {
+function renderScreen(state: GameState | null, onEvent: (e: ClientEvent) => void, onLeave: () => void) {
   if (!state) {
     return (
       <LandingScreen
@@ -82,41 +83,56 @@ function renderScreen(state: GameState | null, onEvent: (e: ClientEvent) => void
   }
 
   if (state.phase === "result") {
-    if (!state.players || !state.botVoteCounts || !state.reasons) {
+    if (!state.players || !state.botVoteCounts) {
       return <MissingData label="결과" />;
     }
-    const nameOf = (id: string | null) =>
-      id ? (state.revealedNames?.[id] ?? state.players.find((p) => p.id === id)?.label ?? null) : null;
     const winner =
       state.liarGameResult === "liarWin"
         ? "라이어 승리"
         : state.liarGameResult === "citizenWin"
           ? "시민 승리"
           : "";
+    const labelOf = (id: string) => state.players.find((pl) => pl.id === id)?.label ?? id;
+    const resultPlayers = state.players.map((p) => ({
+      id: p.id,
+      label: p.label,
+      name: state.revealedNames?.[p.id] ?? null,
+      tag: p.id === state.revealedBotId ? ("봇" as const) : p.id === state.revealedLiarId ? ("라이어" as const) : ("시민" as const),
+      votedFor: state.botVoteResults?.[p.id] ? labelOf(state.botVoteResults[p.id]!) : null
+    }));
 
     return (
       <ResultScreen
         winner={winner}
         totalVoters={state.botVoteCounts.total}
         botVoteCorrectCount={state.botVoteCorrectCount}
-        revealedBotName={nameOf(state.revealedBotId)}
-        revealedLiarName={nameOf(state.revealedLiarId)}
-        reasons={state.reasons}
-        checkedReasonIds={[]}
-        freeText=""
-        onSubmit={(checkedReasonIds, freeText) =>
-          onEvent({ t: "survey", reasonIds: checkedReasonIds, freeText })
-        }
+        category={state.category}
+        word={state.word}
+        players={resultPlayers}
+        onNext={() => onEvent({ t: "ready" })}
       />
     );
   }
 
-  // survey 등 아직 전용 화면이 없는 페이즈
+  if (state.phase === "survey") {
+    return (
+      <SurveyScreen
+        reasons={state.reasons}
+        checkedReasonIds={[]}
+        freeText=""
+        onSubmit={(checkedReasonIds, freeText) => {
+          onEvent({ t: "survey", reasonIds: checkedReasonIds, freeText });
+          onLeave();
+        }}
+      />
+    );
+  }
+
   return <div className="text-muted" style={{ textAlign: "center", padding: 32 }}>다음 단계 준비 중…</div>;
 }
 
 export function App() {
-  const { state, onEvent, connected, error } = useGameState();
+  const { state, onEvent, connected, error, leaveToLanding } = useGameState();
 
   return (
     <div>
@@ -130,7 +146,7 @@ export function App() {
           {error}
         </div>
       )}
-      {renderScreen(state, onEvent)}
+      {renderScreen(state, onEvent, leaveToLanding)}
     </div>
   );
 }
