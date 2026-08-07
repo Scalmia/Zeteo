@@ -42,16 +42,30 @@ type ThinkingConfig = { type: 'enabled'; budget_tokens: number } | { type: 'enab
  */
 const DEFAULT_THINKING: ThinkingConfig = { type: 'enabled', budget_tokens: 1024 };
 
+/**
+ * 같은 상황을 여러 번 물었을 때 글자까지 똑같은 답이 나올 만큼 결정적이어서 올려 잡는다.
+ * 이 엔드포인트의 허용 범위는 [0, 2). 낮으면 판박이가 되고, 너무 높이면 말이 무너진다.
+ *
+ * 주의: 진짜 Anthropic API는 thinking이 켜져 있으면 temperature를 1로 고정하도록 막는다.
+ * 이 브릿지도 같은 제약이면 400이 돌아오므로, 발화가 전부 대체 문구로 바뀌면 이 값을 의심할 것.
+ */
+const DEFAULT_TEMPERATURE = 1.2;
+
 export async function generate(
   system: string,
   user: string,
-  { maxTokens = 1536, thinking = DEFAULT_THINKING }: { maxTokens?: number; thinking?: ThinkingConfig } = {},
+  {
+    maxTokens = 1536,
+    thinking = DEFAULT_THINKING,
+    temperature = DEFAULT_TEMPERATURE,
+  }: { maxTokens?: number; thinking?: ThinkingConfig; temperature?: number } = {},
 ): Promise<string> {
   const res = await getClient().messages.create({
     model: required('BOT_MODEL', model),
     max_tokens: maxTokens,
     system,
     messages: [{ role: 'user', content: user }],
+    temperature,
     thinking: thinking as unknown as Anthropic.Messages.ThinkingConfigParam,
   });
 
