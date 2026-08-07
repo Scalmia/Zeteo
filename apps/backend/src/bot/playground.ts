@@ -75,18 +75,25 @@ const ACCUSED = 'p2';
  *   mine     : 묘사 단계에서 봇이 이미 했던 말 (토론 이후 단계에서만 쓰인다)
  *   debate   : 토론에서 오간 말. "{ACCUSED}"라고 쓰면 실제 배정된 라벨로 치환된다
  *              (라벨이 매 실행 무작위라 텍스트에 고정 이름을 박아둘 수 없다)
+ *
+ * 묘사는 "아는 사람이면 수긍할 말이되, 주제 안 다른 것 두셋에도 들어맞는" 형태로 써 둔다.
+ * 고유 특징("줄무늬가 있어")은 정답을 그대로 넘겨주고,
+ * 확인할 수 없는 사건("내가 봤는데")은 아무도 수긍할 수 없어 증명이 안 된다.
+ * 널리 공유되는 인상("난 멋있다고 봄")은 그 사이에 있어 괜찮다.
+ * 봇은 이 대사들을 보고 자기 발화 수위와 각도를 맞추므로, 목업 자체가 봇 품질을 좌우한다.
+ * 네 줄이 서로 다른 각도를 다뤄야 봇도 남은 각도를 찾아 다양하게 말한다.
  */
 const SCENARIOS = {
   tiger: {
     category: '동물',
     word: '호랑이',
     describe: [
-      ['p1', '줄무늬가 있어'],
-      ['p2', '음… 산에 살아'],
-      ['p3', '어릴 때 동화책에서 자주 봤어'],
-      ['p4', '고양잇과야'],
+      ['p1', '가까이 가면 위험하지'],
+      ['p2', '음… 도시에선 못 보고'],
+      ['p3', '새끼 때는 귀엽더라'],
+      ['p4', '난 좀 멋있다고 생각함'],
     ],
-    mine: '한국 옛날 이야기에 많이 나오잖아',
+    mine: '무리로 다니진 않잖아',
     debate: [
       ['p1', '{ACCUSED} 묘사가 너무 두루뭉술한데'],
       ['p2', '아 진짜 아니라니까'],
@@ -97,12 +104,12 @@ const SCENARIOS = {
     category: '음식',
     word: '김치',
     describe: [
-      ['p1', '빨간 편이야'],
-      ['p2', '음 밥이랑 같이 먹어'],
-      ['p3', '집마다 맛이 다르대'],
-      ['p4', '오래 둘수록 시어져'],
+      ['p1', '밥이랑 같이 먹지'],
+      ['p2', '음 집마다 맛이 다르대'],
+      ['p3', '오래 두고 먹어도 되고'],
+      ['p4', '처음 먹는 외국인은 힘들어하더라'],
     ],
-    mine: '냉장고에 항상 있는 그거',
+    mine: '식당 가면 그냥 나오잖아',
     debate: [
       ['p1', '{ACCUSED} 말이 너무 두루뭉술하지 않아?'],
       ['p2', '아니 진짜 아니야'],
@@ -113,12 +120,12 @@ const SCENARIOS = {
     category: '교통수단',
     word: '지하철',
     describe: [
-      ['p1', '출퇴근에 많이 타지'],
-      ['p2', '음… 카드 찍고 타'],
-      ['p3', '아침엔 진짜 사람 많아'],
-      ['p4', '노선도 보고 갈아타야 해서 헷갈려'],
+      ['p1', '출퇴근 시간엔 붐비지'],
+      ['p2', '음… 요금 내고 타는 거고'],
+      ['p3', '정해진 길로만 다니잖아'],
+      ['p4', '혼자 타도 어색하진 않지'],
     ],
-    mine: '땅 밑으로 다니잖아',
+    mine: '오래 타면 좀 지루하긴 해',
     debate: [
       ['p1', '{ACCUSED} 그건 아무거나 다 되는데'],
       ['p2', '아 그냥 생각나는 대로 말한 건데'],
@@ -202,26 +209,43 @@ const ctx: BotContext = {
   myVote: null,
 };
 
+/** 봇은 남이 말을 얹어야 반응한다. 여기서 사람 발언을 넣어주지 않으면 한 번 말하고 계속 침묵한다. */
+const HUMAN_FILLERS = [
+  '음 글쎄',
+  '난 아직 모르겠는데',
+  '그건 좀 아니지 않나?',
+  '아 그런가',
+  '다들 너무 애매하게 말하는듯',
+  '난 그냥 느낌대로 갈래',
+];
+
 /**
  * 실제 서버는 봇의 발언을 기록하고 표를 반영한 뒤 다시 물어본다.
  * 그 갱신을 흉내내지 않으면 매 호출이 같은 상황이라 첫 분기만 반복해서 확인된다.
  *
- * 단 서버가 반복 호출하는 단계는 debate뿐이다. 묘사는 1인 1회라서 여기서도 갱신하지 않고
- * 같은 상황을 매번 새로 샘플링해야 발화가 얼마나 다양한지 볼 수 있다.
+ * 묘사는 1인 1회라 갱신하지 않는다. 같은 상황을 매번 새로 샘플링해야
+ * 발화가 얼마나 다양한지 볼 수 있기 때문이다.
  */
 function applyToContext(action: Awaited<ReturnType<typeof decideBotAction>>): void {
-  if (ctx.phase !== 'debate') return;
+  if (ctx.phase !== 'debate' && ctx.phase !== 'finalDefense') return;
 
   if (action.t === 'chat') {
-    ctx.transcript.push(msg(SELF, action.text, 'debate'));
-    return;
-  }
-  if (action.t === 'vote') {
+    ctx.transcript.push(msg(SELF, action.text, ctx.phase));
+  } else if (action.t === 'vote') {
     if (ctx.myVote !== null) ctx.voteCounts[ctx.myVote] = (ctx.voteCounts[ctx.myVote] ?? 1) - 1;
     if (action.targetId !== null) {
       ctx.voteCounts[action.targetId] = (ctx.voteCounts[action.targetId] ?? 0) + 1;
     }
     ctx.myVote = action.targetId;
+  }
+
+  // 30%는 아무도 말하지 않은 채로 두어 "남을 기다리는" 분기도 확인할 수 있게 한다.
+  if (Math.random() < 0.7) {
+    const others = players.filter((p) => p.id !== SELF);
+    const who = others[Math.floor(Math.random() * others.length)]!;
+    const line = HUMAN_FILLERS[Math.floor(Math.random() * HUMAN_FILLERS.length)]!;
+    ctx.transcript.push(msg(who.id, line, ctx.phase));
+    console.log(`    ↳ (테스트용) ${who.label}: ${line}\n`);
   }
 }
 
