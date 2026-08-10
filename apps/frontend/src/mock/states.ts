@@ -7,7 +7,7 @@ import type { GameState, Message, PublicPlayer } from '@zeteo/shared-types';
  *
  *  게임 중에는 실명이 아니라 서버가 방마다 무작위 배정하는 label("참가자 N")만 보인다.
  *  실명은 S7의 revealedNames 로만 공개된다 — 참고용 대응은 아래와 같다.
- *    p1 김정현 · p2 박진 · p3 이현우(=나) · p4 유민성 · p5 최서연(봇)
+ *    p1 봇담당 · p2 레이아웃담당 · p3 화면담당(=나) · p4 서버담당 · p5 최서연(봇)
  *
  *  label 값을 일부러 비순차로 둔 것은 서버 assignLabel 이 1~20 중 무작위로 뽑기 때문이다.
  *  화면이 "label 번호 = 입장 순서"를 가정하고 있으면 여기서 드러난다. */

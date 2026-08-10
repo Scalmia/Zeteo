@@ -62,6 +62,7 @@ const transitions: Record<Phase, Transition> = {
     room.accusedId = null;
     room.votes = {};
     room.lifeVotes = {};
+    room.lifeVoteDecided = false;
     room.round += 1;
     room.turnOrder = [];
     room.currentTurnIndex = 0;
@@ -95,10 +96,12 @@ const transitions: Record<Phase, Transition> = {
     return 'result';
   },
 
-  result: () => 'result',
+  result: () => 'survey',
 
-  // survey는 nextPhase()로 진입하는 실제 phase가 아니다 — result에 머문 채
-  // index.ts의 case "survey"가 부수효과 없이 액션만 처리한다. 타입 완결성을 위한 종결 전이.
+  // result에서 넘어온 뒤 survey에 계속 머무는 자기 자신으로의 전이.
+  // nextPhase가 survey 단계에서 다시 호출될 일은 없지만(설문 제출은 index.ts의
+  // case "survey"가 advancePhase 없이 처리), Record<Phase, Transition> 타입이
+  // 모든 Phase 키를 요구하므로 이 항목 자체는 지울 수 없다.
   survey: () => 'survey',
 };
 

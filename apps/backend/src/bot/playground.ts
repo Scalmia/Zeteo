@@ -4,15 +4,16 @@ import { decideBotAction } from './index';
 /**
  * 서버도 화면도 없이 봇 발화만 확인하는 콘솔 스크립트.
  *
- *   인자: [역할] [페이즈] [횟수] [시나리오]
+ *   인자: [역할] [페이즈] [횟수] [시나리오] [피고인]
  *
- *   npm run bot -w backend                                  시민으로 묘사 5개
- *   npm run bot -w backend -- liar                          라이어로 묘사 5개
- *   npm run bot -w backend -- citizen debate 6              토론 (chat → vote → chat/silent)
- *   npm run bot -w backend -- liar finalDefense 2           최후 변론
- *   npm run bot -w backend -- citizen lifeVote 1            생사 투표
- *   npm run bot -w backend -- liar guessWord 1              제시어 추측
- *   npm run bot -w backend -- citizen describe 5 kimchi     시나리오 교체
+ *   npm run bot -w backend                                     시민으로 묘사 5개
+ *   npm run bot -w backend -- liar                             라이어로 묘사 5개
+ *   npm run bot -w backend -- citizen debate 10                토론 (chat → vote → chat/silent)
+ *   npm run bot -w backend -- citizen finalDefense 8           최후 변론 (남이 몰린 상황)
+ *   npm run bot -w backend -- citizen finalDefense 8 tiger me  최후 변론 (봇이 몰린 상황)
+ *   npm run bot -w backend -- citizen lifeVote 1               생사 투표
+ *   npm run bot -w backend -- liar guessWord 1                 제시어 추측
+ *   npm run bot -w backend -- citizen describe 5 kimchi        시나리오 교체
  *
  * 기획서 "최우선 검증 1순위 — 봇 발화 품질"이 이 파일로 수행된다.
  * 여기서 나온 발화를 팀원이 직접 쓴 묘사와 섞어 블라인드 테스트한다.
@@ -35,9 +36,15 @@ const PHASES: Phase[] = [
   'survey',
 ];
 const ROLES: Role[] = ['citizen', 'liar'];
+const ACCUSED_CHOICES = ['other', 'me'];
 
-const [roleArg = 'citizen', phaseArg = 'describe', countArg = '5', scenarioArg = 'tiger'] =
-  process.argv.slice(2);
+const [
+  roleArg = 'citizen',
+  phaseArg = 'describe',
+  countArg = '5',
+  scenarioArg = 'tiger',
+  accusedArg = 'other',
+] = process.argv.slice(2);
 
 /** 팀 규칙: A~Z 중 무작위 알파벳 하나가 라벨이 된다. 실행마다 겹치지 않게 5개를 뽑는다. */
 function randomLabels(count: number): string[] {
@@ -66,8 +73,13 @@ const players: PublicPlayer[] = [
 ];
 
 const SELF = 'p5';
-/** 토론에서 최다 득표한 p2가 최후 변론에 섰다고 가정한다. 시나리오 대사의 "{ACCUSED}"는 이 사람의 라벨로 치환된다. */
-const ACCUSED = 'p2';
+/**
+ * 최후 변론에 선 사람. 다섯째 인자로 고른다.
+ *   other(기본) — 남이 몰렸을 때. 봇이 심문하는 쪽
+ *   me          — 봇이 몰렸을 때. 자기 변론 분기를 볼 수 있다
+ * 시나리오 대사의 "{ACCUSED}"는 이 사람의 라벨로 치환된다.
+ */
+const ACCUSED = accusedArg === 'me' ? SELF : 'p2';
 
 /**
  * 제시어별 목업 상황. 새 상황을 넣으려면 여기에 항목만 추가하면 된다.
@@ -75,18 +87,25 @@ const ACCUSED = 'p2';
  *   mine     : 묘사 단계에서 봇이 이미 했던 말 (토론 이후 단계에서만 쓰인다)
  *   debate   : 토론에서 오간 말. "{ACCUSED}"라고 쓰면 실제 배정된 라벨로 치환된다
  *              (라벨이 매 실행 무작위라 텍스트에 고정 이름을 박아둘 수 없다)
+ *
+ * 묘사는 "아는 사람이면 수긍할 말이되, 주제 안 다른 것 두셋에도 들어맞는" 형태로 써 둔다.
+ * 고유 특징("줄무늬가 있어")은 정답을 그대로 넘겨주고,
+ * 확인할 수 없는 사건("내가 봤는데")은 아무도 수긍할 수 없어 증명이 안 된다.
+ * 널리 공유되는 인상("난 멋있다고 봄")은 그 사이에 있어 괜찮다.
+ * 봇은 이 대사들을 보고 자기 발화 수위와 각도를 맞추므로, 목업 자체가 봇 품질을 좌우한다.
+ * 네 줄이 서로 다른 각도를 다뤄야 봇도 남은 각도를 찾아 다양하게 말한다.
  */
 const SCENARIOS = {
   tiger: {
     category: '동물',
     word: '호랑이',
     describe: [
-      ['p1', '줄무늬가 있어'],
-      ['p2', '음… 산에 살아'],
-      ['p3', '어릴 때 동화책에서 자주 봤어'],
-      ['p4', '고양잇과야'],
+      ['p1', '가까이 가면 위험하지'],
+      ['p2', '음… 도시에선 못 보고'],
+      ['p3', '새끼 때는 귀엽더라'],
+      ['p4', '난 좀 멋있다고 생각함'],
     ],
-    mine: '한국 옛날 이야기에 많이 나오잖아',
+    mine: '무리로 다니진 않잖아',
     debate: [
       ['p1', '{ACCUSED} 묘사가 너무 두루뭉술한데'],
       ['p2', '아 진짜 아니라니까'],
@@ -97,12 +116,12 @@ const SCENARIOS = {
     category: '음식',
     word: '김치',
     describe: [
-      ['p1', '빨간 편이야'],
-      ['p2', '음 밥이랑 같이 먹어'],
-      ['p3', '집마다 맛이 다르대'],
-      ['p4', '오래 둘수록 시어져'],
+      ['p1', '밥이랑 같이 먹지'],
+      ['p2', '음 집마다 맛이 다르대'],
+      ['p3', '오래 두고 먹어도 되고'],
+      ['p4', '처음 먹는 외국인은 힘들어하더라'],
     ],
-    mine: '냉장고에 항상 있는 그거',
+    mine: '식당 가면 그냥 나오잖아',
     debate: [
       ['p1', '{ACCUSED} 말이 너무 두루뭉술하지 않아?'],
       ['p2', '아니 진짜 아니야'],
@@ -113,12 +132,12 @@ const SCENARIOS = {
     category: '교통수단',
     word: '지하철',
     describe: [
-      ['p1', '출퇴근에 많이 타지'],
-      ['p2', '음… 카드 찍고 타'],
-      ['p3', '아침엔 진짜 사람 많아'],
-      ['p4', '노선도 보고 갈아타야 해서 헷갈려'],
+      ['p1', '출퇴근 시간엔 붐비지'],
+      ['p2', '음… 요금 내고 타는 거고'],
+      ['p3', '정해진 길로만 다니잖아'],
+      ['p4', '혼자 타도 어색하진 않지'],
     ],
-    mine: '땅 밑으로 다니잖아',
+    mine: '오래 타면 좀 지루하긴 해',
     debate: [
       ['p1', '{ACCUSED} 그건 아무거나 다 되는데'],
       ['p2', '아 그냥 생각나는 대로 말한 건데'],
@@ -156,10 +175,27 @@ function buildTranscript(name: ScenarioName, p: Phase): Message[] {
   ];
   if (p === 'debate') return debateLog;
 
+  // 최후 변론은 대사가 한 줄뿐이면 봇이 파고들 거리가 없어 같은 판단만 되풀이한다.
+  // 피고인이 실제로 변론하고 남들이 반응하는 상태를 만들어 준다.
+  const others = players.filter((p) => p.id !== SELF && p.id !== ACCUSED);
+  const finalDefenseLog =
+    ACCUSED === SELF
+      ? [
+          msg(others[0]!.id, `${labelOf(SELF)} 아까부터 계속 말 돌리는거 같은데`, 'finalDefense'),
+          msg(others[1]!.id, '나도 좀 그렇게 느꼈어', 'finalDefense'),
+          msg(others[2]!.id, `${labelOf(SELF)} 마지막으로 할 말 있으면 해봐`, 'finalDefense'),
+        ]
+      : [
+          msg(ACCUSED, '진짜 아니야 억울한데', 'finalDefense'),
+          msg(others[0]!.id, '그럼 왜 그렇게 말한건지 설명해봐', 'finalDefense'),
+          msg(ACCUSED, '그냥 떠오르는 대로 말한거야', 'finalDefense'),
+          msg(others[1]!.id, '그게 더 수상한데', 'finalDefense'),
+        ];
+
   return [
     ...debateLog,
     msg('system', `${accusedLabel}가 지목되었습니다. 최후 변론을 시작합니다.`, 'finalDefense'),
-    msg(ACCUSED, '진짜 아니야 억울한데', 'finalDefense'),
+    ...finalDefenseLog,
   ];
 }
 
@@ -175,6 +211,10 @@ function parseArgs(): { myRole: Role; phase: Phase; count: number; scenario: Sce
   }
   if (!SCENARIO_NAMES.includes(scenarioArg as ScenarioName)) {
     console.error(`알 수 없는 시나리오: "${scenarioArg}"\n  가능한 값: ${SCENARIO_NAMES.join(', ')}`);
+    process.exit(1);
+  }
+  if (!ACCUSED_CHOICES.includes(accusedArg)) {
+    console.error(`알 수 없는 피고인: "${accusedArg}"\n  가능한 값: ${ACCUSED_CHOICES.join(', ')}`);
     process.exit(1);
   }
   return {
@@ -203,26 +243,76 @@ const ctx: BotContext = {
 };
 
 /**
+ * 봇은 남이 말을 얹어야 반응한다. 여기서 사람 발언을 넣어주지 않으면 한 번 말하고 계속 침묵한다.
+ *
+ * 세 갈래로 나눈 것은 각각 다른 방어를 시험하기 위해서다.
+ *   atBot — 봇을 직접 몰아붙인다. 따지지 않고 짧게 받아치는지 본다
+ *   probe — 남의 묘사가 무슨 뜻이냐고 캐묻는다. 봇이 대신 풀이해주면 제시어가 새어나간다
+ *   react — 아무나 하는 반응. 지목한 상대가 아닌 사람이 말했을 때 봇이 참는지 본다
+ */
+const HUMAN_LINES = {
+  atBot: [
+    '{BOT} 아까 그거 좀 애매하지 않았어?',
+    '{BOT} 너 아까부터 말 돌리는거 같은데',
+    '{BOT} 그럼 뭐라고 설명할건데',
+    '{BOT} 솔직히 제일 수상해',
+  ],
+  probe: [
+    '{OTHER} 그거 결국 뭐 말한거야?',
+    '{OTHER} 아까 그 표현 무슨 의미인지 아는 사람',
+    '누가 좀 풀어서 말해봐',
+  ],
+  react: [
+    '음 글쎄',
+    '난 아직 모르겠는데',
+    '그건 좀 아니지 않나?',
+    '아 그런가',
+    '다들 너무 애매하게 말하는듯',
+    '난 그냥 느낌대로 갈래',
+  ],
+} as const;
+
+const pick = <T>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
+
+/**
  * 실제 서버는 봇의 발언을 기록하고 표를 반영한 뒤 다시 물어본다.
  * 그 갱신을 흉내내지 않으면 매 호출이 같은 상황이라 첫 분기만 반복해서 확인된다.
  *
- * 단 서버가 반복 호출하는 단계는 debate뿐이다. 묘사는 1인 1회라서 여기서도 갱신하지 않고
- * 같은 상황을 매번 새로 샘플링해야 발화가 얼마나 다양한지 볼 수 있다.
+ * 묘사는 1인 1회라 갱신하지 않는다. 같은 상황을 매번 새로 샘플링해야
+ * 발화가 얼마나 다양한지 볼 수 있기 때문이다.
  */
 function applyToContext(action: Awaited<ReturnType<typeof decideBotAction>>): void {
-  if (ctx.phase !== 'debate') return;
+  if (ctx.phase !== 'debate' && ctx.phase !== 'finalDefense') return;
 
   if (action.t === 'chat') {
-    ctx.transcript.push(msg(SELF, action.text, 'debate'));
-    return;
-  }
-  if (action.t === 'vote') {
+    ctx.transcript.push(msg(SELF, action.text, ctx.phase));
+  } else if (action.t === 'vote') {
     if (ctx.myVote !== null) ctx.voteCounts[ctx.myVote] = (ctx.voteCounts[ctx.myVote] ?? 1) - 1;
     if (action.targetId !== null) {
       ctx.voteCounts[action.targetId] = (ctx.voteCounts[action.targetId] ?? 0) + 1;
     }
     ctx.myVote = action.targetId;
   }
+
+  // 30%는 아무도 말하지 않은 채로 두어 "남을 기다리는" 분기도 확인할 수 있게 한다.
+  if (Math.random() >= 0.7) return;
+
+  const others = players.filter((p) => p.id !== SELF);
+  const who = pick(others);
+  const roll = Math.random();
+
+  let line: string;
+  if (roll < 0.3) {
+    line = pick(HUMAN_LINES.atBot).replaceAll('{BOT}', labelOf(SELF));
+  } else if (roll < 0.5) {
+    const target = pick(others.filter((p) => p.id !== who.id));
+    line = pick(HUMAN_LINES.probe).replaceAll('{OTHER}', target.label);
+  } else {
+    line = pick(HUMAN_LINES.react);
+  }
+
+  ctx.transcript.push(msg(who.id, line, ctx.phase));
+  console.log(`    ↳ (테스트용) ${who.label}: ${line}\n`);
 }
 
 /** backend 는 CommonJS 라 최상위 await 를 쓸 수 없다. 함수로 감싼다. */
@@ -231,7 +321,8 @@ async function main(): Promise<void> {
 
   console.log(line);
   console.log(
-    `역할 ${myRole}   페이즈 ${phase}   주제 ${category}   제시어 ${ctx.word ?? '(모름)'}   시나리오 ${scenario}`,
+    `역할 ${myRole}   페이즈 ${phase}   주제 ${category}   제시어 ${ctx.word ?? '(모름)'}` +
+      `   시나리오 ${scenario}   나 ${labelOf(SELF)}   피고인 ${accusedLabel}`,
   );
   console.log(line);
   console.log(ctx.transcript.map((m) => `  ${labelOf(m.speakerId)}: ${m.text}`).join('\n'));
