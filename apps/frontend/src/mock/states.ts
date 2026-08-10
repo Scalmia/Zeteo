@@ -47,14 +47,20 @@ const debateLog: Message[] = [
   msg('p4', '저도 참가자 1님 좀 이상했어요', 'debate'),
 ];
 
-/** 2라운드 진입("살린다" 복귀). 로그는 지우지 않고 누적한다 —
- *  룰북 S4의 "매 라운드 정보가 누적되어 자연히 수렴한다"가 설계 전제이므로
- *  로그를 비우면 그 전제가 깨진다. 라운드 경계는 시스템 메시지가 만든다. */
-const sparedLog: Message[] = [
+/** S3까지 진행된 로그. 지목 대상이 p2(참가자 1)이므로 accused: 'p2' 인 mock에만 쓴다 —
+ *  accused 가 다른 mock에 붙이면 시스템 메시지와 화면이 서로 다른 사람을 가리키게 된다. */
+const finalDefenseLog: Message[] = [
   ...debateLog,
   msg('system', '참가자 1님이 최다 득표로 지목되었습니다.', 'finalDefense'),
   msg('p2', '아니 저 진짜 시민이에요 제시어 알아요', 'finalDefense'),
   msg('p1', '그럼 말해보세요', 'finalDefense'),
+];
+
+/** 2라운드 진입("살린다" 복귀). 로그는 지우지 않고 누적한다 —
+ *  룰북 S4의 "매 라운드 정보가 누적되어 자연히 수렴한다"가 설계 전제이므로
+ *  로그를 비우면 그 전제가 깨진다. 라운드 경계는 시스템 메시지가 만든다. */
+const sparedLog: Message[] = [
+  ...finalDefenseLog,
   msg('system', '참가자 1님이 살아남았습니다. 토론을 재개합니다.', 'debate'),
 ];
 
@@ -146,10 +152,13 @@ export const MOCK_STATES: Record<string, GameState> = {
   },
 
   // ── S4 ─────────────────────────────────────────────
+  // 이 아래 mock 들은 팝업으로 뜬다. messages 를 채워두는 건 팝업 뒤에 깔리는
+  // 메인화면(채팅)이 실제 게임처럼 보여야 배치를 확인할 수 있기 때문이다.
   'lifeVote-voter': {
     ...base,
     phase: 'lifeVote',
     deadlineAt: inSec(20),
+    messages: finalDefenseLog,
     accused: 'p2',
     myLifeVote: null,
     lifeVoteCounts: { kill: 1, spare: 0 },
@@ -158,6 +167,7 @@ export const MOCK_STATES: Record<string, GameState> = {
     ...base,
     phase: 'lifeVote',
     deadlineAt: inSec(20),
+    messages: debateLog, // accused 가 나(p3)라 finalDefenseLog(p2 지목)를 쓰면 어긋난다
     accused: ME,
     lifeVoteCounts: { kill: 2, spare: 1 },
   },
@@ -169,6 +179,7 @@ export const MOCK_STATES: Record<string, GameState> = {
   'reveal-citizen': {
     ...base,
     phase: 'reveal',
+    messages: finalDefenseLog,
     accused: 'p2',
     revealedRole: 'citizen',
     liarGameResult: null,
@@ -178,6 +189,7 @@ export const MOCK_STATES: Record<string, GameState> = {
   'reveal-liar': {
     ...base,
     phase: 'reveal',
+    messages: finalDefenseLog,
     accused: 'p2',
     revealedRole: 'liar',
     liarGameResult: null,
@@ -187,6 +199,7 @@ export const MOCK_STATES: Record<string, GameState> = {
     phase: 'guessWord',
     myRole: 'liar',
     word: null,
+    messages: debateLog, // accused 가 나(p3)라 finalDefenseLog(p2 지목)를 쓰면 어긋난다
     accused: ME, // 내가 처형된 라이어
     revealedRole: 'liar',
     deadlineAt: inSec(30),
@@ -194,6 +207,7 @@ export const MOCK_STATES: Record<string, GameState> = {
   'guessWord-watcher': {
     ...base,
     phase: 'guessWord',
+    messages: finalDefenseLog,
     accused: 'p2',
     revealedRole: 'liar',
     deadlineAt: inSec(30),

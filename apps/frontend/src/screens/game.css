@@ -51,10 +51,6 @@
   justify-content: space-between;
   gap: var(--space-4, 16px);
 }
-.zt-logo {
-  font-weight: 700;
-  letter-spacing: 0.08em;
-}
 .zt-sub {
   color: var(--color-muted, #9a9aa8);
 }
@@ -64,14 +60,25 @@
   font-weight: 700;
 }
 
+/* 묘사 진행도 — 좌측 참가자 목록을 없애면서 발언 순서·진행도가 갈 곳이 여기 하나뿐이다.
+ * "묘사 3/5 ▶ 참가자 7" = 5명 중 3번째 차례가 진행 중. turnOrder.indexOf(currentTurn)
+ * 으로 계산하므로 계약에 새 필드를 요구하지 않는다. */
+.zt-turn {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted, #9a9aa8);
+}
+.zt-turn-mark {
+  color: var(--color-text, #e8e8ee);
+}
+
 .zt-body {
   display: flex;
   flex: 1;
   gap: var(--space-4, 16px);
   min-height: 0;
-}
-.zt-side {
-  flex: 0 0 160px;
 }
 .zt-side-wide {
   flex: 0 0 260px;
@@ -82,12 +89,6 @@
   flex-direction: column;
   min-width: 0;
 }
-.zt-section {
-  margin: 0 0 var(--space-2, 8px);
-  font-size: 0.85rem;
-  color: var(--color-muted, #9a9aa8);
-}
-
 .zt-card {
   display: flex;
   flex-direction: column;
@@ -141,44 +142,6 @@
 .zt-kv dd.is-hidden {
   letter-spacing: 0.3em;
   color: var(--color-muted, #9a9aa8);
-}
-
-/* 참가자 목록 */
-.zt-players {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.zt-player {
-  display: flex;
-  gap: var(--space-2, 8px);
-  align-items: center;
-  padding: var(--space-2, 8px);
-  border-radius: var(--radius, 12px);
-}
-.zt-player.is-turn {
-  background: var(--color-surface, #1a1a22);
-  font-weight: 700;
-}
-.zt-player.is-accused {
-  color: var(--color-danger, #ff6b6b);
-}
-.zt-player.is-dead {
-  opacity: 0.4;
-  text-decoration: line-through;
-}
-.zt-player-marker {
-  width: 1em;
-}
-.zt-player-me {
-  padding: 0 6px;
-  font-size: 0.7rem;
-  color: var(--color-muted, #9a9aa8);
-  border: 1px solid var(--color-line, #2a2a36);
-  border-radius: 999px;
 }
 
 /* 채팅 */
@@ -322,9 +285,105 @@
   align-items: center;
 }
 
+/* 페이즈 팝업 (S0 역할배정 · S4 생사투표 · S5 결과 · S5-a 제시어추측)
+ *
+ * 스크림이 메인화면 전체를 덮어 투표 패널 클릭까지 막는다. 채팅 입력은 MainScreen 이
+ * blocked prop 으로 한 번 더 잠근다 — 서버 index.ts 의 chat 핸들러에는 phase 검사가
+ * 없어서(describe·vote·lifeVote·guessWord 와 달리) 화면이 유일한 방어선이다.
+ *
+ * max-height + overflow-y 는 팝업이 길어져도 페이지 자체가 늘어나지 않게 한다.
+ * 채팅 화면에서 같은 실수를 한 적이 있다(2판 테스트 B-1·B-2). */
+.zt-modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4, 16px);
+  background: rgb(0 0 0 / 60%);
+}
+.zt-modal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+  width: 100%;
+  max-width: 360px;
+  max-height: 100%;
+  overflow-y: auto;
+  padding: var(--space-4, 16px);
+  text-align: center;
+  background: var(--color-surface, #1a1a22);
+  border: 1px solid var(--color-line, #2a2a36);
+  border-radius: var(--radius, 12px);
+}
+.zt-modal-head {
+  display: flex;
+  gap: var(--space-4, 16px);
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--space-2, 8px);
+  border-bottom: 1px solid var(--color-line, #2a2a36);
+}
+
 .zt-mock-list {
   margin: 0;
   padding-left: 1.2em;
   text-align: left;
   line-height: 1.9;
+}
+
+/* ── 모바일 (≤768px) ─────────────────────────────────────────────────────
+ *
+ * 데스크톱은 채팅 | 투표 좌우 배치다. 좁은 화면에서는 투표 패널(260px 고정)이
+ * 채팅 폭을 다 먹어 글자가 한 줄에 한 글자씩 세로로 쌓인다(실측). 세로로 쌓되
+ * 순서는 아래여야 한다.
+ *
+ *     헤더 → 채팅 로그(스크롤) → 투표 현황 → 채팅 입력창(맨 아래)
+ *
+ * 입력창은 항상 엄지 근처 맨 아래에 있어야 하고, 투표 현황은 로그를 읽다가
+ * 참조하는 정보라 그 사이에 든다.
+ *
+ * ⚠️ 입력창은 DOM 상 .zt-chat 안에 로그와 함께 들어 있어서 그대로는 투표 패널을
+ * 둘 사이에 끼울 수 없다 — order 는 형제끼리만 통하기 때문이다. .zt-main·.zt-chat 을
+ * display:contents 로 만들어 그 자식들을 .zt-body 의 직계 flex 아이템으로 끌어올린
+ * 뒤 order 로 순서를 잡는다. TSX 구조를 건드리지 않고 배치만 바꾸기 위한 선택이다.
+ * 대신 .zt-chat 이 갖고 있던 테두리·배경이 사라지므로 로그와 입력창이 각자 갖는다.
+ *
+ * 페이지 자체는 여전히 늘어나지 않는다. 스크롤은 .zt-chat-log 안에서만 일어난다
+ * (2판 테스트 B-1·B-2 교훈). */
+@media (max-width: 768px) {
+  .zt-body {
+    flex-direction: column;
+  }
+  .zt-main,
+  .zt-chat {
+    display: contents;
+  }
+
+  .zt-chat-log {
+    order: 1;
+    flex: 1;
+    min-height: 0;
+    background: var(--color-surface, #1a1a22);
+    border: 1px solid var(--color-line, #2a2a36);
+    border-radius: var(--radius, 12px);
+  }
+
+  /* 투표 현황 — 로그와 입력창 사이. 표가 많아도 화면을 다 먹지 않게 상한을 둔다 */
+  .zt-side-wide {
+    order: 2;
+    flex: 0 0 auto;
+    max-height: 38vh;
+    overflow-y: auto;
+  }
+
+  /* 맨 아래 고정. .zt-chat 밖으로 나온 셈이라 테두리를 스스로 갖는다 */
+  .zt-chat-input,
+  .zt-chat-locked {
+    order: 3;
+    background: var(--color-surface, #1a1a22);
+    border: 1px solid var(--color-line, #2a2a36);
+    border-radius: var(--radius, 12px);
+  }
 }
