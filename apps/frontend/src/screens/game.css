@@ -333,16 +333,45 @@
   line-height: 1.9;
 }
 
-/* ── 모바일 (≤768px) ─────────────────────────────────────────────────────
+/* 투표 여닫이 손잡이(.zt-vote-bar) — 기본은 숨김. 폰 폭에서만 아래 미디어쿼리가 보여준다.
+ * 데스크톱은 우측 컬럼이 항상 펼쳐져 있어 여닫을 게 없으므로 이 규칙이 최종값이다. */
+.zt-vote-bar {
+  display: none;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 10px var(--space-4, 16px);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text, #e8e8ee);
+  background: var(--color-surface, #1a1a22);
+  border: 1px solid var(--color-line, #2a2a36);
+  border-radius: var(--radius, 12px);
+  cursor: pointer;
+}
+.zt-vote-bar-chev {
+  flex: none;
+  margin-left: var(--space-2, 8px);
+  color: var(--color-muted, #9a9aa8);
+  font-size: 0.7rem;
+}
+
+/* ── 모바일 (≤900px) ─────────────────────────────────────────────────────
  *
  * 데스크톱은 채팅 | 투표 좌우 배치다. 좁은 화면에서는 투표 패널(260px 고정)이
- * 채팅 폭을 다 먹어 글자가 한 줄에 한 글자씩 세로로 쌓인다(실측). 세로로 쌓되
- * 순서는 아래여야 한다.
+ * 채팅 폭을 다 먹어 글자가 한 줄에 한 글자씩 세로로 쌓인다(실측).
  *
- *     헤더 → 채팅 로그(스크롤) → 투표 현황 → 채팅 입력창(맨 아래)
+ * ⚠️ 기획서 v3.0 D3: "하단 시트인가, 탭 전환인가. 세로로 이어붙이는 방식은 배제한다" —
+ * 채팅 → 투표 → 입력창을 그냥 순서대로 쌓기만 하면(이전 구현) 정확히 그 배제 대상이다.
+ * 그래서 투표 패널을 접이식 하단 시트로 만든다 — 시안 1이 검증한, 스펙이 허용하는
+ * 두 후보 중 하나다. MainScreen 의 voteOpen 상태가 열림/닫힘을 결정하고, 항상 보이는
+ * .zt-vote-bar 가 손잡이 역할을 한다.
  *
- * 입력창은 항상 엄지 근처 맨 아래에 있어야 하고, 투표 현황은 로그를 읽다가
- * 참조하는 정보라 그 사이에 든다.
+ *     헤더 → 채팅 로그(스크롤) → 투표 패널(여닫힘) → 여닫이 손잡이(항상 노출) → 입력창(맨 아래)
+ *
+ * 입력창은 항상 엄지 근처 맨 아래에 있어야 하고, 손잡이는 접힌 상태에서도 내 선택을
+ * 계속 읽을 수 있어야 하므로 투표 패널 밖에 따로 둔다(패널이 닫히면 안의 내용도 같이
+ * 안 보이기 때문).
  *
  * ⚠️ 입력창은 DOM 상 .zt-chat 안에 로그와 함께 들어 있어서 그대로는 투표 패널을
  * 둘 사이에 끼울 수 없다 — order 는 형제끼리만 통하기 때문이다. .zt-main·.zt-chat 을
@@ -351,8 +380,12 @@
  * 대신 .zt-chat 이 갖고 있던 테두리·배경이 사라지므로 로그와 입력창이 각자 갖는다.
  *
  * 페이지 자체는 여전히 늘어나지 않는다. 스크롤은 .zt-chat-log 안에서만 일어난다
- * (2판 테스트 B-1·B-2 교훈). */
-@media (max-width: 768px) {
+ * (2판 테스트 B-1·B-2 교훈).
+ *
+ * 브레이크포인트를 900px로 둔 것은 시안 1과 값을 맞추기 위해서다(기획서 v3.0 §2-3 —
+ * 화면마다 기준선이 다르면 그 사이 폭에서 화면별로 배치가 어긋난다). 8/11 토큰 확정 때
+ * 최종값으로 교체한다. */
+@media (max-width: 900px) {
   .zt-body {
     flex-direction: column;
   }
@@ -370,18 +403,30 @@
     border-radius: var(--radius, 12px);
   }
 
-  /* 투표 현황 — 로그와 입력창 사이. 표가 많아도 화면을 다 먹지 않게 상한을 둔다 */
+  /* 투표 패널 — 여닫이 손잡이(.zt-vote-bar)가 눌릴 때만 펼쳐진다. 펼쳐져도 표가
+   * 많아 화면을 다 먹지 않게 상한을 둔다. */
   .zt-side-wide {
     order: 2;
     flex: 0 0 auto;
     max-height: 38vh;
     overflow-y: auto;
+    transition: max-height 0.18s ease;
+  }
+  .zt-side-wide.is-collapsed {
+    max-height: 0;
+    overflow: hidden;
+  }
+
+  /* 손잡이 — 패널이 접혀도 이것만은 항상 보여야 "투표 상태를 놓쳤다"는 신호가 안 생긴다 */
+  .zt-vote-bar {
+    display: flex;
+    order: 3;
   }
 
   /* 맨 아래 고정. .zt-chat 밖으로 나온 셈이라 테두리를 스스로 갖는다 */
   .zt-chat-input,
   .zt-chat-locked {
-    order: 3;
+    order: 4;
     background: var(--color-surface, #1a1a22);
     border: 1px solid var(--color-line, #2a2a36);
     border-radius: var(--radius, 12px);

@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import type { ClientEvent, GameState } from '@zeteo/shared-types';
 import { Chat } from '../components/Chat';
 import { Timer } from '../components/Timer';
@@ -27,6 +28,15 @@ export function MainScreen({
   const isDescribe = state.phase === 'describe';
   const isDebate = state.phase === 'debate';
   const isFinalDefense = state.phase === 'finalDefense';
+
+  // 폰 폭(≤900px)에서 투표 패널을 여닫는 하단 시트 상태. 데스크톱에선 game.css가
+  // is-collapsed를 무시하고 항상 펼쳐 보이므로 이 값은 폰에서만 의미가 있다.
+  // 기본값 true — 접어야 할 이유(가시성)가 생기기 전까지는 정보를 숨기지 않는다.
+  //
+  // ⚠️ 기획서 v3.0 D3: "세로로 이어붙이는 방식은 배제한다"(채팅→투표→입력창 순서로
+  // 쭉 쌓는 것). 이 상태 없이 CSS만으로 세로 배치하면 정확히 그 배제 대상이 된다 —
+  // 시안 1이 검증한 "하단 시트(접이식)"로 만들어야 스펙이 허용한 두 후보 중 하나가 된다.
+  const [voteOpen, setVoteOpen] = useState(true);
 
   const isMyTurn = state.currentTurn === state.myId;
   const turnName = state.players.find((p) => p.id === state.currentTurn)?.label ?? '';
@@ -88,15 +98,40 @@ export function MainScreen({
         </main>
 
         {isDebate && (
-          <aside className="zt-side zt-side-wide">
-            <VotePanel
-              players={state.players}
-              voteCounts={state.voteCounts}
-              myVote={state.myVote}
-              myId={state.myId}
-              onVote={(targetId) => onEvent({ t: 'vote', targetId })}
-            />
-          </aside>
+          <>
+            <aside
+              id="zt-vote-panel"
+              className={voteOpen ? 'zt-side zt-side-wide' : 'zt-side zt-side-wide is-collapsed'}
+            >
+              <VotePanel
+                players={state.players}
+                voteCounts={state.voteCounts}
+                myVote={state.myVote}
+                myId={state.myId}
+                onVote={(targetId) => onEvent({ t: 'vote', targetId })}
+              />
+            </aside>
+
+            {/* 폰 전용 여닫이 손잡이. 데스크톱에선 game.css가 숨긴다(항상 펼쳐진 우측 컬럼이라
+                접을 필요가 없다). 항상 눌러볼 수 있어야 하므로 투표 패널 밖, 입력창 위에 고정 노출 */}
+            <button
+              type="button"
+              className="zt-vote-bar"
+              aria-expanded={voteOpen}
+              aria-controls="zt-vote-panel"
+              onClick={() => setVoteOpen((open) => !open)}
+            >
+              <span className="zt-vote-bar-label">
+                투표 현황 · 내 선택{' '}
+                {state.myVote
+                  ? (state.players.find((p) => p.id === state.myVote)?.label ?? state.myVote)
+                  : '없음'}
+              </span>
+              <span className="zt-vote-bar-chev" aria-hidden="true">
+                {voteOpen ? '▼' : '▲'}
+              </span>
+            </button>
+          </>
         )}
       </div>
     </div>
