@@ -25,7 +25,7 @@ export function VotePanel({ players, voteCounts, myVote, myId, onVote }: Props) 
               onClick={() => onVote(p.id)}
             >
               <span className="zt-vote-name">
-                <Avatar label={p.label} variant={p.id === myId ? 'mine' : !p.isAlive ? 'dead' : 'default'} />
+                <Avatar label={p.label} variant={p.id === myId ? 'mine' : 'default'} />
                 {p.label}
                 {p.id === myId && ' (나)'}
               </span>

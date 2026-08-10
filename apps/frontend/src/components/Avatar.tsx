@@ -1,7 +1,7 @@
 interface AvatarProps {
   /** 참가자 라벨 — 첫 글자만 이니셜로 뽑는다 */
   label: string;
-  variant?: "default" | "mine" | "dead";
+  variant?: "default" | "mine";
 }
 
 export default function Avatar({ label, variant = "default" }: AvatarProps) {

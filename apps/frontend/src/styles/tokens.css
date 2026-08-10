@@ -88,7 +88,6 @@ textarea.input { min-height: 90px; resize: vertical; }
   border: 1px solid var(--color-line); border-radius: var(--radius);
 }
 .avatar-mine { border-color: var(--color-accent); border-width: 2px; }
-.avatar-dead { color: var(--color-muted); opacity: 0.6; }
 
 .tag { display: inline-flex; align-items: center; font-size: 11px; letter-spacing: 0.02em; padding: 3px 10px; border-radius: calc(var(--radius) * 0.75); }
 .tag-accent { background: color-mix(in srgb, var(--color-accent) 22%, transparent); color: var(--color-accent); }
