@@ -19,6 +19,17 @@ const players: PublicPlayer[] = [
   { id: 'p5', label: '참가자 9', isAlive: true, isReady: true }, // 실제로는 봇. 클라이언트는 알 수 없어야 한다.
 ];
 
+/** 대기실 전용. 준비 상태가 섞여 있어야 "준비완료 / 대기" 배지 양쪽이 다 보인다.
+ *  나(p3)는 아직 준비 전이라 버튼이 "준비완료"로 뜬다. 봇(p5)은 서버가 입장과 동시에
+ *  자동 ready 처리한다 (index.ts 의 join 핸들러). */
+const lobbyPlayers: PublicPlayer[] = [
+  { id: 'p1', label: '참가자 4', isAlive: true, isReady: true },
+  { id: 'p2', label: '참가자 1', isAlive: true, isReady: true },
+  { id: 'p3', label: '참가자 7', isAlive: true, isReady: false },
+  { id: 'p4', label: '참가자 3', isAlive: true, isReady: false },
+  { id: 'p5', label: '참가자 9', isAlive: true, isReady: true },
+];
+
 const ME = 'p3';
 const inSec = (n: number) => Date.now() + n * 1000;
 
@@ -98,6 +109,13 @@ const base: GameState = {
 };
 
 export const MOCK_STATES: Record<string, GameState> = {
+  // ── 대기실 (파트 D · LobbyScreen) ───────────────────
+  lobby: {
+    ...base,
+    phase: 'lobby',
+    players: lobbyPlayers,
+  },
+
   // ── S0 ─────────────────────────────────────────────
   // deadlineAt: 실제 서버의 roleReveal 페이즈 제한시간(5초, apps/backend/src/index.ts
   // PHASE_DURATIONS)과 맞춰 mock에서도 타이머가 실제처럼 카운트다운되게 함
@@ -212,6 +230,62 @@ export const MOCK_STATES: Record<string, GameState> = {
     revealedRole: 'liar',
     deadlineAt: inSec(30),
   },
+
+  // ── S6 봇 지목 (파트 D · VoteScreen) ─────────────────
+  botVote: {
+    ...base,
+    phase: 'botVote',
+    deadlineAt: inSec(30),
+    messages: finalDefenseLog,
+    myVote: null,
+    // 진행도는 스포일러가 아니라 언제나 실제 값이다. total 은 봇을 뺀 사람 수(4).
+    botVoteCounts: { voted: 2, total: 4 },
+  },
+
+  // ── S7 결과 (파트 D · ResultScreen) ──────────────────
+  /** 정답 공개 화면. 여기서만 서버가 게이팅을 풀기 때문에(view.ts) revealed* 계열이
+   *  전부 실제 값으로 채워지는 유일한 mock 이다. p5=봇, p2=라이어로 앞선 로그와 맞춘다. */
+  result: {
+    ...base,
+    phase: 'result',
+    messages: finalDefenseLog,
+    accused: 'p2',
+    revealedRole: 'liar',
+    liarGameResult: 'citizenWin',
+    botVoteCounts: { voted: 4, total: 4 },
+    botVoteCorrectCount: 3, // 아래 botVoteResults 에서 p5(봇)를 맞힌 사람 수와 일치시킨다
+    revealedBotId: 'p5',
+    revealedLiarId: 'p2',
+    // 실명 자리. 저장소가 public 이라 팀원 실명 대신 역할 라벨을 쓴다(위 헤더 주석과 동일 규칙).
+    revealedNames: {
+      p1: '봇담당',
+      p2: '레이아웃담당',
+      p3: '화면담당',
+      p4: '서버담당',
+      p5: '최서연',
+    },
+    // 누가 누구를 봇으로 지목했는지. result 이전엔 null 이어야 하는 익명 투표 원본이다.
+    botVoteResults: { p1: 'p5', p2: 'p5', p3: 'p5', p4: 'p1' },
+  },
+
+  // ── S7-a 설문 (파트 D · SurveyScreen) ────────────────
+  /** reasons 는 서버 view.ts 의 SURVEY_REASONS placeholder 와 같은 값이다.
+   *  실제 문안은 설문 기획이 확정되면 서버 쪽에서 바뀐다(D2·D3와 같은 미정 항목). */
+  survey: {
+    ...base,
+    phase: 'survey',
+    messages: finalDefenseLog,
+    reasons: [
+      { id: 1, label: '말이 어색했다' },
+      { id: 2, label: '반응이 느렸다' },
+      { id: 3, label: '다른 사람들과 다른 정보를 아는 것 같았다' },
+      { id: 4, label: '그냥 감이었다' },
+    ],
+  },
 };
 
-export const MOCK_KEYS = Object.keys(MOCK_STATES);
+/** 랜딩만 GameState 로 표현할 수 없다 — App.tsx 는 state === null 일 때 LandingScreen 을
+ *  띄우기 때문이다. MockHarness 가 이 키만 따로 처리한다. */
+export const LANDING_KEY = 'landing';
+
+export const MOCK_KEYS = [LANDING_KEY, ...Object.keys(MOCK_STATES)];
