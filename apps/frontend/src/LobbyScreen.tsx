@@ -1,4 +1,5 @@
 import type { LobbyPlayer, LobbyScreenState } from "./types";
+import Avatar from "./components/Avatar";
 import Button from "./components/Button";
 import "./styles/tokens.css";
 
@@ -52,9 +53,12 @@ export default function LobbyScreen({ roomId, players, myId, myReady, onToggleRe
                 borderRadius: "var(--radius)"
               }}
             >
-              <span style={{ fontWeight: p ? 600 : 400, color: p ? "var(--color-text)" : "var(--color-muted)" }}>
-                {p ? p.label : "대기중"}
-                {p && p.id === myId ? " (나)" : ""}
+              <span style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                <Avatar label={p ? p.label : "–"} variant={p && p.id === myId ? "mine" : "default"} />
+                <span style={{ fontWeight: p ? 600 : 400, color: p ? "var(--color-text)" : "var(--color-muted)" }}>
+                  {p ? p.label : "대기중"}
+                  {p && p.id === myId ? " (나)" : ""}
+                </span>
               </span>
               {p && (
                 <span className={`tag ${p.isReady ? "tag-accent" : "tag-neutral"}`}>

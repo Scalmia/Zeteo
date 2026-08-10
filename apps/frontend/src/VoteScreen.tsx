@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { PublicPlayer } from "@zeteo/shared-types";
 import type { PlayerId, VoteScreenState } from "./types";
+import Avatar from "./components/Avatar";
 import Button from "./components/Button";
 import "./styles/tokens.css";
 
@@ -94,16 +95,7 @@ export default function VoteScreen({
                 }}
               >
                 <span style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                  <span
-                    style={{
-                      width: 16,
-                      height: 16,
-                      flex: "none",
-                      borderRadius: "50%",
-                      border: `1.5px solid ${selected ? "var(--color-accent)" : "var(--color-line)"}`,
-                      background: selected ? "var(--color-accent)" : "transparent"
-                    }}
-                  />
+                  <Avatar label={c.label} variant={selected ? "mine" : "default"} />
                   <span style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 16 }}>{c.label}</span>
                 </span>
                 {selected && <span style={{ color: "var(--color-accent)", fontSize: 13 }}>✓</span>}
