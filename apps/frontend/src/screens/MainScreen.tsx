@@ -90,6 +90,7 @@ export function MainScreen({
           <Chat
             messages={state.messages}
             players={state.players}
+            myId={state.myId}
             locked={locked}
             lockedLabel={lockedLabel}
             placeholder={isDescribe ? '묘사를 입력하세요…' : '메시지 입력…'}

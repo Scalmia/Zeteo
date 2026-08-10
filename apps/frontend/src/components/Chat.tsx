@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Message, PublicPlayer } from '@zeteo/shared-types';
+import Avatar from './Avatar';
 
 interface Props {
   messages: Message[];
   players: PublicPlayer[];
+  /** 아바타에 내 발언인지 표시하는 용도로만 쓴다(VotePanel의 mine 강조 테두리와 같은 규칙) */
+  myId: string;
   /** 잠금 여부는 화면이 판단해서 내려준다. Chat이 스스로 규칙을 알지 않는다. */
   locked: boolean;
   /** 잠겼을 때 입력창 자리에 보여줄 문구 */
@@ -12,7 +15,7 @@ interface Props {
   onSend: (text: string) => void;
 }
 
-export function Chat({ messages, players, locked, lockedLabel, placeholder, onSend }: Props) {
+export function Chat({ messages, players, myId, locked, lockedLabel, placeholder, onSend }: Props) {
   const [text, setText] = useState('');
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -41,6 +44,9 @@ export function Chat({ messages, players, locked, lockedLabel, placeholder, onSe
       <div className="zt-chat-log" ref={logRef}>
         {messages.map((m) => (
           <div key={m.id} className={m.speakerId === 'system' ? 'zt-msg is-system' : 'zt-msg'}>
+            {m.speakerId !== 'system' && (
+              <Avatar label={nameOf(m.speakerId)} variant={m.speakerId === myId ? 'mine' : 'default'} />
+            )}
             <span className="zt-msg-name">{nameOf(m.speakerId)}</span>
             <span className="zt-msg-text">{m.text}</span>
           </div>

@@ -1,4 +1,5 @@
 import type { PublicPlayer } from '@zeteo/shared-types';
+import Avatar from './Avatar';
 
 interface Props {
   players: PublicPlayer[];
@@ -23,7 +24,8 @@ export function VotePanel({ players, voteCounts, myVote, myId, onVote }: Props) 
               className={p.id === myVote ? 'zt-vote-row is-mine' : 'zt-vote-row'}
               onClick={() => onVote(p.id)}
             >
-              <span>
+              <span className="zt-vote-name">
+                <Avatar label={p.label} variant={p.id === myId ? 'mine' : !p.isAlive ? 'dead' : 'default'} />
                 {p.label}
                 {p.id === myId && ' (나)'}
               </span>

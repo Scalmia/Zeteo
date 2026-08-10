@@ -8,6 +8,10 @@
  *   --color-bg --color-surface --color-line --color-text --color-muted
  *   --color-accent --color-danger --space-2 --space-4 --radius --font-body
  *
+ * 8/10 feat/layout에서 추가된 토큰 2개(시안 1 확정 반영) — 위 11개와 같은 규칙으로 쓴다.
+ *   --bp-mobile (768px, 아래 모바일 미디어쿼리 값의 출처 — 리터럴로 중복 유지)
+ *   --vote-bg   (투표 패널 배경 틴트, .zt-vote 가 사용)
+ *
  * ⚠️ 이름을 바꾸지 말 것. D의 tokens.css 도 같은 주의를 달아두고 있다.
  * 한 번 --color-divider / --radius-md 로 바꿨다가 되돌렸다 — 그건 D의 라이트
  * "초안"에만 있던 이름이었고, 초안이 폐기되며 합의 이름으로 돌아왔기 때문이다.
@@ -217,7 +221,15 @@
   border-top: 1px solid var(--color-line, #2a2a36);
 }
 
-/* 투표 */
+/* 투표 — 배경 틴트는 styles/tokens.css 의 --vote-bg 토큰(accent를 surface에 살짝
+ * 섞은 값, 8/10 시안 1 확정)을 그대로 쓴다. 접이식 손잡이(.zt-vote-bar)는 이 안에
+ * 안 들어있는 별도 형제 요소라 이 틴트의 영향을 안 받는다 — 손잡이는 항상 진한
+ * accent 단색이어야 눈에 띈다(스케치 의도). */
+.zt-vote {
+  background: var(--vote-bg, color-mix(in srgb, var(--color-accent, #7c5cff) 22%, var(--color-surface, #1a1a22)));
+  padding: var(--space-4, 16px);
+  border-radius: var(--radius, 12px);
+}
 .zt-vote-title {
   margin: 0 0 var(--space-2, 8px);
   font-size: 0.85rem;
@@ -244,6 +256,11 @@
 }
 .zt-vote-row.is-mine {
   border-color: var(--color-accent, #7c5cff);
+}
+.zt-vote-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
 }
 .zt-vote-count {
   font-variant-numeric: tabular-nums;
@@ -356,7 +373,7 @@
   font-size: 0.7rem;
 }
 
-/* ── 모바일 (≤900px) ─────────────────────────────────────────────────────
+/* ── 모바일 (≤768px, styles/tokens.css --bp-mobile 확정값과 동일) ───────────
  *
  * 데스크톱은 채팅 | 투표 좌우 배치다. 좁은 화면에서는 투표 패널(260px 고정)이
  * 채팅 폭을 다 먹어 글자가 한 줄에 한 글자씩 세로로 쌓인다(실측).
@@ -382,10 +399,11 @@
  * 페이지 자체는 여전히 늘어나지 않는다. 스크롤은 .zt-chat-log 안에서만 일어난다
  * (2판 테스트 B-1·B-2 교훈).
  *
- * 브레이크포인트를 900px로 둔 것은 시안 1과 값을 맞추기 위해서다(기획서 v3.0 §2-3 —
- * 화면마다 기준선이 다르면 그 사이 폭에서 화면별로 배치가 어긋난다). 8/11 토큰 확정 때
- * 최종값으로 교체한다. */
-@media (max-width: 900px) {
+ * 768px는 styles/tokens.css 의 --bp-mobile 확정값(8/10, 시안 1 기준)과 맞춘 것이다
+ * (기획서 v3.0 §2-3 — 화면마다 기준선이 다르면 그 사이 폭에서 화면별로 배치가 어긋난다).
+ * CSS 미디어쿼리 조건에는 var()를 못 써서 여기 리터럴 숫자로 중복 유지한다 — --bp-mobile
+ * 이 바뀌면 이 숫자도 같이 고쳐야 한다. */
+@media (max-width: 768px) {
   .zt-body {
     flex-direction: column;
   }
