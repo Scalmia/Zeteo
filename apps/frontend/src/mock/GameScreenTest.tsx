@@ -50,9 +50,25 @@ export function GameScreenTest() {
   // (MockHarness의 onEvent와 같은 패턴). 'vote'는 기본 화면(토론 투표 패널)
   // 소관이라 baseState를, 'lifeVote'·'botVote'는 팝업 안 상호작용이라
   // popupState를 갱신한다 — 서로 건드리지 않는다.
+  //
+  // ⚠️ 8/11 7차: 'vote'가 myVote만 바꾸고 voteCounts는 그대로 둬서, 후보를
+  // 눌러도 투표 현황 그래프(zt-tally, voteCounts 기반)가 안 바뀌는 것처럼
+  // 보였다("실시간 수정이 제대로 안 되는 것 같다" 지적) — 그래프에 표를 받은
+  // 사람만 뜨는 게 원래 규칙(0표는 표시 안 함)인데, 카운트 자체가 안 바뀌니
+  // 새로 찍은 후보가 계속 목록에 안 떴다. 실 서버라면 재투표할 때마다 서버가
+  // 집계를 다시 보내주지만 mock은 서버가 없으므로, 여기서 "이전에 내가 찍었던
+  // 후보 표를 빼고 새로 찍은 후보에 표를 더하는" 최소한의 재집계를 직접
+  // 시뮬레이션한다(기권=null로 바꾸면 표만 빠지고 아무도 안 더해진다).
   const onEvent = (e: ClientEvent) => {
     console.log('[mock] ClientEvent', e);
-    if (e.t === 'vote') setBaseState((s) => ({ ...s, myVote: e.targetId }));
+    if (e.t === 'vote') {
+      setBaseState((s) => {
+        const voteCounts = { ...s.voteCounts };
+        if (s.myVote) voteCounts[s.myVote] = Math.max(0, (voteCounts[s.myVote] ?? 0) - 1);
+        if (e.targetId) voteCounts[e.targetId] = (voteCounts[e.targetId] ?? 0) + 1;
+        return { ...s, myVote: e.targetId, voteCounts };
+      });
+    }
     if (e.t === 'lifeVote') setPopupState((s) => (s ? { ...s, myLifeVote: e.kill } : s));
     if (e.t === 'botVote') setPopupState((s) => (s ? { ...s, myVote: e.targetId } : s));
   };
