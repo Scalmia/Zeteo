@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type { ReactNode } from 'react';
 import type { ClientEvent, GameState } from '@zeteo/shared-types';
 import { Chat } from '../components/Chat';
 import { Timer } from '../components/Timer';
@@ -13,23 +14,29 @@ import { VotePanel } from '../components/VotePanel';
  *    · 지목 배너 (finalDefense 만)
  *    · 헤더 문구
  *
- *  roleReveal·lifeVote·reveal·guessWord 는 이 화면 위에 팝업으로 뜨고,
- *  그동안 blocked=true 로 채팅이 잠긴다. */
+ *  roleReveal·lifeVote·reveal·guessWord·botVote 는 이 화면 위에 팝업으로 뜨고,
+ *  그동안 blocked=true 로 채팅이 잠긴다. 팝업(modal)은 8/11부터 전체 화면이 아니라
+ *  Chat의 채팅 로그 영역 위에만 얹힌다 — 그대로 Chat에 넘겨줄 뿐 여기선 조립하지
+ *  않는다(GameScreen이 조립해서 내려준다, 설계 결정: Modal은 phase로 key를 받지
+ *  않아야 하므로 조립 지점을 하나로 유지). */
 export function MainScreen({
   state,
   onEvent,
   blocked,
+  modal,
 }: {
   state: GameState;
   onEvent: (e: ClientEvent) => void;
   /** 팝업이 떠 있는 동안 true. 잠금 규칙을 컴포넌트가 스스로 알지 않게 위에서 내려준다 */
   blocked: boolean;
+  /** GameScreen이 조립한 <Modal> 엘리먼트(또는 null). Chat이 채팅 로그 위에 얹는다 */
+  modal?: ReactNode;
 }) {
   const isDescribe = state.phase === 'describe';
   const isDebate = state.phase === 'debate';
   const isFinalDefense = state.phase === 'finalDefense';
 
-  // 폰 폭(≤900px)에서 투표 패널을 여닫는 하단 시트 상태. 데스크톱에선 game.css가
+  // 폰 폭(≤768px)에서 투표 패널을 여닫는 하단 시트 상태. 데스크톱에선 game.css가
   // is-collapsed를 무시하고 항상 펼쳐 보이므로 이 값은 폰에서만 의미가 있다.
   // 기본값 true — 접어야 할 이유(가시성)가 생기기 전까지는 정보를 숨기지 않는다.
   //
@@ -54,6 +61,13 @@ export function MainScreen({
   return (
     <div className="zt-screen">
       <header className="zt-head">
+        {/* 팀 로고 + 이름 — 8/10 시안 1 확정. Zeteo-logo3.png의 원형 'O' 부분만
+            잘라 public/zeteo-o.png로 뒀다(파비콘과 같은 정적 파일 관례). */}
+        <span className="zt-brand">
+          <img className="zt-brand-icon" src="/zeteo-o.png" alt="" />
+          <span className="zt-brand-name">ZETEO</span>
+        </span>
+
         <span className="zt-sub">
           {/* round 는 "지금 몇 번째 루프인가"라는 상태. 왜 돌아왔는지(사건)는
               시스템 메시지가 맡는다 — 대체 관계가 아니다 (설계 결정 10) */}
@@ -95,6 +109,7 @@ export function MainScreen({
             lockedLabel={lockedLabel}
             placeholder={isDescribe ? '묘사를 입력하세요…' : '메시지 입력…'}
             onSend={(text) => onEvent(isDescribe ? { t: 'describe', text } : { t: 'chat', text })}
+            modal={modal}
           />
         </main>
 
@@ -155,7 +170,9 @@ function phaseLabel(phase: GameState['phase']): string {
       return '결과';
     case 'guessWord':
       return '제시어 추측';
+    case 'botVote':
+      return '봇 지목';
     default:
-      return ''; // lobby·botVote·result·survey 는 파트 D 담당이라 여기 오지 않는다
+      return ''; // lobby·result·survey 는 파트 D 담당이라 여기 오지 않는다
   }
 }

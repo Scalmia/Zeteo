@@ -52,8 +52,33 @@
 .zt-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  /* space-between 대신 flex-start + 마지막 자식 margin-left:auto 조합을 쓴다.
+   * 자식이 2개(zt-sub, Timer)일 때도 3개(+zt-turn)일 때도 항상 Timer만 오른쪽
+   * 끝으로 밀리고 나머지(브랜드·라운드·묘사진행도)는 왼쪽에 붙어 함께 흐른다 —
+   * space-between이면 자식 수에 따라 가운데 항목 위치가 흔들린다(8/11 브랜드
+   * 추가로 자식이 하나 늘면서 확인됨). */
+  justify-content: flex-start;
   gap: var(--space-4, 16px);
+}
+.zt-head > :last-child {
+  margin-left: auto;
+}
+.zt-brand {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+.zt-brand-icon {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+}
+.zt-brand-name {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
 }
 .zt-sub {
   color: var(--color-muted, #9a9aa8);
@@ -159,6 +184,7 @@
   border-radius: var(--radius, 12px);
 }
 .zt-chat-log {
+  position: relative; /* 페이즈 팝업(.zt-modal-scrim)의 기준 박스 — 아래 참고 */
   flex: 1;
   overflow-y: auto;
   padding: var(--space-2, 8px);
@@ -271,6 +297,57 @@
   align-items: center;
 }
 
+/* 투표 현황 그래프 — 8/10 시안 1 확정. 위 zt-vote-list(클릭용 후보 버튼)와
+ * 같은 득표 데이터를 막대로 다시 보여주는 순수 요약이라, 마진으로 목록과
+ * 분리만 해준다. */
+.zt-tally {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2, 8px);
+  margin: 0 0 var(--space-4, 16px);
+}
+.zt-tally-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  font-size: 0.75rem;
+  color: var(--color-muted, #9a9aa8);
+}
+.zt-tally-row.is-mine {
+  color: var(--color-text, #e8e8ee);
+}
+.zt-tally-label {
+  flex: none;
+  width: 16px;
+  font-weight: 700;
+  color: var(--color-text, #e8e8ee);
+}
+.zt-tally-row.is-mine .zt-tally-label {
+  color: var(--color-accent, #7c5cff);
+}
+.zt-tally-bar {
+  flex: 1;
+  min-width: 0;
+  height: 8px;
+  overflow: hidden;
+  background: var(--color-surface, #1a1a22);
+  border-radius: 999px;
+}
+.zt-tally-fill {
+  display: block;
+  height: 100%;
+  background: var(--color-muted, #9a9aa8);
+  border-radius: 999px;
+}
+.zt-tally-row.is-mine .zt-tally-fill {
+  background: var(--color-accent, #7c5cff);
+}
+.zt-tally-count {
+  flex: none;
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
 /* 생사 투표 */
 .zt-choices {
   display: flex;
@@ -302,16 +379,23 @@
   align-items: center;
 }
 
-/* 페이즈 팝업 (S0 역할배정 · S4 생사투표 · S5 결과 · S5-a 제시어추측)
+/* 페이즈 팝업 (S0 역할배정 · S4 생사투표 · S5 결과 · S5-a 제시어추측 · S6 봇지목)
  *
- * 스크림이 메인화면 전체를 덮어 투표 패널 클릭까지 막는다. 채팅 입력은 MainScreen 이
- * blocked prop 으로 한 번 더 잠근다 — 서버 index.ts 의 chat 핸들러에는 phase 검사가
- * 없어서(describe·vote·lifeVote·guessWord 와 달리) 화면이 유일한 방어선이다.
+ * ⚠️ 8/11부터 스크림은 화면 전체가 아니라 zt-chat-log(채팅 로그) 영역만 덮는다 —
+ * position:absolute 로 바뀌었고, 기준 박스는 zt-chat-log 의 position:relative 다
+ * (Chat 이 이 자리에 <Modal>을 그대로 꽂는다). 투표 패널·입력창은 팝업 중에도
+ * 계속 보이고 눌러볼 수 있다 — 채팅 입력만 MainScreen 이 blocked prop 으로
+ * 잠근다 — 서버 index.ts 의 chat 핸들러에는 phase 검사가 없어서
+ * (describe·vote·lifeVote·guessWord 와 달리) 화면이 유일한 방어선이다.
  *
- * max-height + overflow-y 는 팝업이 길어져도 페이지 자체가 늘어나지 않게 한다.
- * 채팅 화면에서 같은 실수를 한 적이 있다(2판 테스트 B-1·B-2). */
+ * overflow:auto 인 zt-chat-log 안에 position:absolute 자식을 둬도 스크롤을 안
+ * 탄다 — absolute 오프셋은 조상의 패딩 박스 기준이라 그 박스는 스크롤로 안
+ * 움직이고, 안에서 스크롤되는 건 메시지 목록(문서 흐름)뿐이다.
+ *
+ * max-height + overflow-y 는 팝업이 길어져도 채팅 로그 영역 자체가 늘어나지
+ * 않게 한다. 채팅 화면에서 같은 실수를 한 적이 있다(2판 테스트 B-1·B-2). */
 .zt-modal-scrim {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 10;
   display: flex;
@@ -341,6 +425,42 @@
   justify-content: space-between;
   padding-bottom: var(--space-2, 8px);
   border-bottom: 1px solid var(--color-line, #2a2a36);
+}
+.zt-modal-head-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2, 8px);
+}
+.zt-modal-close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  font-size: 0.8rem;
+  color: var(--color-muted, #9a9aa8);
+  background: transparent;
+  border: 1px solid var(--color-line, #2a2a36);
+  border-radius: var(--radius, 12px);
+  cursor: pointer;
+}
+
+/* 팝업을 ✕로 접었을 때(peek) 같은 자리에 남는 칩 — zt-modal-scrim과 같은 기준
+ * 박스(zt-chat-log) 위에 떠야 하므로 이쪽도 스스로 position:absolute를 갖는다. */
+.zt-modal-chip {
+  position: absolute;
+  top: var(--space-2, 8px);
+  right: var(--space-2, 8px);
+  z-index: 10;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text, #e8e8ee);
+  background: var(--color-accent, #7c5cff);
+  border: none;
+  border-radius: 999px;
+  cursor: pointer;
 }
 
 .zt-mock-list {

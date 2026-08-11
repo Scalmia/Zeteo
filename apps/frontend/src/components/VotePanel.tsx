@@ -14,6 +14,16 @@ interface Props {
 export function VotePanel({ players, voteCounts, myVote, myId, onVote }: Props) {
   // 정렬하지 않는다 — 표가 바뀔 때마다 목록이 튀면 클릭 대상이 흔들린다.
   // 자기 자신도 후보에서 빼지 않는다 (룰북: 자기 자신에게 투표 가능, 제한 없음).
+
+  // 투표 현황 그래프(8/10 시안 1 확정) — 위 후보 목록과 달리 클릭 대상이 아니라
+  // 순수 요약이므로 여기서만 득표순 정렬한다. 표를 받은 사람만 막대로 그린다
+  // (0표는 신호가 없다는 뜻 — 시안 1 원칙 그대로).
+  const tally = players
+    .map((p) => ({ id: p.id, label: p.label, count: voteCounts[p.id] ?? 0 }))
+    .filter((row) => row.count > 0)
+    .sort((a, b) => b.count - a.count);
+  const maxCount = tally.length > 0 ? tally[0].count : 0;
+
   return (
     <div className="zt-vote">
       <h3 className="zt-vote-title">투표 현황 (표 수만)</h3>
@@ -25,6 +35,9 @@ export function VotePanel({ players, voteCounts, myVote, myId, onVote }: Props) 
               onClick={() => onVote(p.id)}
             >
               <span className="zt-vote-name">
+                {/* isAlive 기반 dead 표시는 넣지 않는다 — 이 게임엔 "토론 도중 탈락한
+                    채 게임이 계속되는" 상태가 없다. 생사 투표에서 죽으면 그 판이 그대로
+                    끝난다(reveal → guessWord → result), 토론으로 돌아오지 않는다. */}
                 <Avatar label={p.label} variant={p.id === myId ? 'mine' : 'default'} />
                 {p.label}
                 {p.id === myId && ' (나)'}
@@ -34,6 +47,22 @@ export function VotePanel({ players, voteCounts, myVote, myId, onVote }: Props) 
           </li>
         ))}
       </ul>
+
+      {tally.length > 0 && (
+        <div className="zt-tally">
+          {tally.map((row) => (
+            <div key={row.id} className={row.id === myVote ? 'zt-tally-row is-mine' : 'zt-tally-row'}>
+              <span className="zt-tally-label">{row.label.trim().charAt(0) || '?'}</span>
+              <span className="zt-tally-bar">
+                <span className="zt-tally-fill" style={{ width: `${(row.count / maxCount) * 100}%` }} />
+              </span>
+              <span className="zt-tally-count">
+                {row.count}표{row.id === myVote && ' · 내 선택'}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="zt-vote-mine">
         <span>내 선택</span>

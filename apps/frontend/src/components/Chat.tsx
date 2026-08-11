@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { Message, PublicPlayer } from '@zeteo/shared-types';
 import Avatar from './Avatar';
 
@@ -13,9 +14,13 @@ interface Props {
   lockedLabel?: string;
   placeholder?: string;
   onSend: (text: string) => void;
+  /** 페이즈 팝업(GameScreen의 <Modal>) — 8/11부터 전체 화면이 아니라 채팅 로그
+   *  영역 위에만 뜨도록 여기로 내려받아 zt-chat-log 안에 얹는다(설계 결정: 투표
+   *  패널·입력창은 팝업이 떠 있어도 계속 보여야 한다). null이면 팝업 없음. */
+  modal?: ReactNode;
 }
 
-export function Chat({ messages, players, myId, locked, lockedLabel, placeholder, onSend }: Props) {
+export function Chat({ messages, players, myId, locked, lockedLabel, placeholder, onSend, modal }: Props) {
   const [text, setText] = useState('');
   const logRef = useRef<HTMLDivElement>(null);
 
@@ -51,6 +56,8 @@ export function Chat({ messages, players, myId, locked, lockedLabel, placeholder
             <span className="zt-msg-text">{m.text}</span>
           </div>
         ))}
+
+        {modal}
       </div>
 
       {locked ? (
