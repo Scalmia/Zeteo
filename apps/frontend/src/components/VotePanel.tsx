@@ -1,11 +1,12 @@
 import type { PublicPlayer } from '@zeteo/shared-types';
 import Avatar from './Avatar';
+import { avatarInitial } from './avatarInitial';
 
 interface Props {
   players: PublicPlayer[];
   /** 표 수만. 누가 누구를 찍었는지는 서버가 주지 않는다 — 화면에서 만들어내지 말 것 */
   voteCounts: Record<string, number>;
-  /** 내 선택만 보인다 */
+  /** 내 선택만 보인다. null = 기권(또는 아직 투표 전) */
   myVote: string | null;
   myId: string;
   onVote: (targetId: string | null) => void;
@@ -46,13 +47,25 @@ export function VotePanel({ players, voteCounts, myVote, myId, onVote }: Props) 
             </button>
           </li>
         ))}
+        {/* 기권 — 시안 1 스케치와 같이 별도 버튼이 아니라 투표 선택지 중 하나로
+            둔다(8/11). 총 표 수가 인원보다 적을 수 있다는 규칙(기권 허용)은 그대로다 —
+            이미 기권(또는 아직 미투표) 상태면 다시 눌러도 의미가 없어 비활성화한다. */}
+        <li>
+          <button
+            className={myVote === null ? 'zt-vote-row is-mine' : 'zt-vote-row'}
+            onClick={() => onVote(null)}
+            disabled={myVote === null}
+          >
+            <span className="zt-vote-name">기권</span>
+          </button>
+        </li>
       </ul>
 
       {tally.length > 0 && (
         <div className="zt-tally">
           {tally.map((row) => (
             <div key={row.id} className={row.id === myVote ? 'zt-tally-row is-mine' : 'zt-tally-row'}>
-              <span className="zt-tally-label">{row.label.trim().charAt(0) || '?'}</span>
+              <span className="zt-tally-label">{avatarInitial(row.label)}</span>
               <span className="zt-tally-bar">
                 <span className="zt-tally-fill" style={{ width: `${(row.count / maxCount) * 100}%` }} />
               </span>
@@ -63,15 +76,6 @@ export function VotePanel({ players, voteCounts, myVote, myId, onVote }: Props) 
           ))}
         </div>
       )}
-
-      <div className="zt-vote-mine">
-        <span>내 선택</span>
-        <strong>{myVote ? (players.find((p) => p.id === myVote)?.label ?? myVote) : '—'}</strong>
-        {/* 기권 허용: 총 표 수가 인원보다 적을 수 있다 */}
-        <button onClick={() => onVote(null)} disabled={myVote === null}>
-          기권
-        </button>
-      </div>
     </div>
   );
 }

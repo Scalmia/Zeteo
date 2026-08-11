@@ -5,29 +5,35 @@ import type { GameState, Message, PublicPlayer } from '@zeteo/shared-types';
 
 /** 5인 = 사람 4 + 봇 1. 룰북 캡션의 "4인 게임이면 3표"는 MVP 기준과 맞지 않으므로 쓰지 않는다.
  *
- *  게임 중에는 실명이 아니라 서버가 방마다 무작위 배정하는 label("참가자 N")만 보인다.
+ *  게임 중에는 실명이 아니라 서버가 방마다 무작위 배정하는 label("참가자 X")만 보인다.
  *  실명은 S7의 revealedNames 로만 공개된다 — 참고용 대응은 아래와 같다.
  *    p1 봇담당 · p2 레이아웃담당 · p3 화면담당(=나) · p4 서버담당 · p5 최서연(봇)
  *
- *  label 값을 일부러 비순차로 둔 것은 서버 assignLabel 이 1~20 중 무작위로 뽑기 때문이다.
- *  화면이 "label 번호 = 입장 순서"를 가정하고 있으면 여기서 드러난다. */
+ *  ⚠️ 8/11: label을 "참가자 1" 같은 숫자에서 "참가자 A" 같은 영문 한 글자로 바꿨다 —
+ *  시안 1(Zeteo_와이어프레임_시안.html)이 참가자를 A~E로 표기하고, 2026-08-06 실 서버
+ *  스모크 테스트에서도 실제 label이 "B"·"U"·"K" 같은 영문 한 글자로 옴을 확인했다
+ *  (숫자 규칙은 이 mock이 실 서버 검증 이전에 먼저 만들어지며 남은 추정값이었다).
+ *
+ *  p1~p5 순서와 A~E 글자를 일부러 안 맞춘 것(p1=C, p2=A, p3=D, p4=B, p5=E)은 서버가
+ *  label을 무작위 배정하기 때문이다. 화면이 "label = 입장 순서"를 가정하고 있으면
+ *  여기서 드러난다. */
 const players: PublicPlayer[] = [
-  { id: 'p1', label: '참가자 4', isAlive: true, isReady: true },
-  { id: 'p2', label: '참가자 1', isAlive: true, isReady: true },
-  { id: 'p3', label: '참가자 7', isAlive: true, isReady: true },
-  { id: 'p4', label: '참가자 3', isAlive: true, isReady: true },
-  { id: 'p5', label: '참가자 9', isAlive: true, isReady: true }, // 실제로는 봇. 클라이언트는 알 수 없어야 한다.
+  { id: 'p1', label: '참가자 C', isAlive: true, isReady: true },
+  { id: 'p2', label: '참가자 A', isAlive: true, isReady: true },
+  { id: 'p3', label: '참가자 D', isAlive: true, isReady: true },
+  { id: 'p4', label: '참가자 B', isAlive: true, isReady: true },
+  { id: 'p5', label: '참가자 E', isAlive: true, isReady: true }, // 실제로는 봇. 클라이언트는 알 수 없어야 한다.
 ];
 
 /** 대기실 전용. 준비 상태가 섞여 있어야 "준비완료 / 대기" 배지 양쪽이 다 보인다.
  *  나(p3)는 아직 준비 전이라 버튼이 "준비완료"로 뜬다. 봇(p5)은 서버가 입장과 동시에
  *  자동 ready 처리한다 (index.ts 의 join 핸들러). */
 const lobbyPlayers: PublicPlayer[] = [
-  { id: 'p1', label: '참가자 4', isAlive: true, isReady: true },
-  { id: 'p2', label: '참가자 1', isAlive: true, isReady: true },
-  { id: 'p3', label: '참가자 7', isAlive: true, isReady: false },
-  { id: 'p4', label: '참가자 3', isAlive: true, isReady: false },
-  { id: 'p5', label: '참가자 9', isAlive: true, isReady: true },
+  { id: 'p1', label: '참가자 C', isAlive: true, isReady: true },
+  { id: 'p2', label: '참가자 A', isAlive: true, isReady: true },
+  { id: 'p3', label: '참가자 D', isAlive: true, isReady: false },
+  { id: 'p4', label: '참가자 B', isAlive: true, isReady: false },
+  { id: 'p5', label: '참가자 E', isAlive: true, isReady: true },
 ];
 
 const ME = 'p3';
@@ -53,16 +59,16 @@ const describeLog: Message[] = [
 const debateLog: Message[] = [
   ...describeLog,
   msg('system', '묘사가 한 바퀴 끝났습니다. 토론을 시작합니다.', 'debate'),
-  msg('p1', '참가자 1님 묘사가 너무 두루뭉술한데요', 'debate'),
+  msg('p1', '참가자 A님 묘사가 너무 두루뭉술한데요', 'debate'),
   msg('p2', '아 진짜 아니라니까', 'debate'),
-  msg('p4', '저도 참가자 1님 좀 이상했어요', 'debate'),
+  msg('p4', '저도 참가자 A님 좀 이상했어요', 'debate'),
 ];
 
-/** S3까지 진행된 로그. 지목 대상이 p2(참가자 1)이므로 accused: 'p2' 인 mock에만 쓴다 —
+/** S3까지 진행된 로그. 지목 대상이 p2(참가자 A)이므로 accused: 'p2' 인 mock에만 쓴다 —
  *  accused 가 다른 mock에 붙이면 시스템 메시지와 화면이 서로 다른 사람을 가리키게 된다. */
 const finalDefenseLog: Message[] = [
   ...debateLog,
-  msg('system', '참가자 1님이 최다 득표로 지목되었습니다.', 'finalDefense'),
+  msg('system', '참가자 A님이 최다 득표로 지목되었습니다.', 'finalDefense'),
   msg('p2', '아니 저 진짜 시민이에요 제시어 알아요', 'finalDefense'),
   msg('p1', '그럼 말해보세요', 'finalDefense'),
 ];
@@ -72,7 +78,7 @@ const finalDefenseLog: Message[] = [
  *  로그를 비우면 그 전제가 깨진다. 라운드 경계는 시스템 메시지가 만든다. */
 const sparedLog: Message[] = [
   ...finalDefenseLog,
-  msg('system', '참가자 1님이 살아남았습니다. 토론을 재개합니다.', 'debate'),
+  msg('system', '참가자 A님이 살아남았습니다. 토론을 재개합니다.', 'debate'),
 ];
 
 const base: GameState = {
