@@ -620,6 +620,24 @@
     padding: 4px;
     border-radius: 999px;
   }
+  /* ⚠️ 8/11 5차: 아바타(.avatar)는 원래 자기 몫의 배경·테두리·둥근모서리를 가진
+   * 작은 배지다(데스크톱 목록 행에서 이름 앞에 붙는 용도) — 그걸 그대로 두면
+   * 이 원형 버튼 안에 "테두리 있는 사각 배지"가 또 하나 겹쳐 들어가 원 안에 원이
+   * 이중으로 보였다(사용자 피드백 "투표버튼이 이상해 보인다"의 원인). 특히
+   * myId(나 자신) 배지엔 avatar-mine 테두리까지 더해져 "내가 투표한 후보"
+   * 표시(zt-vote-row.is-mine, 바깥 원 테두리)와 "이건 나 자신이다" 표시(아바타
+   * 테두리)가 서로 다른 링 두 개로 겹쳐 보였다 — 시안 1은 그런 두 번째 링이
+   * 없다(바깥 원 하나만 굵어진다, 스크린샷 대조 확인). 폰 폭에서는 아바타 배지의
+   * 박스 스타일을 지우고 굵은 글자만 남겨 시안처럼 원 하나로만 보이게 한다. */
+  .zt-vote-row .avatar {
+    width: auto;
+    height: auto;
+    padding: 0;
+    font-size: 16px;
+    background: transparent;
+    border: none;
+    border-radius: 0;
+  }
   /* 기권은 아바타가 없는 텍스트뿐이라 원형 대신 시안처럼 넓은 알약 모양으로 둔다 */
   .zt-vote-row-abstain {
     aspect-ratio: auto;
