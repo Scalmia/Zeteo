@@ -49,10 +49,12 @@ export function MainScreen({
               시스템 메시지가 맡는다 — 대체 관계가 아니다 (설계 결정 10) */}
           <span className="zt-round">{state.round}라운드</span>
           {phaseLabel(state.phase)}
-          {/* 주제·제시어는 묘사 때만 띄운다(기존 Describe 헤더 그대로).
-              라이어는 word 가 null 이라 주제만 보인다 */}
-          {isDescribe && ` · ${state.category}`}
-          {isDescribe && state.word && ` · ${state.word}`}
+        </span>
+
+        {/* category는 항상 공개, word는 라이어에게 null이라 자연히 숨는다 */}
+        <span className="zt-word">
+          {state.category}
+          {state.word && ` / ${state.word}`}
         </span>
 
         {/* 좌측 참가자 목록을 없애면서 발언 순서·진행도가 갈 곳이 여기 하나뿐이다 */}
@@ -67,6 +69,25 @@ export function MainScreen({
         <Timer deadlineAt={state.deadlineAt} />
       </header>
 
+      <div className="zt-players">
+        {state.players.map((p) => (
+          <span
+            key={p.id}
+            className={[
+              'zt-player',
+              p.isAlive && 'is-alive',
+              p.id === state.myId && 'is-me',
+              !p.isAlive && 'is-dead',
+            ]
+              .filter(Boolean)
+              .join(' ')}
+          >
+            {p.isAlive ? '✓' : '-'} {p.label}
+            {p.id === state.myId && ' (나)'}
+          </span>
+        ))}
+      </div>
+
       {isFinalDefense && (
         <div className="zt-accused">
           <span className="zt-badge">지목됨</span>
@@ -80,6 +101,7 @@ export function MainScreen({
           <Chat
             messages={state.messages}
             players={state.players}
+            myId={state.myId}
             locked={locked}
             lockedLabel={lockedLabel}
             placeholder={isDescribe ? '묘사를 입력하세요…' : '메시지 입력…'}

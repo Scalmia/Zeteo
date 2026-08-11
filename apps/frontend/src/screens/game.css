@@ -74,6 +74,48 @@
   color: var(--color-text, #e8e8ee);
 }
 
+/* 주제/제시어 배지 — 8/11 리디자인. category는 항상 공개라 페이즈 무관하게 띄운다.
+ * word는 라이어에게 null이라 자연히 숨는다(값이 없으면 안 그린다). */
+.zt-word {
+  flex: none;
+  font-size: 0.9rem;
+  font-weight: 800;
+  padding: 10px 20px;
+  color: var(--color-text, #e8e8ee);
+  border: 2px solid var(--color-accent, #7c5cff);
+  border-radius: var(--radius, 12px);
+  box-shadow: var(--deep-shadow, none);
+}
+
+/* 참가자 칩 목록 */
+.zt-players {
+  display: flex;
+  gap: 9px;
+  padding: 13px var(--space-4, 16px);
+  border-bottom: 1px solid var(--color-line, #2a2a36);
+  flex-wrap: wrap;
+}
+.zt-player {
+  font-size: 0.8rem;
+  padding: 7px 14px;
+  border-radius: calc(var(--radius, 12px) * 0.6);
+  border: 1px solid var(--color-line, #2a2a36);
+  color: var(--color-muted, #9a9aa8);
+}
+.zt-player.is-alive {
+  color: #8fe08f;
+  border-color: #265226;
+}
+.zt-player.is-me {
+  color: var(--color-text, #e8e8ee);
+  border: 1px solid var(--color-accent, #7c5cff);
+  background: color-mix(in srgb, var(--color-accent, #7c5cff) 15%, transparent);
+  filter: var(--glow, none);
+}
+.zt-player.is-dead {
+  opacity: 0.4;
+}
+
 .zt-body {
   display: flex;
   flex: 1;
@@ -99,6 +141,7 @@
   background: var(--color-surface, #1a1a22);
   border: 1px solid var(--color-line, #2a2a36);
   border-radius: var(--radius, 12px);
+  box-shadow: var(--deep-shadow, none);
 }
 .zt-label {
   margin: 0;
@@ -153,6 +196,7 @@
   background: var(--color-surface, #1a1a22);
   border: 1px solid var(--color-line, #2a2a36);
   border-radius: var(--radius, 12px);
+  box-shadow: var(--deep-shadow, none);
 }
 .zt-chat-log {
   flex: 1;
@@ -162,11 +206,39 @@
 .zt-msg {
   display: flex;
   gap: var(--space-2, 8px);
+  align-items: flex-start;
   padding: 2px 0;
 }
-.zt-msg-name {
-  flex: 0 0 4.5em;
+.zt-msg-avatar {
+  flex: none;
+  width: 23px;
+  height: 23px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
   color: var(--color-muted, #9a9aa8);
+  border: 1px solid var(--color-line, #2a2a36);
+  border-radius: calc(var(--radius, 12px) * 0.6);
+}
+.zt-msg-text {
+  min-width: 0;
+  padding: 10px 14px;
+  background: var(--color-surface, #1a1a22);
+  border: 1px solid var(--color-line, #2a2a36);
+  border-radius: var(--radius, 12px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.6), inset 0 2px 6px rgba(0, 0, 0, 0.4);
+}
+/* 내 메시지 — 참고 파일 기준(오른쪽 정렬, 발광 테두리) */
+.zt-msg.is-mine {
+  flex-direction: row-reverse;
+  justify-content: flex-end;
+}
+.zt-msg.is-mine .zt-msg-text {
+  border: 1px solid var(--color-accent, #7c5cff);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-accent, #7c5cff) 70%, transparent),
+    0 0 18px color-mix(in srgb, var(--color-accent, #7c5cff) 40%, transparent);
+  color: var(--color-text, #e8e8ee);
 }
 /* 시스템 메시지가 라운드 경계선 역할을 한다.
  * 로그를 지우지 않고 누적하므로, 이 띠가 "여기부터 2라운드"를 만든다.
@@ -188,9 +260,13 @@
   background: var(--color-bg, #0f0f14);
   border-top: 1px solid var(--color-line, #2a2a36);
   border-bottom: 1px solid var(--color-line, #2a2a36);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.7);
 }
-.zt-msg.is-system .zt-msg-name {
-  display: none;
+.zt-msg.is-system .zt-msg-text {
+  padding: 0;
+  background: none;
+  border: none;
+  box-shadow: none;
 }
 
 .zt-round {
@@ -199,6 +275,7 @@
   color: var(--color-text, #e8e8ee);
   border: 1px solid var(--color-line, #2a2a36);
   border-radius: 999px;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.5);
 }
 .zt-chat-input {
   display: flex;
@@ -209,6 +286,33 @@
 .zt-chat-input input {
   flex: 1;
   min-width: 0;
+  padding: 12px 14px;
+  font: inherit;
+  color: var(--color-text, #e8e8ee);
+  background: var(--color-surface, #1a1a22);
+  border: 2px solid var(--color-line, #2a2a36);
+  border-radius: var(--radius, 12px);
+  box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+.zt-chat-input input:focus {
+  outline: none;
+  border-color: var(--color-accent, #7c5cff);
+  box-shadow: 0 0 16px var(--color-accent, transparent), inset 0 2px 8px rgba(0, 0, 0, 0.6);
+}
+.zt-chat-input button {
+  flex: none;
+  padding: 0 22px;
+  font: inherit;
+  font-weight: 700;
+  color: var(--color-text, #e8e8ee);
+  background: var(--color-accent, #7c5cff);
+  border: none;
+  border-radius: var(--radius, 12px);
+  box-shadow: var(--deep-shadow, none);
+  cursor: pointer;
+}
+.zt-chat-input button:hover {
+  filter: brightness(1.15);
 }
 .zt-chat-locked {
   padding: var(--space-4, 16px);
@@ -241,9 +345,15 @@
   border: 1px solid var(--color-line, #2a2a36);
   border-radius: var(--radius, 12px);
   cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.zt-vote-row:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7);
 }
 .zt-vote-row.is-mine {
   border-color: var(--color-accent, #7c5cff);
+  filter: var(--glow, none);
 }
 .zt-vote-count {
   font-variant-numeric: tabular-nums;
@@ -252,6 +362,63 @@
   display: flex;
   gap: var(--space-2, 8px);
   align-items: center;
+}
+.zt-vote-mine button {
+  padding: 9px 16px;
+  font: inherit;
+  color: var(--color-muted, #9a9aa8);
+  background: transparent;
+  border: 1px dashed var(--color-line, #2a2a36);
+  border-radius: var(--radius, 12px);
+  cursor: pointer;
+}
+.zt-vote-mine button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.zt-vote-mine button:hover:not(:disabled) {
+  color: var(--color-text, #e8e8ee);
+  border-color: var(--color-accent, #7c5cff);
+}
+
+/* 득표 진행률 바 — 8/11 리디자인. voteCounts를 표 목록과 별도로 한 번 더 시각화한다. */
+.zt-tally {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+.zt-tally-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.7rem;
+  color: var(--color-muted, #9a9aa8);
+}
+.zt-tally-label {
+  flex: none;
+  width: 14px;
+  font-weight: 700;
+  color: var(--color-text, #e8e8ee);
+}
+.zt-tally-track {
+  flex: 1;
+  height: 6px;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 3px;
+  background: var(--color-surface, #1a1a22);
+}
+.zt-tally-fill {
+  display: block;
+  height: 100%;
+  background: var(--vote-bg, var(--color-accent, #7c5cff));
+  box-shadow: 0 0 8px var(--color-accent, transparent);
+  transition: width 0.5s ease;
+}
+.zt-tally-count {
+  flex: none;
+  font-size: 0.7rem;
 }
 
 /* 생사 투표 */
@@ -267,9 +434,15 @@
   border: 1px solid var(--color-line, #2a2a36);
   border-radius: var(--radius, 12px);
   cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.zt-choice:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.7);
 }
 .zt-choice.is-mine {
   border-color: var(--color-accent, #7c5cff);
+  filter: var(--glow, none);
 }
 
 .zt-badge {
@@ -278,6 +451,7 @@
   font-size: 0.75rem;
   background: var(--color-danger, #ff6b6b);
   border-radius: 999px;
+  box-shadow: 0 4px 12px var(--color-danger, transparent);
 }
 .zt-accused {
   display: flex;
@@ -314,8 +488,18 @@
   padding: var(--space-4, 16px);
   text-align: center;
   background: var(--color-surface, #1a1a22);
-  border: 1px solid var(--color-line, #2a2a36);
+  border: 3px solid var(--color-accent, #2a2a36);
   border-radius: var(--radius, 12px);
+  box-shadow: var(--deep-shadow, none);
+  filter: var(--glow, none);
+  animation: zt-modal-pop-in 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+@keyframes zt-modal-pop-in {
+  from { opacity: 0; transform: scale(0.8); }
+  to { opacity: 1; transform: scale(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .zt-modal { animation: none; }
 }
 .zt-modal-head {
   display: flex;
