@@ -24,7 +24,6 @@
 .zt-screen {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4, 16px);
   min-height: 100vh;
   padding: var(--space-4, 16px);
   background: var(--color-bg, #0f0f14);
@@ -34,18 +33,19 @@
 .zt-center {
   align-items: center;
   justify-content: center;
+  gap: var(--space-4, 16px);
 }
 
 /* 채팅이 있는 화면(Describe·Debate·FinalDefense)만 뷰포트 높이에 고정한다.
  *
  * min-height 는 "최소" 높이라 높이가 확정되지 않는다. 그러면 그 안의
- * .zt-body{flex:1} → .zt-chat{flex:1} → .zt-chat-log{overflow-y:auto} 가
- * 계산할 기준 높이를 못 받고, 로그가 길어지면 스크롤 대신 화면 자체가 늘어난다.
- * 그 결과 타이머와 투표 패널 윗부분이 화면 밖으로 밀려났다(2판 테스트 B-1·B-2).
+ * .zt-stage{flex:1} → .zt-chat-log{overflow-y:auto} 가 계산할 기준 높이를
+ * 못 받고, 로그가 길어지면 스크롤 대신 화면 자체가 늘어난다. 그 결과 타이머와
+ * 투표 패널 윗부분이 화면 밖으로 밀려났다(2판 테스트 B-1·B-2).
  *
  * 카드형 화면(RoleReveal·LifeVote·Reveal·mock 목록)은 내용이 길어지면 늘어나야
  * 하므로 :has() 로 대상을 좁힌다 — 그쪽은 기존 min-height 동작 그대로다. */
-.zt-screen:has(.zt-body) {
+.zt-screen:has(.zt-stage) {
   height: 100vh;
 }
 
@@ -60,9 +60,17 @@
    * 추가로 자식이 하나 늘면서 확인됨). margin-left:auto를 zt-word 하나에만
    * 주는 이유: 뒤이은 Timer까지 :last-child로 같이 밀면 두 auto-margin이
    * 남는 공간을 나눠 가져 zt-word와 Timer 사이가 벌어진다(시안 1은 둘이
-   * 붙어 있다) — 제시어 상시 표시 추가하며 정리(시안 1 D4, 8/11). */
+   * 붙어 있다) — 제시어 상시 표시 추가하며 정리(시안 1 D4, 8/11).
+   *
+   * margin-bottom: 8/11에 .zt-screen의 전역 gap을 없애면서 필요해졌다 —
+   * 요약탭(zt-vote-bar)·입력창(zt-chat-input)이 화면 전체 폭으로 늘어나며
+   * zt-stage 바로 아래 "붙어야" 하는데(우측 투표 패널 아랫변 = 요약탭 윗변),
+   * 전역 gap이 있으면 그 사이가 항상 벌어진다. 그 앞에 오는 헤더·지목 배너에만
+   * 각자 margin-bottom을 줘서, 아래로 이어지는 stage·요약탭·입력창 세 구간만
+   * 서로 맞닿게 한다. */
   justify-content: flex-start;
   gap: var(--space-4, 16px);
+  margin-bottom: var(--space-4, 16px);
 }
 .zt-brand {
   display: flex;
@@ -99,7 +107,7 @@
 }
 
 /* 묘사 진행도 — 좌측 참가자 목록을 없애면서 발언 순서·진행도가 갈 곳이 여기 하나뿐이다.
- * "묘사 3/5 ▶ 참가자 7" = 5명 중 3번째 차례가 진행 중. turnOrder.indexOf(currentTurn)
+ * "묘사 3/5 ▶ 참가자 D" = 5명 중 3번째 차례가 진행 중. turnOrder.indexOf(currentTurn)
  * 으로 계산하므로 계약에 새 필드를 요구하지 않는다. */
 .zt-turn {
   display: flex;
@@ -140,20 +148,24 @@
   font-weight: 400;
 }
 
-.zt-body {
+/* 채팅 로그 | 투표 패널 — 시안 1의 .stage. 둘 사이에 gap을 안 준다: 시안 1은 이
+ * 둘을 뜬 카드 두 장이 아니라 하나의 앱 셸 안에서 경계선(zt-side-wide의
+ * border-left)만으로 나뉜 하나의 판으로 그린다. */
+.zt-stage {
   display: flex;
   flex: 1;
-  gap: var(--space-4, 16px);
   min-height: 0;
 }
+/* 우측 투표 패널 — 배경 틴트·여백을 이 요소(바깥 aside)가 직접 갖는다. 안쪽
+ * VotePanel(.zt-vote)은 더 이상 자기 배경을 갖지 않는 투명한 뼈대일 뿐이다 —
+ * 그래야 패널이 zt-stage 높이를 꽉 채워 아래 zt-vote-bar와 맞닿는다(둥근 카드로
+ * 안쪽에 떠 있으면 여백 때문에 못 붙는다). */
 .zt-side-wide {
   flex: 0 0 260px;
-}
-.zt-main {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-width: 0;
+  overflow-y: auto;
+  padding: var(--space-4, 16px);
+  background: var(--vote-bg, color-mix(in srgb, var(--color-accent, #7c5cff) 22%, var(--color-surface, #1a1a22)));
+  border-left: 1px solid var(--color-line, #2a2a36);
 }
 .zt-card {
   display: flex;
@@ -210,19 +222,14 @@
   color: var(--color-muted, #9a9aa8);
 }
 
-/* 채팅 */
-.zt-chat {
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  min-height: 0;
-  background: var(--color-surface, #1a1a22);
-  border: 1px solid var(--color-line, #2a2a36);
-  border-radius: var(--radius, 12px);
-}
+/* 채팅 — 8/11: 로그와 입력창을 감싸던 카드(.zt-chat, 배경+테두리+둥근 모서리)를
+ * 없앴다. 시안 1은 로그 영역에 자기 배경이 없다(메시지 하나하나가 아니라 로그
+ * 전체를 감싸는 카드는 시안에 없는 요소) — ChatLog·ChatInputBar로 분리하며
+ * (components/Chat.tsx 참고) 이 래퍼가 필요 없어졌다. */
 .zt-chat-log {
   position: relative; /* 페이즈 팝업(.zt-modal-scrim)의 기준 박스 — 아래 참고 */
   flex: 1;
+  min-width: 0; /* zt-stage(row)의 형제가 zt-side-wide라 없으면 내용 길이만큼 안 줄어든다 */
   overflow-y: auto;
   padding: var(--space-2, 8px);
 }
@@ -284,14 +291,13 @@
   border-top: 1px solid var(--color-line, #2a2a36);
 }
 
-/* 투표 — 배경 틴트는 styles/tokens.css 의 --vote-bg 토큰(accent를 surface에 살짝
- * 섞은 값, 8/10 시안 1 확정)을 그대로 쓴다. 접이식 손잡이(.zt-vote-bar)는 이 안에
- * 안 들어있는 별도 형제 요소라 이 틴트의 영향을 안 받는다 — 손잡이는 항상 진한
- * accent 단색이어야 눈에 띈다(스케치 의도). */
+/* 투표 — 8/11: 배경 틴트(--vote-bg)·여백을 이 안쪽 뼈대가 아니라 바깥
+ * .zt-side-wide(aside)가 갖도록 옮겼다 — 그래야 패널이 자기 아래 여백 없이
+ * zt-stage 전체 높이를 채워 zt-vote-bar와 맞닿는다(위 .zt-side-wide 규칙 참고).
+ * 이 요소는 이제 세로로 늘어놓기만 하는 투명한 컨테이너다. */
 .zt-vote {
-  background: var(--vote-bg, color-mix(in srgb, var(--color-accent, #7c5cff) 22%, var(--color-surface, #1a1a22)));
-  padding: var(--space-4, 16px);
-  border-radius: var(--radius, 12px);
+  display: flex;
+  flex-direction: column;
 }
 .zt-vote-title {
   margin: 0 0 var(--space-2, 8px);
@@ -327,11 +333,6 @@
 }
 .zt-vote-count {
   font-variant-numeric: tabular-nums;
-}
-.zt-vote-mine {
-  display: flex;
-  gap: var(--space-2, 8px);
-  align-items: center;
 }
 
 /* 투표 현황 그래프 — 8/10 시안 1 확정. 위 zt-vote-list(클릭용 후보 버튼)와
@@ -414,6 +415,8 @@
   display: flex;
   gap: var(--space-2, 8px);
   align-items: center;
+  /* 8/11: 헤더와 같은 이유로 필요 — 위 .zt-head 규칙의 margin-bottom 주석 참고. */
+  margin-bottom: var(--space-4, 16px);
 }
 
 /* 페이즈 팝업 (S0 역할배정 · S4 생사투표 · S5 결과 · S5-a 제시어추측 · S6 봇지목)
@@ -507,10 +510,17 @@
   line-height: 1.9;
 }
 
-/* 투표 여닫이 손잡이(.zt-vote-bar) — 기본은 숨김. 폰 폭에서만 아래 미디어쿼리가 보여준다.
- * 데스크톱은 우측 컬럼이 항상 펼쳐져 있어 여닫을 게 없으므로 이 규칙이 최종값이다. */
+/* 투표 요약탭(.zt-vote-bar) — 8/11: 시안 1은 폰뿐 아니라 항상(데스크톱 포함) 떠
+ * 있는 요소다. 이전엔 폰 폭에서만 미디어쿼리로 display:flex 를 줬는데, 그러면
+ * 데스크톱에서 아예 안 보여 "우측 투표 패널만 있고 그 아래 요약탭이 없다"는
+ * 상태가 됐다 — 이제 기본값 자체가 항상 보임이다. 데스크톱은 투표 패널이 이미
+ * 펼쳐져 있어 눌러도 시각적으로 안 바뀌지만(패널 접힘 CSS가 모바일 미디어쿼리
+ * 안에만 있음), 탭 자체는 시안처럼 계속 노출된다.
+ * 둥근 카드가 아니라 화면 폭 전체를 덮는 띠(시안 1의 accent 단색 배경)로
+ * 바꿨다 — 우측 투표 패널 아랫변과 맞닿으려면 카드처럼 여백·모서리가 있으면
+ * 안 된다. */
 .zt-vote-bar {
-  display: none;
+  display: flex;
   align-items: center;
   justify-content: space-between;
   width: 100%;
@@ -518,9 +528,8 @@
   font-size: 0.85rem;
   font-weight: 600;
   color: var(--color-text, #e8e8ee);
-  background: var(--color-surface, #1a1a22);
-  border: 1px solid var(--color-line, #2a2a36);
-  border-radius: var(--radius, 12px);
+  background: var(--color-accent, #7c5cff);
+  border: none;
   cursor: pointer;
 }
 .zt-vote-bar-chev {
@@ -541,17 +550,14 @@
  * 두 후보 중 하나다. MainScreen 의 voteOpen 상태가 열림/닫힘을 결정하고, 항상 보이는
  * .zt-vote-bar 가 손잡이 역할을 한다.
  *
- *     헤더 → 채팅 로그(스크롤) → 투표 패널(여닫힘) → 여닫이 손잡이(항상 노출) → 입력창(맨 아래)
+ *     헤더 → 채팅 로그(스크롤) → 투표 패널(여닫힘) → 요약탭(항상 노출) → 입력창(맨 아래)
  *
- * 입력창은 항상 엄지 근처 맨 아래에 있어야 하고, 손잡이는 접힌 상태에서도 내 선택을
- * 계속 읽을 수 있어야 하므로 투표 패널 밖에 따로 둔다(패널이 닫히면 안의 내용도 같이
- * 안 보이기 때문).
- *
- * ⚠️ 입력창은 DOM 상 .zt-chat 안에 로그와 함께 들어 있어서 그대로는 투표 패널을
- * 둘 사이에 끼울 수 없다 — order 는 형제끼리만 통하기 때문이다. .zt-main·.zt-chat 을
- * display:contents 로 만들어 그 자식들을 .zt-body 의 직계 flex 아이템으로 끌어올린
- * 뒤 order 로 순서를 잡는다. TSX 구조를 건드리지 않고 배치만 바꾸기 위한 선택이다.
- * 대신 .zt-chat 이 갖고 있던 테두리·배경이 사라지므로 로그와 입력창이 각자 갖는다.
+ * ⚠️ 8/11: 예전엔 입력창이 DOM 상 로그와 같은 카드(.zt-chat) 안에 있어서, 투표
+ * 패널을 그 둘 사이에 끼우려면 order + display:contents 트릭이 필요했다.
+ * MainScreen을 zt-stage(로그|투표)·zt-vote-bar·입력창 셋으로 다시 나누면서
+ * (컴포넌트 주석 참고) 이미 DOM 순서 자체가 원하는 시각 순서와 같아졌다 —
+ * order 재배치가 통째로 필요 없어졌다. 여기 남은 건 진짜 폰 전용 규칙(투표
+ * 패널을 세로로 내리고 접이식으로 바꾸는 것)뿐이다.
  *
  * 페이지 자체는 여전히 늘어나지 않는다. 스크롤은 .zt-chat-log 안에서만 일어난다
  * (2판 테스트 B-1·B-2 교훈).
@@ -561,50 +567,25 @@
  * CSS 미디어쿼리 조건에는 var()를 못 써서 여기 리터럴 숫자로 중복 유지한다 — --bp-mobile
  * 이 바뀌면 이 숫자도 같이 고쳐야 한다. */
 @media (max-width: 768px) {
-  .zt-body {
+  .zt-stage {
     flex-direction: column;
-  }
-  .zt-main,
-  .zt-chat {
-    display: contents;
-  }
-
-  .zt-chat-log {
-    order: 1;
-    flex: 1;
-    min-height: 0;
-    background: var(--color-surface, #1a1a22);
-    border: 1px solid var(--color-line, #2a2a36);
-    border-radius: var(--radius, 12px);
   }
 
   /* 투표 패널 — 여닫이 손잡이(.zt-vote-bar)가 눌릴 때만 펼쳐진다. 펼쳐져도 표가
-   * 많아 화면을 다 먹지 않게 상한을 둔다. */
+   * 많아 화면을 다 먹지 않게 상한을 둔다. 데스크톱의 border-left는 여기선 위쪽
+   * 경계선이 된다(패널이 로그 아래로 내려왔으므로). */
   .zt-side-wide {
-    order: 2;
     flex: 0 0 auto;
     max-height: 38vh;
-    overflow-y: auto;
+    border-left: none;
+    border-top: 1px solid var(--color-line, #2a2a36);
     transition: max-height 0.18s ease;
   }
   .zt-side-wide.is-collapsed {
     max-height: 0;
     overflow: hidden;
-  }
-
-  /* 손잡이 — 패널이 접혀도 이것만은 항상 보여야 "투표 상태를 놓쳤다"는 신호가 안 생긴다 */
-  .zt-vote-bar {
-    display: flex;
-    order: 3;
-  }
-
-  /* 맨 아래 고정. .zt-chat 밖으로 나온 셈이라 테두리를 스스로 갖는다 */
-  .zt-chat-input,
-  .zt-chat-locked {
-    order: 4;
-    background: var(--color-surface, #1a1a22);
-    border: 1px solid var(--color-line, #2a2a36);
-    border-radius: var(--radius, 12px);
+    padding-top: 0;
+    padding-bottom: 0;
   }
 
   /* 헤더 — zt-word가 항상 자리를 차지하면서(8/11) 브랜드+라운드+페이즈+제시어+
