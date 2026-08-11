@@ -483,7 +483,7 @@ export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise
       try {
         const word = await generate(systemPrompt(ctx), guessWordPrompt(ctx), {
           maxTokens: 200,
-          thinking: { type: 'enabled', reasoning_effort: 'max' },
+          effort: 'max',
         });
         if (word.length > 0) return { t: 'guessWord', word };
       } catch (err) {
