@@ -289,4 +289,9 @@ export const MOCK_STATES: Record<string, GameState> = {
  *  띄우기 때문이다. MockHarness 가 이 키만 따로 처리한다. */
 export const LANDING_KEY = 'landing';
 
-export const MOCK_KEYS = [LANDING_KEY, ...Object.keys(MOCK_STATES)];
+/** 실제 GameScreen(채팅+투표+팝업)을 mock 칩으로 훑어보는 테스트 화면 — 정적 상태
+ *  하나가 아니라 자체 상호작용을 갖고 있어 다른 키들처럼 MOCK_STATES에 못 넣는다.
+ *  MockHarness가 LANDING_KEY와 같은 방식으로 따로 처리한다. */
+export const GAME_TEST_KEY = 'game-test';
+
+export const MOCK_KEYS = [GAME_TEST_KEY, LANDING_KEY, ...Object.keys(MOCK_STATES)];

@@ -5,7 +5,8 @@ import LobbyScreen from '../LobbyScreen';
 import ResultScreen from '../ResultScreen';
 import SurveyScreen from '../SurveyScreen';
 import { GameScreen } from '../screens/GameScreen';
-import { LANDING_KEY, MOCK_KEYS, MOCK_STATES } from './states';
+import { GameScreenTest } from './GameScreenTest';
+import { GAME_TEST_KEY, LANDING_KEY, MOCK_KEYS, MOCK_STATES } from './states';
 
 /**
  * 서버 없이 화면을 확인하는 개발용 하네스.
@@ -24,7 +25,8 @@ export function MockHarness() {
     key ? MOCK_STATES[key] : undefined,
   );
 
-  const known = key === LANDING_KEY || (key !== null && key in MOCK_STATES);
+  const known =
+    key === GAME_TEST_KEY || key === LANDING_KEY || (key !== null && key in MOCK_STATES);
   if (!known) {
     return (
       <div className="zt-screen zt-center">
@@ -51,6 +53,12 @@ export function MockHarness() {
     if (e.t === 'botVote') setState({ ...state, myVote: e.targetId });
     if (e.t === 'lifeVote') setState({ ...state, myLifeVote: e.kill });
   };
+
+  // 실제 GameScreen을 mock 칩으로 훑어보는 테스트 화면 — 자체 상태를 스스로
+  // 들고 있어서 이 컴포넌트의 state/setState를 쓰지 않는다
+  if (key === GAME_TEST_KEY) {
+    return <GameScreenTest />;
+  }
 
   // 랜딩은 아직 state 가 없는 화면이라 GameState 로 표현하지 않는다
   if (key === LANDING_KEY) {
