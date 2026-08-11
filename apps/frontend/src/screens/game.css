@@ -620,6 +620,17 @@
     padding: 4px;
     border-radius: 999px;
   }
+  /* ⚠️ 8/11 6차: 시안 스크린샷과 실측 대조 결과 두 가지가 더 달랐다.
+   * ① "내가 투표한 후보" 강조가 accent색 1px 테두리가 아니라 흰색(--color-text)
+   *   2px 테두리 + accent 톤 배경 채움이었다(시안 1의 .cand.mine 규칙과 동일).
+   *   이 규칙은 PC 목록 행에서도 그대로 쓰이는 공용 .zt-vote-row.is-mine이라
+   *   여기서 덮어쓰지 않고 이 미디어쿼리 안에서만 원형 버튼용으로 다시 정의한다
+   *   (PC 쪽은 이번 피드백 범위 밖이라 안 건드림). */
+  .zt-vote-row.is-mine {
+    border-color: var(--color-text, #e8e8ee);
+    border-width: 2px;
+    background: color-mix(in srgb, var(--color-accent, #7c5cff) 42%, var(--color-surface, #1a1a22));
+  }
   /* ⚠️ 8/11 5차: 아바타(.avatar)는 원래 자기 몫의 배경·테두리·둥근모서리를 가진
    * 작은 배지다(데스크톱 목록 행에서 이름 앞에 붙는 용도) — 그걸 그대로 두면
    * 이 원형 버튼 안에 "테두리 있는 사각 배지"가 또 하나 겹쳐 들어가 원 안에 원이
@@ -638,11 +649,12 @@
     border: none;
     border-radius: 0;
   }
-  /* 기권은 아바타가 없는 텍스트뿐이라 원형 대신 시안처럼 넓은 알약 모양으로 둔다 */
+  /* ② 기권도 다른 후보와 똑같은 원형·크기여야 했다(8/11 6차, 사용자 스크린샷
+   * 지적) — 전엔 aspect-ratio:auto로 낮은 타원이 돼 다른 원들과 크기가
+   * 어긋나 보였다. base .zt-vote-row의 aspect-ratio:1/1을 그대로 물려받게
+   * 두고, "기권" 두 글자가 원 안에 편하게 들어가도록 글자 크기만 살짝 줄인다. */
   .zt-vote-row-abstain {
-    aspect-ratio: auto;
-    flex-basis: 60px;
-    border-radius: 999px;
+    font-size: 12px;
   }
   .zt-vote-label {
     display: none;
