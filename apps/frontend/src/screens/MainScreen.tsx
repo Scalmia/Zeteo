@@ -73,10 +73,6 @@ export function MainScreen({
               시스템 메시지가 맡는다 — 대체 관계가 아니다 (설계 결정 10) */}
           <span className="zt-round">{state.round}라운드</span>
           {phaseLabel(state.phase)}
-          {/* 주제·제시어는 묘사 때만 띄운다(기존 Describe 헤더 그대로).
-              라이어는 word 가 null 이라 주제만 보인다 */}
-          {isDescribe && ` · ${state.category}`}
-          {isDescribe && state.word && ` · ${state.word}`}
         </span>
 
         {/* 좌측 참가자 목록을 없애면서 발언 순서·진행도가 갈 곳이 여기 하나뿐이다 */}
@@ -87,6 +83,14 @@ export function MainScreen({
             {turnName}
           </span>
         )}
+
+        {/* 제시어 — 시안 1 D4 답: 묘사 때만이 아니라 전 페이즈에서 헤더에 상시
+            고정. 라이어는 word가 null이라 "???"로 뜬다 — 자리를 비우면
+            "안 보이는 것" 자체가 단서가 되므로 카테고리와 같은 자리·같은
+            크기를 유지한다(8/11). */}
+        <span className="zt-word">
+          <span className="zt-word-cat">{state.category} /</span> {state.word ?? '???'}
+        </span>
 
         <Timer deadlineAt={state.deadlineAt} />
       </header>

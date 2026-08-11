@@ -52,16 +52,17 @@
 .zt-head {
   display: flex;
   align-items: center;
-  /* space-between 대신 flex-start + 마지막 자식 margin-left:auto 조합을 쓴다.
-   * 자식이 2개(zt-sub, Timer)일 때도 3개(+zt-turn)일 때도 항상 Timer만 오른쪽
-   * 끝으로 밀리고 나머지(브랜드·라운드·묘사진행도)는 왼쪽에 붙어 함께 흐른다 —
+  /* space-between 대신 flex-start + margin-left:auto 조합을 쓴다.
+   * 자식이 3개(zt-sub, zt-word, Timer)일 때도 4개(+zt-turn)일 때도 항상
+   * zt-word가 스스로를 밀어 자신과 뒤따르는 Timer만 오른쪽 끝으로 붙고,
+   * 나머지(브랜드·라운드·묘사진행도)는 왼쪽에 붙어 함께 흐른다 —
    * space-between이면 자식 수에 따라 가운데 항목 위치가 흔들린다(8/11 브랜드
-   * 추가로 자식이 하나 늘면서 확인됨). */
+   * 추가로 자식이 하나 늘면서 확인됨). margin-left:auto를 zt-word 하나에만
+   * 주는 이유: 뒤이은 Timer까지 :last-child로 같이 밀면 두 auto-margin이
+   * 남는 공간을 나눠 가져 zt-word와 Timer 사이가 벌어진다(시안 1은 둘이
+   * 붙어 있다) — 제시어 상시 표시 추가하며 정리(시안 1 D4, 8/11). */
   justify-content: flex-start;
   gap: var(--space-4, 16px);
-}
-.zt-head > :last-child {
-  margin-left: auto;
 }
 .zt-brand {
   display: flex;
@@ -81,6 +82,14 @@
   letter-spacing: 0.04em;
 }
 .zt-sub {
+  /* zt-word가 항상 자리를 차지하게 되면서(8/11) 좁은 화면에서 라운드+페이즈
+   * 문구가 밀려 줄바꿈되던 문제가 생겼다 — 이 요소가 남는 공간만 갖고
+   * 넘치면 말줄임표로 잘리게 한다(시안 1 .phase와 같은 처리). */
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--color-muted, #9a9aa8);
 }
 .zt-timer {
@@ -98,9 +107,37 @@
   align-items: center;
   font-variant-numeric: tabular-nums;
   color: var(--color-muted, #9a9aa8);
+  /* zt-sub와 같은 이유로 필요: zt-word가 항상 자리를 차지하게 되면서(8/11)
+   * 묘사 페이즈의 브랜드+라운드+페이즈+진행도+제시어+타이머 여섯 요소가
+   * 390px에서 다 안 들어가면, flex-shrink 기본값 때문에 이 텍스트가
+   * 한 글자씩 세로로 줄바꿈되는 사고가 났다 — 줄바꿈 대신 말줄임표로 자른다. */
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 .zt-turn-mark {
   color: var(--color-text, #e8e8ee);
+}
+
+/* 제시어 상시 표시 — 시안 1 D4 답을 반영(8/11). describe 때만 보이던 걸
+ * 모든 페이즈에서 헤더 고정 위치에 상시 노출한다. 라이어는 word가 null이라
+ * "???"로 뜬다 — 자리 자체를 비우면 "안 보인다"는 사실이 단서가 되므로
+ * 같은 자리·같은 크기를 유지한다(카테고리는 전원 공개라 항상 실제 값). */
+.zt-word {
+  margin-left: auto;
+  flex: none;
+  padding: 3px 10px;
+  font-size: 14px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--color-accent, #7c5cff) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent, #7c5cff) 55%, transparent);
+  border-radius: var(--radius, 6px);
+}
+.zt-word-cat {
+  color: var(--color-muted, #9a9aa8);
+  font-weight: 400;
 }
 
 .zt-body {
@@ -568,5 +605,17 @@
     background: var(--color-surface, #1a1a22);
     border: 1px solid var(--color-line, #2a2a36);
     border-radius: var(--radius, 12px);
+  }
+
+  /* 헤더 — zt-word가 항상 자리를 차지하면서(8/11) 브랜드+라운드+페이즈+제시어+
+   * 타이머 다섯 요소가 390px 폭에 다 안 들어가 zt-sub가 "1라..."까지 잘리는
+   * 문제가 생겼다. 워드마크 글자를 숨겨 자리를 돌려준다(아이콘은 남긴다) —
+   * zt-sub의 말줄임표는 그대로 안전망으로 둔다. */
+  .zt-brand-name {
+    display: none;
+  }
+  .zt-word {
+    padding: 3px 7px;
+    font-size: 12px;
   }
 }
