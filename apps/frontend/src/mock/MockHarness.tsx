@@ -4,7 +4,6 @@ import LandingScreen from '../LandingScreen';
 import LobbyScreen from '../LobbyScreen';
 import ResultScreen from '../ResultScreen';
 import SurveyScreen from '../SurveyScreen';
-import VoteScreen from '../VoteScreen';
 import { GameScreen } from '../screens/GameScreen';
 import { LANDING_KEY, MOCK_KEYS, MOCK_STATES } from './states';
 
@@ -13,8 +12,9 @@ import { LANDING_KEY, MOCK_KEYS, MOCK_STATES } from './states';
  *   /?mock=debate-voted
  * 키 없이 열면 전체 목록이 나온다.
  *
- * 파트 C 화면뿐 아니라 파트 D 화면(랜딩·대기실·봇지목·결과·설문)까지 같은 목록에서
- * 열 수 있다. 아래 분기는 App.tsx 의 renderScreen 을 그대로 따라 한 것이다 —
+ * 파트 C 화면뿐 아니라 파트 D 화면(랜딩·대기실·결과·설문)까지 같은 목록에서
+ * 열 수 있다. 봇지목(botVote)은 8/11부로 파트 C 이관 — default 분기의 GameScreen이
+ * 그린다. 아래 분기는 App.tsx 의 renderScreen 을 그대로 따라 한 것이다 —
  * ⚠️ App.tsx(파트 D 소유)가 원본이고 여기가 사본이다. D가 화면 props 를 바꾸면
  * 이 파일이 타입 에러로 먼저 깨지므로, 그때 App.tsx 를 보고 맞추면 된다.
  */
@@ -75,17 +75,6 @@ function renderMock(state: GameState, onEvent: (e: ClientEvent) => void) {
         />
       );
     }
-
-    case 'botVote':
-      return (
-        <VoteScreen
-          deadlineAt={state.deadlineAt}
-          candidates={state.players}
-          myVote={state.myVote}
-          botVoteCounts={state.botVoteCounts}
-          onConfirm={(votedId) => onEvent({ t: 'botVote', targetId: votedId })}
-        />
-      );
 
     case 'result': {
       const winner =

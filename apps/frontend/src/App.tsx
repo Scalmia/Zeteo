@@ -1,4 +1,3 @@
-import VoteScreen from "./VoteScreen";
 import ResultScreen from "./ResultScreen";
 import SurveyScreen from "./SurveyScreen";
 import LandingScreen from "./LandingScreen";
@@ -11,13 +10,16 @@ import type { ClientEvent, GameState } from "@zeteo/shared-types";
  * 파트 D 소유 — 박진
  *
  * phase 에 따라 화면을 고른다
- *   lobby / botVote / result / survey → D가 직접 그린다
- *   그 외 게임 페이즈                 → <GameScreen state={state} onEvent={onEvent} />
+ *   lobby / result / survey → D가 직접 그린다
+ *   그 외 게임 페이즈        → <GameScreen state={state} onEvent={onEvent} />
  *
- * 파트 C의 화면 6개를 알 필요가 없다. GameScreen 하나만 마운트하면 된다.
+ * botVote는 기획서 v3.0로 파트 C(GameScreen 팝업)로 이관됐다(8/11) — 예전엔 여기서
+ * VoteScreen을 직접 그렸지만, 이제 GAME_SCREEN_PHASES에 포함되어 C쪽에서 처리한다.
+ *
+ * 파트 C의 화면들을 알 필요가 없다. GameScreen 하나만 마운트하면 된다.
  */
 
-// 이 페이즈들은 파트 C의 GameScreen이 그린다. 나머지(lobby/botVote/result/survey)는 D가 직접.
+// 이 페이즈들은 파트 C의 GameScreen이 그린다. 나머지(lobby/result/survey)는 D가 직접.
 const GAME_SCREEN_PHASES = new Set([
   "roleReveal",
   "describe",
@@ -26,6 +28,7 @@ const GAME_SCREEN_PHASES = new Set([
   "lifeVote",
   "reveal",
   "guessWord",
+  "botVote",
 ]);
 
 // 서버가 이 필드들을 빠뜨리고 보내면 하위 화면(state.players.find 등)이 그대로 크래시한다.
@@ -63,23 +66,10 @@ function renderScreen(state: GameState | null, onEvent: (e: ClientEvent) => void
   }
 
   if (GAME_SCREEN_PHASES.has(state.phase)) {
-    if (!state.players || !state.messages || !state.voteCounts || !state.lifeVoteCounts) {
+    if (!state.players || !state.messages || !state.voteCounts || !state.lifeVoteCounts || !state.botVoteCounts) {
       return <MissingData label="게임" />;
     }
     return <GameScreen state={state} onEvent={onEvent} />;
-  }
-
-  if (state.phase === "botVote") {
-    if (!state.players || !state.botVoteCounts) return <MissingData label="투표" />;
-    return (
-      <VoteScreen
-        deadlineAt={state.deadlineAt}
-        candidates={state.players}
-        myVote={state.myVote}
-        botVoteCounts={state.botVoteCounts}
-        onConfirm={(votedId) => onEvent({ t: "botVote", targetId: votedId })}
-      />
-    );
   }
 
   if (state.phase === "result") {

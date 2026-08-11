@@ -1,13 +1,4 @@
-import type { PublicPlayer } from "@zeteo/shared-types";
-
 export type PlayerId = string;
-
-export interface VoteScreenState {
-  deadlineAt: number | null;
-  candidates: PublicPlayer[];
-  myVote: PlayerId | null;
-  botVoteCounts: { voted: number; total: number };
-}
 
 export interface Reason {
   id: number;
