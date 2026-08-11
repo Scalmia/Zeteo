@@ -150,6 +150,8 @@ export function MainScreen({
               ? (state.players.find((p) => p.id === state.myVote)?.label ?? state.myVote)
               : '없음'}
           </span>
+          {/* 시안 1의 .bar .t — 요약탭 우측, 여닫이 화살표 바로 왼쪽(8/11) */}
+          <Timer deadlineAt={state.deadlineAt} />
           <span className="zt-vote-bar-chev" aria-hidden="true">
             {voteOpen ? '▼' : '▲'}
           </span>

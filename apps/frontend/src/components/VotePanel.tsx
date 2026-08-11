@@ -40,8 +40,13 @@ export function VotePanel({ players, voteCounts, myVote, myId, onVote }: Props) 
                     채 게임이 계속되는" 상태가 없다. 생사 투표에서 죽으면 그 판이 그대로
                     끝난다(reveal → guessWord → result), 토론으로 돌아오지 않는다. */}
                 <Avatar label={p.label} variant={p.id === myId ? 'mine' : 'default'} />
-                {p.label}
-                {p.id === myId && ' (나)'}
+                {/* zt-vote-label로 감싼 이유: 시안 1은 폰 폭에서 후보를 원형 아이콘
+                    (아바타+득표수)만으로 가로 나열한다 — 이름 글자는 아바타로 이미
+                    식별되니 폰에서만 CSS로 숨긴다(PC는 그대로 보임, 8/11). */}
+                <span className="zt-vote-label">
+                  {p.label}
+                  {p.id === myId && ' (나)'}
+                </span>
               </span>
               <span className="zt-vote-count">{voteCounts[p.id] ?? 0}표</span>
             </button>
@@ -52,7 +57,7 @@ export function VotePanel({ players, voteCounts, myVote, myId, onVote }: Props) 
             이미 기권(또는 아직 미투표) 상태면 다시 눌러도 의미가 없어 비활성화한다. */}
         <li>
           <button
-            className={myVote === null ? 'zt-vote-row is-mine' : 'zt-vote-row'}
+            className={myVote === null ? 'zt-vote-row zt-vote-row-abstain is-mine' : 'zt-vote-row zt-vote-row-abstain'}
             onClick={() => onVote(null)}
             disabled={myVote === null}
           >
