@@ -19,12 +19,14 @@
 
   --radius: 6px;
 
-  --font-body: "Lora", system-ui, sans-serif;
+  /* 8/10 시안1 확정 — Lora 제거, system-ui만 사용 */
+  --font-body: system-ui, sans-serif;
 
   /* 모바일 브레이크포인트 — 8/10 시안1 확정값(768px).
    * CSS 미디어쿼리 조건에는 var()를 못 쓴다 — game.css 의 @media (max-width: 768px)
    * 는 이 토큰을 참조하지 않고 리터럴 숫자를 직접 쓴다. 이 값을 바꾸면 game.css 도
-   * 같이 고쳐야 한다. */
+   * 같이 고쳐야 한다. (참고: origin/feat/game-ui 42ea1f3 은 900px로 임시 적용돼
+   * 있음 — 768px로 교체 필요, 이현우 병장님께 전달됨) */
   --bp-mobile: 768px;
 
   /* 투표 패널 배경 틴트 — 8/10 시안1에서 신규 확정. accent를 surface에 살짝 섞는다. */
@@ -57,9 +59,10 @@ a { color: var(--color-accent); text-underline-offset: 3px; }
   border-radius: var(--radius);
 }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
-.btn-primary { color: var(--color-accent); border-color: var(--color-accent); }
-.btn-primary:hover { background: color-mix(in srgb, var(--color-accent) 14%, transparent); }
-.btn-primary:active { background: color-mix(in srgb, var(--color-accent) 24%, transparent); }
+/* 8/10 시안1 확정 — 아웃라인 → 솔리드 채움 (전송·요약탭·태그와 톤 통일) */
+.btn-primary { color: var(--color-text); background: var(--color-accent); border-color: var(--color-accent); }
+.btn-primary:hover { background: color-mix(in srgb, var(--color-accent) 85%, black); }
+.btn-primary:active { background: color-mix(in srgb, var(--color-accent) 70%, black); }
 .btn-secondary { border-color: var(--color-line); }
 .btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
 .btn-block { width: 100%; margin-top: var(--space-2); }
