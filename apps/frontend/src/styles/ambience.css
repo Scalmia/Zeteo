@@ -1,0 +1,93 @@
+/* 파트 D 소유 — 박진
+ *
+ * Blood Moon 장식 레이어(달빛·피 방울·노이즈 텍스처). Ambience.tsx가 마운트하는
+ * 마크업을 스타일링한다. 클릭을 막지 않도록 전부 pointer-events:none.
+ * prefers-reduced-motion 사용자는 애니메이션을 끈다.
+ */
+
+.ambience-noise {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+body {
+  filter: url(#zt-noise);
+  animation: zt-bg-pulse 15s ease-in-out infinite;
+}
+
+@keyframes zt-bg-pulse {
+  0%, 100% { filter: url(#zt-noise) brightness(1); }
+  50% { filter: url(#zt-noise) brightness(1.05) saturate(1.1); }
+}
+
+.moonlight {
+  position: fixed;
+  top: -30%;
+  right: 5%;
+  width: 500px;
+  height: 500px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 40%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+  animation: zt-moon-pulse 8s ease-in-out infinite;
+}
+@keyframes zt-moon-pulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 0.9; transform: scale(1.15); }
+}
+
+.blood-drops {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 150px;
+  pointer-events: none;
+  z-index: 0;
+  overflow: hidden;
+}
+.blood-drop {
+  position: absolute;
+  width: 3px;
+  height: 0;
+  background: linear-gradient(180deg, var(--color-accent), transparent);
+  opacity: 0.45;
+  animation: zt-blood-fall 3s linear infinite;
+  filter: drop-shadow(0 0 2px var(--color-accent));
+}
+.blood-drop:nth-child(1) { left: 10%; animation-delay: 0s; }
+.blood-drop:nth-child(2) { left: 25%; animation-delay: 0.5s; }
+.blood-drop:nth-child(3) { left: 40%; animation-delay: 1s; }
+.blood-drop:nth-child(4) { left: 60%; animation-delay: 1.5s; }
+.blood-drop:nth-child(5) { left: 75%; animation-delay: 2s; }
+.blood-drop:nth-child(6) { left: 90%; animation-delay: 2.5s; }
+@keyframes zt-blood-fall {
+  0% { height: 0; top: 0; opacity: 0; }
+  10% { opacity: 0.45; }
+  90% { opacity: 0.45; }
+  100% { height: 100px; top: 150px; opacity: 0; }
+}
+
+.zt-particle {
+  position: fixed;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  pointer-events: none;
+  z-index: 999;
+  opacity: 0.8;
+  animation: zt-particle-fade 0.8s ease-out forwards;
+}
+@keyframes zt-particle-fade {
+  0% { opacity: 0.8; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.2); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body { animation: none; filter: none; }
+  .moonlight, .blood-drop { animation: none; }
+  .zt-particle { display: none; }
+}
