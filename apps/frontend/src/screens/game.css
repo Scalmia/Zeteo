@@ -198,15 +198,21 @@
  * 진행률 바 채움색"으로 바뀌었다(D 파일 자체 주석에 명시) — 그런데 이 파일은
  * 그 변경을 못 따라가 옛 의미(패널 배경)로 계속 썼고, 그 결과 진하고 쨍한
  * bar-fill용 그라디언트가 패널 전체 배경으로 깔려 "배경이 너무 밝아서 그래프·
- * 강조표시가 안 보인다"는 문제가 났다. 별도 틴트 없이 다른 카드·버튼과 같은
- * --color-surface 그대로 쓴다 — 그게 원래 "어둡다"는 요청에 맞고, 패널 안
- * 후보 버튼(.zt-vote-row)도 이미 같은 surface라 톤이 자연스럽게 이어진다.
- * Day 0 합의 토큰만 쓰고 --vote-bg는 참조하지 않는다. */
+ * 강조표시가 안 보인다"는 문제가 났다. Day 0 합의 토큰만 쓰고 --vote-bg는
+ * 참조하지 않는다.
+ * 8/12 2차 조정: --color-surface를 그대로만 쓰니 패널 안 후보 버튼
+ * (.zt-vote-row)도 같은 --color-surface라 패널과 버튼이 완전히 같은 톤으로
+ * 뭉개져 "화면이 너무 어둡다"는 반응이 나왔다 — 후보 버튼이 패널 위에서
+ * 도드라져 보이도록 흰색 저채도 오버레이를 얇게 얹어 패널만 살짝 밝힌다.
+ * color-mix()는 --color-surface가 gradient라 못 쓰므로([[zeteo-partc]] 함정
+ * 참고) linear-gradient(같은색,같은색) 레이어를 위에 쌓는 방식으로 낸다. */
 .zt-side-wide {
   flex: 0 0 260px;
   overflow-y: auto;
   padding: var(--space-4, 16px);
-  background: var(--color-surface, #1a1a22);
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07)),
+    var(--color-surface, #1a1a22);
   border-left: 1px solid var(--color-line, #2a2a36);
 }
 .zt-card {
