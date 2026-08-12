@@ -33,7 +33,7 @@ export default function SurveyScreen({
       <div style={{ width: "100%", maxWidth: 520, display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
         <div style={{ border: "1px solid var(--color-line)", borderRadius: "var(--radius)", background: "var(--color-surface)", padding: "var(--space-4)" }}>
           <h4 style={{ marginBottom: "var(--space-2)" }}>왜 봇이라고 생각했나요?</h4>
-          <div className="text-muted" style={{ fontSize: 12, marginBottom: "var(--space-4)" }}>
+          <div className="text-muted" style={{ fontSize: "var(--text-label)", fontWeight: 600, marginBottom: "var(--space-4)" }}>
             적중자 대상 · 해당하는 이유 선택 (복수)
           </div>
 
@@ -64,29 +64,30 @@ export default function SurveyScreen({
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
-                      fontSize: 11,
+                      fontSize: 17,
                       color: "white"
                     }}
                   >
                     {isChecked ? "✓" : ""}
                   </span>
-                  <span style={{ fontSize: 14 }}>{reason.label}</span>
+                  <span style={{ fontSize: "var(--text-body)", fontWeight: 600 }}>{reason.label}</span>
                 </label>
               );
             })}
           </div>
 
           <div className="field" style={{ marginBottom: "var(--space-4)" }}>
-            <label>기타 (자유 서술)</label>
+            <label style={{ fontSize: "var(--text-label)", fontWeight: 600 }}>기타 (자유 서술)</label>
             <textarea
               className="input"
+              style={{ fontSize: "var(--text-body)" }}
               value={freeText}
               onChange={(e) => setFreeText(e.target.value)}
               placeholder="직접 입력해주세요"
             />
           </div>
 
-          <Button block onClick={() => onSubmit(checked, freeText)}>
+          <Button block style={{ fontSize: "var(--text-button)" }} onClick={() => onSubmit(checked, freeText)}>
             제출
           </Button>
         </div>

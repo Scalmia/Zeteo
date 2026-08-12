@@ -37,6 +37,15 @@
   --glow: drop-shadow(0 0 6px rgba(255, 60, 70, 0.9)) drop-shadow(0 0 16px rgba(255, 39, 51, 0.8)) drop-shadow(0 0 32px rgba(255, 20, 30, 0.6));
   --deep-shadow: 0 0 10px rgba(255, 39, 51, 0.9), 0 0 30px rgba(255, 39, 51, 0.7), 0 0 70px rgba(255, 20, 30, 0.5), inset 0 0 24px rgba(255, 39, 51, 0.12);
   --transition-theme: 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* 텍스트 크기 규칙 — 8/12. 랜딩·대기실·결과·설문 화면에 흩어져 있던 인라인
+   * fontSize 값을 역할별로 묶었다. 값 자체는 기존과 동일, 참조 위치만 한 곳으로
+   * 모은 것 — 다음에 크기를 바꿀 때 화면마다 찾아다니지 않아도 되게 하기 위함. */
+  --text-caption: 32px;  /* 화면 상단 캡션 — GAME OVER, 대기실 */
+  --text-emphasis: 28px; /* 승패 배지 등 강조 배지 — 시민 승리 */
+  --text-body: 16px;     /* 본문 — 참가자 이름, 지목정보, 설문 항목 */
+  --text-label: 15px;    /* 설명 문구·태그·폼 라벨 */
+  --text-button: 21px;   /* 모든 버튼 */
 }
 
 *, *::before, *::after { box-sizing: border-box; }

@@ -35,7 +35,7 @@ export default function LobbyScreen({ roomId, players, myId, myReady, onToggleRe
         }}
       >
         <div style={{ textAlign: "center", marginBottom: "var(--space-4)" }}>
-          <p className="text-muted" style={{ fontSize: 13, marginBottom: "var(--space-2)" }}>대기실</p>
+          <p className="text-muted" style={{ fontSize: "var(--text-caption)", fontWeight: 600, marginBottom: "var(--space-2)" }}>대기실</p>
           <div className="tag tag-outline" style={{ display: "inline-block" }}>방번호 {roomId}</div>
         </div>
 
@@ -56,13 +56,13 @@ export default function LobbyScreen({ roomId, players, myId, myReady, onToggleRe
             >
               <span style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
                 <Avatar label={p ? p.label : "–"} variant={p && p.id === myId ? "mine" : "default"} />
-                <span style={{ fontWeight: p ? 600 : 400, color: p ? "var(--color-text)" : "var(--color-muted)" }}>
+                <span style={{ fontSize: "var(--text-body)", fontWeight: p ? 600 : 400, color: p ? "var(--color-text)" : "var(--color-muted)" }}>
                   {p ? p.label : "대기중"}
                   {p && p.id === myId ? " (나)" : ""}
                 </span>
               </span>
               {p && (
-                <span className={`tag ${p.isReady ? "tag-accent" : "tag-neutral"}`}>
+                <span className={`tag ${p.isReady ? "tag-accent" : "tag-neutral"}`} style={{ fontSize: "var(--text-label)", fontWeight: 600 }}>
                   {p.isReady ? "준비완료" : "대기"}
                 </span>
               )}
@@ -70,11 +70,11 @@ export default function LobbyScreen({ roomId, players, myId, myReady, onToggleRe
           ))}
         </div>
 
-        <div className="text-muted" style={{ fontSize: 12, textAlign: "center", marginBottom: "var(--space-4)" }}>
+        <div className="text-muted" style={{ fontSize: "var(--text-label)", fontWeight: 600, textAlign: "center", marginBottom: "var(--space-4)" }}>
           {players.filter((p) => p.isReady).length} / {players.length}명 준비완료
         </div>
 
-        <Button block onClick={onToggleReady}>
+        <Button block style={{ fontSize: "var(--text-button)" }} onClick={onToggleReady}>
           {myReady ? "준비 취소" : "준비완료"}
         </Button>
       </div>
