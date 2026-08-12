@@ -73,8 +73,15 @@ function getAnthropic(): Anthropic {
 
 /**
  * 이 모델은 thinking 기본값을 xhigh · budget 131072로 잡아서, 채팅 한 줄에도 수십 초가 걸린다.
- * Anthropic 프로토콜이 허용하는 budget_tokens 최솟값(1024)을 기본으로 써서 지연을 줄인다.
- * maxTokens 기본값이 큰 것은 API가 max_tokens > budget_tokens를 요구하기 때문이지 답이 길어서가 아니다.
+ *
+ * budget_tokens와 reasoning_effort는 같은 thinking 객체 안의 서로 다른 속성이라 같이 쓸 수 있다.
+ * 둘을 동시에 넣어본 적이 없었는데, budget_tokens만 줬을 때는 effort를 안 정해준 셈이라
+ * 모델이 그 예산을 낮은 강도로 썼을 수 있다. reasoning_effort: 'max'를 같이 주면
+ * "그 예산 안에서 최대한 밀도 있게" 쓰게 할 수 있는지가 이번에 확인할 것.
+ * budget_tokens 1024는 Anthropic 프로토콜이 허용하는 최솟값이라 여기서도 지연의 하한선 역할을 한다.
+ *
+ * guessWord는 호출이 드물고 속도가 안 중요해서 budget_tokens 없이 effort만 준다 — 예산에
+ * 안 묶이고 필요한 만큼 쓰게 둔다. 최근 확인된 ultra는 reasoning_effort 중 가장 높은 단계다.
  *
  * temperature 1.2 — 같은 상황을 여러 번 물으면 글자까지 똑같은 답이 나올 만큼 결정적이어서 올려 잡았다.
  * OpenAI 경로에는 이 손잡이가 없다(지원 파라미터에 temperature가 없다).
@@ -82,8 +89,8 @@ function getAnthropic(): Anthropic {
 async function callAnthropic(system: string, user: string, opts: Required<GenerateOptions>): Promise<string> {
   const thinking =
     opts.effort === 'max'
-      ? { type: 'enabled', reasoning_effort: 'max' }
-      : { type: 'enabled', budget_tokens: 1024 };
+      ? { type: 'enabled', reasoning_effort: 'ultra' }
+      : { type: 'enabled', budget_tokens: 1024, reasoning_effort: 'max' };
 
   const res = await getAnthropic().messages.create({
     model: required('BOT_MODEL', process.env.BOT_MODEL, 'Alibaba Token Plan 콘솔'),
