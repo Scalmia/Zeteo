@@ -20,13 +20,14 @@ export default function LobbyScreen({ roomId, players, myId, myReady, onToggleRe
         background: "var(--color-bg)",
         display: "flex",
         justifyContent: "center",
+        alignItems: "center",
         padding: "var(--space-4)"
       }}
     >
       <div
         style={{
           width: "100%",
-          maxWidth: 440,
+          maxWidth: 520,
           border: "1px solid var(--color-line)",
           borderRadius: "var(--radius)",
           background: "var(--color-surface)",
