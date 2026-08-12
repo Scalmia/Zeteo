@@ -43,7 +43,7 @@ export default function LandingScreen({ onJoin }: LandingScreenProps) {
         </div>
 
         <div className="field" style={{ marginTop: 48, marginBottom: "var(--space-4)" }}>
-          <label style={{ fontSize: 15, fontWeight: 600 }}>닉네임</label>
+          <label style={{ fontSize: "var(--text-label)", fontWeight: 600 }}>닉네임</label>
           <input
             className="input"
             style={{ fontSize: 21 }}
@@ -54,7 +54,7 @@ export default function LandingScreen({ onJoin }: LandingScreenProps) {
         </div>
 
         <div className="field" style={{ marginBottom: "var(--space-4)" }}>
-          <label style={{ fontSize: 15, fontWeight: 600 }}>방번호</label>
+          <label style={{ fontSize: "var(--text-label)", fontWeight: 600 }}>방번호</label>
           <input
             className="input"
             style={{ fontSize: 21 }}
@@ -64,7 +64,7 @@ export default function LandingScreen({ onJoin }: LandingScreenProps) {
           />
         </div>
 
-        <Button block disabled={!canJoin} style={{ fontSize: 21 }} onClick={() => canJoin && onJoin(name.trim(), roomId.trim())}>
+        <Button block disabled={!canJoin} style={{ fontSize: "var(--text-button)" }} onClick={() => canJoin && onJoin(name.trim(), roomId.trim())}>
           입장하기
         </Button>
       </div>
