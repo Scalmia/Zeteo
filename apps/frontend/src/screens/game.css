@@ -44,6 +44,20 @@
   border-left: 2px solid var(--color-line, #2a2a36);
   border-right: 2px solid var(--color-line, #2a2a36);
 }
+/* 8/12: dev 병합으로 들어온 새 폰트(--font-body: Hahmlet)가 투표 후보 목록·
+ * 봇 지목 팝업 목록·생사 투표 버튼·투표 요약탭에는 안 먹은 것처럼 보였다 —
+ * 이유는 폰트가 아니라 태그였다. body에 준 font-family는 대부분의 태그엔
+ * 상속되지만 button·input 같은 폼 컨트롤은 브라우저가 기본적으로 상속을
+ * 끊고 자기 UA 기본 폰트를 쓴다(이 네 군데가 전부 <button>인 게 공통점).
+ * 파트 C 화면 범위(.zt-screen) 안의 폼 컨트롤에만 상속을 강제로 켠다 —
+ * 다른 파트 화면·D의 .btn(이미 자체적으로 font-family를 명시해 문제 없음)엔
+ * 영향 없다. */
+.zt-screen button,
+.zt-screen input,
+.zt-screen select,
+.zt-screen textarea {
+  font-family: inherit;
+}
 .zt-center {
   align-items: center;
   justify-content: center;
@@ -327,7 +341,10 @@
 .zt-vote-title {
   margin: 0 0 var(--space-2, 8px);
   font-size: 0.85rem;
-  color: var(--color-muted, #9a9aa8);
+  /* 8/12: muted 톤이 배경(진한 레드/블랙)에서 잘 안 보인다는 지적 — 투표창
+   * 안에서만 흰색(color-text)으로 바꾼다. 다른 화면의 muted 텍스트는
+   * 범위 밖이라 안 건드림. */
+  color: var(--color-text, #e8e8ee);
 }
 .zt-vote-list {
   display: flex;
@@ -389,7 +406,10 @@
   align-items: center;
   gap: var(--space-2, 8px);
   font-size: 0.75rem;
-  color: var(--color-muted, #9a9aa8);
+  /* 8/12: 위 .zt-vote-title과 같은 이유로 흰색으로 바꿈 — 내 선택(is-mine) 행만
+   * 흰색이던 걸 전부 흰색으로 통일. is-mine과 구분은 아래 .zt-tally-label의
+   * accent색으로 계속 남는다(글자색이 아니라 이니셜 배지 색으로 구분). */
+  color: var(--color-text, #e8e8ee);
 }
 .zt-tally-row.is-mine {
   color: var(--color-text, #e8e8ee);
