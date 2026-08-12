@@ -111,14 +111,18 @@
   align-items: center;
   gap: 6px;
 }
+/* 8/12: 파트 D 지침(화면 간 텍스트 통일) 재확인 — 헤더는 로비·결과 화면처럼
+ * tokens.css의 --text-* 변수를 쓰지 않고 리터럴 px 값을 쓰고 있었다(D의 실제
+ * 텍스트 통일 커밋이 game.css는 건드리지 않아서 빠져 있었음). 여기서 맞춰 넣는다.
+ * 추가로 사용자가 헤더 전반 가독성 요청(폰트 확대·볼드·로고 확대)도 같이 반영. */
 .zt-brand-icon {
   display: block;
-  width: 22px;
-  height: 22px;
+  width: 26px; /* 8/12: 22px → 26px, 로고 살짝 확대 요청 */
+  height: 26px;
   border-radius: 50%;
 }
 .zt-brand-name {
-  font-size: 14px;
+  font-size: var(--text-label, 15px); /* was 14px 리터럴 */
   font-weight: 800;
   letter-spacing: 0.04em;
 }
@@ -131,11 +135,13 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
+  font-size: var(--text-body, 16px); /* 8/12: 헤더 가독성 요청 — 리터럴 크기 없던 걸 지정 */
+  font-weight: 600;
   color: var(--color-muted, #9a9aa8);
 }
 .zt-timer {
   font-variant-numeric: tabular-nums;
-  font-size: 1.5rem;
+  font-size: var(--text-emphasis, 28px); /* was 1.5rem(24px) 리터럴 */
   font-weight: 700;
 }
 
@@ -147,6 +153,8 @@
   gap: 6px;
   align-items: center;
   font-variant-numeric: tabular-nums;
+  font-size: var(--text-body, 16px); /* 8/12: 헤더 가독성 요청 */
+  font-weight: 600;
   color: var(--color-muted, #9a9aa8);
   /* zt-sub와 같은 이유로 필요: zt-word가 항상 자리를 차지하게 되면서(8/11)
    * 묘사 페이즈의 브랜드+라운드+페이즈+진행도+제시어+타이머 여섯 요소가
@@ -170,7 +178,7 @@
   margin-left: auto;
   flex: none;
   padding: 3px 10px;
-  font-size: 14px;
+  font-size: var(--text-body, 16px); /* was 14px 리터럴 */
   font-weight: 700;
   background: color-mix(in srgb, var(--color-accent, #7c5cff) 18%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-accent, #7c5cff) 55%, transparent);
@@ -290,6 +298,17 @@
   flex: 0 0 4.5em;
   color: var(--color-muted, #9a9aa8);
 }
+/* 8/12: 파트 D가 이전에 제안했던 "내 메시지 우측 정렬" — 실제 diff는 못 받았지만
+ * (요청 자체는 유효해서) 여기서 자체 구현한다. row-reverse로 순서만 뒤집으면
+ * justify-content 기본값(flex-start)이 "뒤집힌 기준의 시작"인 오른쪽부터 채워서
+ * 로그 폭 전체를 오른쪽으로 밀 새 wrapper 없이도 우측 정렬이 된다. */
+.zt-msg.is-mine {
+  flex-direction: row-reverse;
+  text-align: right;
+}
+.zt-msg.is-mine .zt-msg-name {
+  flex: 0 0 auto;
+}
 /* 시스템 메시지가 라운드 경계선 역할을 한다.
  * 로그를 지우지 않고 누적하므로, 이 띠가 "여기부터 2라운드"를 만든다.
  *
@@ -318,18 +337,23 @@
 .zt-round {
   margin-right: var(--space-2, 8px);
   padding: 2px 8px;
+  font-size: var(--text-label, 15px); /* 8/12: 헤더 가독성 요청 — 리터럴 크기 없던 걸 지정 */
+  font-weight: 600;
   color: var(--color-text, #e8e8ee);
   border: 1px solid var(--color-line, #2a2a36);
   border-radius: 999px;
 }
 /* 입력 가능/잠김 두 상태가 같은 자리에서 서로 바뀌어 그려지는데, 잠겼을 때만
  * padding이 두 배(space-4)라 자리를 누르면 화면이 그만큼 밀렸다 올라왔다 했다
- * (8/12 지적 — 사진 두 장 비교로 확인). 높이를 min-height로 고정해 맞춘다. */
+ * (8/12 지적 — 사진 두 장 비교로 확인). 높이를 min-height로 고정해 맞춘다.
+ * 8/12 2차: 입력창·전송 버튼이 파트 D 공용 스타일(.input, Button/.btn) 적용받으며
+ * 실측 높이가 커져서(버튼 --text-button 21px 기준 자연 높이가 44px보다 큼) 54px로
+ * 올렸다 — 잠금 상태도 짝을 맞춰 같이 54px로 올린다(둘 다 항상 같이 바꿀 것). */
 .zt-chat-input {
   display: flex;
   align-items: center;
   gap: var(--space-2, 8px);
-  min-height: 44px;
+  min-height: 54px;
   box-sizing: border-box;
   padding: var(--space-2, 8px);
   border-top: 1px solid var(--color-line, #2a2a36);
@@ -337,12 +361,17 @@
 .zt-chat-input input {
   flex: 1;
   min-width: 0;
+  min-height: 32px; /* 8/12: 공용 .input 기본(36px)보다 살짝 낮춰 버튼과 높이를 맞춤 */
+  padding: 6px 10px;
+}
+.zt-chat-input .btn {
+  padding: 5px 18px; /* 8/12: 공용 .btn 기본(8px 24px)보다 좁게 — 입력창 높이(54px)에 맞춤 */
 }
 .zt-chat-locked {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 44px;
+  min-height: 54px;
   box-sizing: border-box;
   padding: var(--space-2, 8px) var(--space-4, 16px);
   text-align: center;
@@ -789,5 +818,11 @@
   .zt-word {
     padding: 3px 7px;
     font-size: 12px;
+  }
+  /* 8/12: 헤더 폰트를 데스크톱에서 키우면서(--text-emphasis, 28px) 390px 폭에선
+   * 다섯 요소가 다시 못 들어갈 수 있어 타이머만 여기서 되돌린다 — zt-word와
+   * 같은 이유(위 주석 참고). */
+  .zt-timer {
+    font-size: 1.25rem;
   }
 }

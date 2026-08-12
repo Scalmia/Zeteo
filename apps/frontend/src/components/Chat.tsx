@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Message, PublicPlayer } from '@zeteo/shared-types';
 import Avatar from './Avatar';
+import Button from './Button';
 
 /** 8/11: 로그와 입력창을 분리했다. 시안 1은 하단 요약탭(zt-vote-bar)·입력창(zt-chat-input)이
  *  채팅 기둥 폭이 아니라 화면 전체 폭으로 늘어난다 — 우측 투표 패널과는 그 두 줄에서만
@@ -38,15 +39,22 @@ export function ChatLog({ messages, players, myId, modal }: LogProps) {
 
   return (
     <div className="zt-chat-log" ref={logRef}>
-      {messages.map((m) => (
-        <div key={m.id} className={m.speakerId === 'system' ? 'zt-msg is-system' : 'zt-msg'}>
-          {m.speakerId !== 'system' && (
-            <Avatar label={nameOf(m.speakerId)} variant={m.speakerId === myId ? 'mine' : 'default'} />
-          )}
-          <span className="zt-msg-name">{nameOf(m.speakerId)}</span>
-          <span className="zt-msg-text">{m.text}</span>
-        </div>
-      ))}
+      {messages.map((m) => {
+        // 8/12: 파트 D 코멘트로 다시 요청받은 "내 메시지 우측 정렬" — is-system과는
+        // 겹칠 일이 없다(system은 myId가 될 수 없음). 시스템 메시지 판정이 우선이라
+        // 순서상 먼저 검사한다.
+        const isMine = m.speakerId !== 'system' && m.speakerId === myId;
+        const rowClass = m.speakerId === 'system' ? 'zt-msg is-system' : isMine ? 'zt-msg is-mine' : 'zt-msg';
+        return (
+          <div key={m.id} className={rowClass}>
+            {m.speakerId !== 'system' && (
+              <Avatar label={nameOf(m.speakerId)} variant={isMine ? 'mine' : 'default'} />
+            )}
+            <span className="zt-msg-name">{nameOf(m.speakerId)}</span>
+            <span className="zt-msg-text">{m.text}</span>
+          </div>
+        );
+      })}
 
       {modal}
     </div>
@@ -78,7 +86,11 @@ export function ChatInputBar({ locked, lockedLabel, placeholder, onSend }: Input
 
   return (
     <div className="zt-chat-input">
+      {/* 8/12: 파트 D의 화면 간 디자인 통일 지침 — 입력창은 tokens.css의 공용 .input,
+          전송 버튼은 공용 Button(.btn .btn-primary) + --text-button(21px)을 그대로
+          따른다. 이전엔 둘 다 브라우저 기본 스타일 그대로였다. */}
       <input
+        className="input"
         value={text}
         placeholder={placeholder ?? '메시지 입력…'}
         onChange={(e) => setText(e.target.value)}
@@ -86,7 +98,9 @@ export function ChatInputBar({ locked, lockedLabel, placeholder, onSend }: Input
           if (e.key === 'Enter') submit();
         }}
       />
-      <button onClick={submit}>전송</button>
+      <Button onClick={submit} style={{ fontSize: 'var(--text-button)' }}>
+        전송
+      </Button>
     </div>
   );
 }
