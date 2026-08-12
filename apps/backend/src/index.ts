@@ -42,7 +42,7 @@ const PHASE_DURATIONS: Partial<Record<Phase, number>> = {
   finalDefense: 60000,
   lifeVote: 30000,
   reveal: 10000,
-  guessWord: 15000,
+  guessWord: 20000,
   botVote: 20000,
 };
 // describe 턴 하나당 제한시간. LLM 응답 6~13초 + 사람 타이핑 여유를 감안한 상한.

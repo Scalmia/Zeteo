@@ -7,6 +7,9 @@ import {
   systemPrompt,
 } from './prompts';
 import { generate } from './llm';
+import { startBotKnowledge, getRecentBotLines } from './knowledge';
+
+startBotKnowledge();
 
 /**
  * 아직 투표하지 않았을 때 입을 열 확률. 나머지는 그 자리에서 투표한다.
@@ -338,10 +341,14 @@ function isEcho(ctx: BotContext, text: string): boolean {
   const now = normalizeText(text);
   if (now.length < 2) return false;
 
-  return ctx.transcript
+  const inThisGame = ctx.transcript
     .filter((m) => m.phase === ctx.phase && m.speakerId === ctx.selfId)
-    .map((m) => normalizeText(m.text))
-    .some((prev) => prev.length >= 2 && (prev.includes(now) || now.includes(prev)));
+    .map((m) => normalizeText(m.text));
+  const pastGames = getRecentBotLines().map(normalizeText);
+
+  return [...inThisGame, ...pastGames].some(
+    (prev) => prev.length >= 2 && (prev.includes(now) || now.includes(prev)),
+  );
 }
 
 /**

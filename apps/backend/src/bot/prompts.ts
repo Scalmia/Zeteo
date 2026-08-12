@@ -1,4 +1,5 @@
 import type { BotContext, PublicPlayer } from '@zeteo/shared-types';
+import { getSuspicionHint } from './knowledge';
 
 const labelOf = (players: PublicPlayer[], id: string): string =>
   id === 'system' ? '진행' : (players.find((p) => p.id === id)?.label ?? '???');
@@ -50,7 +51,7 @@ export function systemPrompt(ctx: BotContext): string {
 - 설명하거나 자기소개하지 마세요.
 
 [출력]
-채팅창에 칠 말만 그대로 출력하세요. 따옴표나 이름표를 붙이지 마세요.`;
+채팅창에 칠 말만 그대로 출력하세요. 따옴표나 이름표를 붙이지 마세요.${getSuspicionHint()}`;
 }
 
 export function describePrompt(ctx: BotContext): string {
