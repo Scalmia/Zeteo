@@ -1,14 +1,8 @@
 import { GameState, PublicPlayer, SurveyReason } from '@zeteo/shared-types';
 import { RoomInternalState } from './room';
 import { tallyBotVoteResults } from './vote';
+import { fetchSurveyReasons } from './db/survey';
 
-// TODO(박진/기획): 실제 문구는 설문 기획 확정되면 교체 — 지금은 타입/개수만 맞춘 placeholder
-const SURVEY_REASONS: SurveyReason[] = [
-  { id: 1, label: '말이 어색했다' },
-  { id: 2, label: '반응이 느렸다' },
-  { id: 3, label: '다른 사람들과 다른 정보를 아는 것 같았다' },
-  { id: 4, label: '그냥 감이었다' },
-];
 
 function countBotVoteProgress(room: RoomInternalState): { voted: number; total: number } {
   // isVotingComplete(index.ts)와 같은 기준: 봇 제외, 죽은 사람도 투표 대상에 포함
@@ -36,7 +30,7 @@ function countLifeVotes(lifeVotes: Record<string, boolean>): { kill: number; spa
   return counts;
 }
 
-export function buildGameStateFor(room: RoomInternalState, playerId: string): GameState {
+export async function buildGameStateFor(room: RoomInternalState, playerId: string): Promise<GameState> {  
   const me = room.players.find((p) => p.id === playerId);
   if (!me) throw new Error(`player ${playerId} not in room`);
 
@@ -69,7 +63,6 @@ export function buildGameStateFor(room: RoomInternalState, playerId: string): Ga
     voteCounts: countVotes(room.votes),
     myVote: room.votes[playerId] ?? null,
     accused: room.accusedId,
-
     myId: playerId,
     round: room.round,
     myLifeVote: room.lifeVotes[playerId] ?? null,
@@ -99,6 +92,6 @@ export function buildGameStateFor(room: RoomInternalState, playerId: string): Ga
     botVoteResults: isPostGame ? { ...room.botVotes } : null,
 
     // 설문 선택지는 survey 화면에서만 필요하다 (result·survey 공통이 아니라 survey 단독).
-    reasons: room.phase === 'survey' ? SURVEY_REASONS : [],
+    reasons: room.phase === 'survey' ? await fetchSurveyReasons() : [],
   };
 }

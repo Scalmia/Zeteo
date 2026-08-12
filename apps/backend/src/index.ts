@@ -1,6 +1,12 @@
+import { supabase } from './db/supabase';
 import express from 'express';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import { pickRandomCategoryAndWord } from './db/content';
+import { startGame } from './db/game';
+import { logMessage, logVote } from './db/log';
+import { finalizeGame } from './db/game';
+import { submitSurveyResponse } from './db/survey';
 import path from 'path';
 import fs from 'fs';
 import { ClientEvent, ServerEvent, Phase, BotContext } from '@zeteo/shared-types';
@@ -39,25 +45,9 @@ const PHASE_DURATIONS: Partial<Record<Phase, number>> = {
   guessWord: 15000,
   botVote: 20000,
 };
-
 // describe 턴 하나당 제한시간. LLM 응답 6~13초 + 사람 타이핑 여유를 감안한 상한.
 // 20~25초 사이에서 우선 20초로 잡음 — 필요하면 이 값만 조정하면 됨.
 const DESCRIBE_TURN_DURATION = 20000;
-// TODO: 실제 주제 데이터셋 붙기 전까지 테스트용 하드코딩. 카테고리 하나를 고르고
-// 그 안에서 단어 하나를 랜덤으로 뽑는다.
-const WORD_SETS: Record<string, string[]> = {
-  동물: ['강아지', '고양이', '기린', '펭귄', '캥거루'],
-  음식: ['김치찌개', '떡볶이', '초밥', '파스타', '삼겹살'],
-  가전제품: ['냉장고', '세탁기', '전자레인지', '에어컨', '정수기']
-};
-
-function pickRandomCategoryAndWord(): { category: string; word: string } {
-  const categories = Object.keys(WORD_SETS);
-  const category = categories[Math.floor(Math.random() * categories.length)]!;
-  const words = WORD_SETS[category]!;
-  const word = words[Math.floor(Math.random() * words.length)]!;
-  return { category, word };
-}
 // 현재 phase에 맞는 타이머를 건다 + 봇 차례인지 체크
 function enterPhase(room: RoomInternalState) {
   if (room.phase === 'describe') {
@@ -145,6 +135,7 @@ function advancePhase(room: RoomInternalState) {
 
   if (room.phase === 'result') {
     logTranscript(room);
+    void finalizeGame(room);
   }
 
   enterPhase(room);
@@ -205,6 +196,7 @@ function isVotingComplete(room: RoomInternalState): boolean {
 }
 
 function recordSpeak(room: RoomInternalState, playerId: string, text: string) {
+  const player = room.players.find((p) => p.id === playerId);
   room.messages.push({
     id: `m${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
     speakerId: playerId,
@@ -213,6 +205,7 @@ function recordSpeak(room: RoomInternalState, playerId: string, text: string) {
     at: Date.now(),
   });
   room.currentTurnIndex += 1;
+  if (player) void logMessage(room, player.label, player.isBot ? 'bot' : 'human', player.role, text);
 }
 
 function isDescribeComplete(room: RoomInternalState): boolean {
@@ -313,12 +306,25 @@ async function maybeTriggerBot(room: RoomInternalState) {
       phase: room.phase,
       at: Date.now(),
     });
+    void logMessage(room, bot.label, 'bot', bot.role, action.text);
     broadcastRoom(room.roomId);
     void maybeTriggerBot(room);
     return;
   }
-  if (action.t === 'vote') room.votes[bot.id] = action.targetId;
-  if (action.t === 'lifeVote') room.lifeVotes[bot.id] = action.kill;
+  if (action.t === 'vote') {
+    room.votes[bot.id] = action.targetId;
+    if (action.targetId) {
+      const target = room.players.find((p) => p.id === action.targetId);
+      if (target) void logVote(room, 'liar_vote', bot.label, target.label);
+    }
+  }
+  if (action.t === 'lifeVote') {
+    room.lifeVotes[bot.id] = action.kill;
+    const accused = room.players.find((p) => p.id === room.accusedId);
+    if (accused) {
+      void logVote(room, 'life_vote', bot.label, action.kill ? accused.label : bot.label);
+    }
+  }
   if (action.t === 'guessWord') {
     const correct = action.word.trim() === room.word.trim();
     room.pendingLiarGameResult = correct ? 'liarWin' : 'citizenWin';
@@ -336,16 +342,17 @@ async function maybeTriggerBot(room: RoomInternalState) {
   void maybeTriggerBot(room);
 }
 
-function broadcastRoom(roomId: string) {
+async function broadcastRoom(roomId: string) {
   const room = getRoom(roomId);
   if (!room) return;
 
   const socketsInRoom = io.sockets.adapter.rooms.get(roomId);
   if (!socketsInRoom) return;
-  for (const socketId of socketsInRoom ?? []) {
+
+  for (const socketId of socketsInRoom) {
     const meta = socketMeta.get(socketId);
     if (!meta) continue;
-    const event: ServerEvent = { t: 'state', state: buildGameStateFor(room, meta.playerId) };
+    const event: ServerEvent = { t: 'state', state: await buildGameStateFor(room, meta.playerId) };
     io.to(socketId).emit('event', event);
   }
 }
@@ -353,7 +360,7 @@ function broadcastRoom(roomId: string) {
 io.on('connection', (socket) => {
   console.log('connected:', socket.id);
 
-  socket.on('action', (action: ClientEvent) => {
+  socket.on('action', async (action: ClientEvent) => {
     try {
       switch (action.t) {
         case 'join': {
@@ -374,6 +381,7 @@ io.on('connection', (socket) => {
           if (!meta) throw new Error('아직 방에 입장하지 않았습니다');
           const room = getRoom(meta.roomId);
           if (!room) throw new Error('room not found');
+          const player = room.players.find((p) => p.id === meta.playerId);
           room.messages.push({
             id: `m${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
             speakerId: meta.playerId,
@@ -381,6 +389,7 @@ io.on('connection', (socket) => {
             phase: room.phase,
             at: Date.now(),
           });
+          if (player) void logMessage(room, player.label, player.isBot ? 'bot' : 'human', player.role, action.text);
           break;
         }
         case 'describe': {
@@ -402,7 +411,6 @@ io.on('connection', (socket) => {
           if (!meta) throw new Error('아직 방에 입장하지 않았습니다');
           const room = getRoom(meta.roomId);
           if (!room) throw new Error('room not found');
-
           if (room.phase === 'result') {
             advancePhase(room); // result → survey 전이 (결과 화면 "다음" 버튼)
             return;
@@ -410,14 +418,18 @@ io.on('connection', (socket) => {
 
           markReady(room, meta.playerId);
 
-          if (
-            room.phase === 'lobby' &&
-            isEveryoneReady(room)
-          ) {
+          if (room.phase === 'lobby' && isEveryoneReady(room)) {
             assignRoles(room);
-            const { category, word } = pickRandomCategoryAndWord();
+            const { category, word } = await pickRandomCategoryAndWord();
             room.category = category;
             room.word = word;
+
+            try {
+              room.dbGameId = await startGame(room.roomId, category, word, room.players);
+            } catch (e) {
+              console.error(`[${room.roomId}] 게임 기록 생성 실패:`, e);
+            }
+
             room.phase = 'roleReveal';
             enterPhase(room);
           }
@@ -431,6 +443,12 @@ io.on('connection', (socket) => {
           if (room.phase !== 'debate') throw new Error('지금은 투표 단계가 아닙니다');
 
           room.votes[meta.playerId] = action.targetId;
+
+          if (action.targetId) {
+            const voter = room.players.find((p) => p.id === meta.playerId)!;
+            const target = room.players.find((p) => p.id === action.targetId)!;
+            void logVote(room, 'liar_vote', voter.label, target.label);
+          }
 
           if (isVotingComplete(room)) {
             clearPhaseTimer(room.roomId);
@@ -450,6 +468,12 @@ io.on('connection', (socket) => {
           }
           room.lifeVotes[meta.playerId] = action.kill;
 
+          const voter = room.players.find((p) => p.id === meta.playerId)!;
+          const accused = room.players.find((p) => p.id === room.accusedId);
+          if (accused) {
+            void logVote(room, 'life_vote', voter.label, action.kill ? accused.label : voter.label);
+          }
+
           if (isVotingComplete(room)) {
             clearPhaseTimer(room.roomId);
             advancePhase(room);
@@ -457,7 +481,7 @@ io.on('connection', (socket) => {
           }
           if (!room.lifeVoteDecided && isLifeVoteDecided(room)) {
             room.lifeVoteDecided = true;
-            setPhaseTimer(room, 3000, () => advancePhase(room)); // 과반 확정 → 3초 뒤 자동 진행
+            setPhaseTimer(room, 3000, () => advancePhase(room));
             break;
           }
           break;
@@ -502,12 +526,7 @@ io.on('connection', (socket) => {
           if (!room) throw new Error('room not found');
           if (room.phase !== 'survey') throw new Error('지금은 설문 단계가 아닙니다');
 
-          // TODO: DB 붙이면 여기서 실제 저장 (박진님 기능). 지금은 받기만 하고 버림.
-          console.log(
-            `[${room.roomId}] 설문 수신 (${meta.playerId}):`,
-            action.reasonIds,
-            action.freeText,
-          );
+          await submitSurveyResponse(room, meta.playerId, action.reasonIds, action.freeText);
 
           // 설문 제출 = 게임 완전히 끝. disconnect를 기다리지 않고 제출 시점에 바로
           // 방에서 제거한다 (emit 직후 프론트가 소켓을 끊는 타이밍에 기대는 것보다 안전).
