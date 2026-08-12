@@ -1,4 +1,5 @@
 import { InternalPlayer, Phase, Message, Role } from '@zeteo/shared-types';
+import { logMessage } from './db/log';
 
 export interface RoomInternalState {
   roomId: string;
@@ -21,6 +22,7 @@ export interface RoomInternalState {
   lifeVoteDecided: boolean; // 생사투표 결과가 이미 확정돼서 3초 타이머가 걸린 상태인지
   createdAt: number;
   readyIds: Set<string>;
+  dbGameId: string | null;
 }
 
 const rooms = new Map<string, RoomInternalState>();
@@ -47,6 +49,7 @@ export function createRoom(roomId: string): RoomInternalState {
     createdAt: Date.now(),
     readyIds: new Set(),
     lifeVoteDecided: false,
+    dbGameId: null,
   };
   rooms.set(roomId, room);
   return room;
@@ -70,6 +73,7 @@ export function pushSystemMessage(room: RoomInternalState, text: string) {
     phase: room.phase,
     at: Date.now(),
   });
+  void logMessage(room, null, 'system', null, text);
 }
 
 let idCounter = 0;

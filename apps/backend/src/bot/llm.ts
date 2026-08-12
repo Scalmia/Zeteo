@@ -1,81 +1,152 @@
+import fs from 'fs';
+import path from 'path';
 import Anthropic from '@anthropic-ai/sdk';
+import OpenAI from 'openai';
 import 'dotenv/config';
 
-const apiKey = process.env.BOT_API_KEY;
-const baseURL = process.env.BOT_BASE_URL;
-const model = process.env.BOT_MODEL;
+/**
+ * 봇이 쓸 모델을 두 갈래로 나눠 둔다.
+ *
+ *   anthropic  Alibaba Token Plan(qwen3.8-max)을 Anthropic 프로토콜 호환 엔드포인트로 호출
+ *   openai     OpenRouter를 통해 GPT-5.6 Sol 호출
+ *
+ * 바깥(index.ts · prompts.ts)은 generate() 하나만 보고, 어느 쪽이 도는지 모른다.
+ * 그래서 프로바이더를 갈아도 발언 제어·끊어 보내기·라벨 처리 같은 로직은 그대로다.
+ */
+export type Provider = 'anthropic' | 'openai';
 
-function required(name: string, value: string | undefined): string {
+/**
+ * 판을 돌리는 중에도 바꿀 수 있어야 한다. 서버를 껐다 켜면 진행 중인 게임이 날아가고,
+ * 코드를 고쳐 배포하는 방식은 한 번 바꾸는 데 몇 분이 걸린다.
+ * 그래서 매 호출마다 파일을 다시 읽는다. 몇 바이트짜리 읽기는 1ms도 안 걸려
+ * LLM 응답 시간(수 초)에 묻힌다.
+ *
+ * 파일이 없으면 환경변수, 그것도 없으면 anthropic. 배포 환경처럼 파일을 못 만드는 곳에서는
+ * BOT_PROVIDER 환경변수만으로도 돌아간다.
+ */
+const PROVIDER_FILE = path.join(__dirname, '../../.bot-provider');
+
+export function provider(): Provider {
+  try {
+    const fromFile = fs.readFileSync(PROVIDER_FILE, 'utf8').trim();
+    if (fromFile === 'anthropic' || fromFile === 'openai') return fromFile;
+  } catch {
+    // 파일이 없는 것은 정상이다. 아래로 넘어간다.
+  }
+  return process.env.BOT_PROVIDER === 'openai' ? 'openai' : 'anthropic';
+}
+
+function required(name: string, value: string | undefined, where: string): string {
   if (!value) {
-    throw new Error(
-      `환경변수 ${name} 이(가) 없습니다.\n` +
-        `  apps/backend/.env 에 BOT_API_KEY / BOT_BASE_URL / BOT_MODEL 을 채우세요.\n` +
-        `  값은 Alibaba Token Plan 콘솔에서 발급합니다.`,
-    );
+    throw new Error(`환경변수 ${name} 이(가) 없습니다.\n  apps/backend/.env 에 채우세요. 값은 ${where}에서 발급합니다.`);
   }
   return value;
 }
 
-let client: Anthropic | null = null;
+/**
+ * 추론에 얼마나 힘을 쓸지. 프로바이더마다 부르는 이름이 달라 중립적인 말로 받고 여기서 번역한다.
+ * 이래야 호출부(index.ts)가 프로바이더를 몰라도 된다.
+ *
+ *   default  평소 발화용. 빠른 쪽
+ *   max      guessWord처럼 호출이 드물고 품질이 중요한 곳
+ */
+export type Effort = 'default' | 'max';
 
-function getClient(): Anthropic {
-  if (!client) {
-    client = new Anthropic({
-      apiKey: required('BOT_API_KEY', apiKey),
-      baseURL: required('BOT_BASE_URL', baseURL),
-    });
-  }
-  return client;
+export interface GenerateOptions {
+  maxTokens?: number;
+  effort?: Effort;
 }
 
-type ThinkingConfig = { type: 'enabled'; budget_tokens: number } | { type: 'enabled'; reasoning_effort: 'high' | 'max' } | { type: 'disabled' };
+// ── Anthropic 경로 (qwen3.8-max) ──────────────────────────────────────────
+
+let anthropicClient: Anthropic | null = null;
+
+function getAnthropic(): Anthropic {
+  if (!anthropicClient) {
+    anthropicClient = new Anthropic({
+      apiKey: required('BOT_API_KEY', process.env.BOT_API_KEY, 'Alibaba Token Plan 콘솔'),
+      baseURL: required('BOT_BASE_URL', process.env.BOT_BASE_URL, 'Alibaba Token Plan 콘솔'),
+    });
+  }
+  return anthropicClient;
+}
 
 /**
- * BOT_MODEL(qwen3.8-max 등)이 thinking 기본값을 xhigh · budget 131072로 잡는 모델이라
- * 채팅 한 줄 뽑는 데도 추론에 수십 초가 걸린다. Anthropic 프로토콜이 허용하는
- * budget_tokens 최솟값(1024)을 기본으로 써서 지연을 줄인다.
- * guessWord처럼 호출이 드물고 품질이 중요한 곳은 호출부에서 오버라이드한다.
+ * 이 모델은 thinking 기본값을 xhigh · budget 131072로 잡아서, 채팅 한 줄에도 수십 초가 걸린다.
+ * Anthropic 프로토콜이 허용하는 budget_tokens 최솟값(1024)을 기본으로 써서 지연을 줄인다.
+ * maxTokens 기본값이 큰 것은 API가 max_tokens > budget_tokens를 요구하기 때문이지 답이 길어서가 아니다.
  *
- * maxTokens 기본값이 큰 것은 API가 max_tokens > budget_tokens를 요구하기 때문이지
- * 답이 길어서가 아니다. budget_tokens 없이 reasoning_effort만 주는 호출은
- * 이 제약을 받지 않으므로 훨씬 작은 값을 써도 된다.
+ * temperature 1.2 — 같은 상황을 여러 번 물으면 글자까지 똑같은 답이 나올 만큼 결정적이어서 올려 잡았다.
+ * OpenAI 경로에는 이 손잡이가 없다(지원 파라미터에 temperature가 없다).
  */
-const DEFAULT_THINKING: ThinkingConfig = { type: 'enabled', budget_tokens: 1024 };
+async function callAnthropic(system: string, user: string, opts: Required<GenerateOptions>): Promise<string> {
+  const thinking =
+    opts.effort === 'max'
+      ? { type: 'enabled', reasoning_effort: 'max' }
+      : { type: 'enabled', budget_tokens: 1024 };
+
+  const res = await getAnthropic().messages.create({
+    model: required('BOT_MODEL', process.env.BOT_MODEL, 'Alibaba Token Plan 콘솔'),
+    max_tokens: opts.maxTokens,
+    system,
+    messages: [{ role: 'user', content: user }],
+    temperature: 1.2,
+    thinking: thinking as unknown as Anthropic.Messages.ThinkingConfigParam,
+  });
+
+  return res.content
+    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
+    .map((b) => b.text)
+    .join('');
+}
+
+// ── OpenAI 경로 (GPT-5.6 Sol via OpenRouter) ──────────────────────────────
+
+let openaiClient: OpenAI | null = null;
+
+function getOpenAI(): OpenAI {
+  if (!openaiClient) {
+    openaiClient = new OpenAI({
+      apiKey: required('GPT_API_KEY', process.env.GPT_API_KEY, 'OpenRouter'),
+      baseURL: process.env.GPT_BASE_URL ?? 'https://openrouter.ai/api/v1',
+    });
+  }
+  return openaiClient;
+}
 
 /**
- * 같은 상황을 여러 번 물었을 때 글자까지 똑같은 답이 나올 만큼 결정적이어서 올려 잡는다.
- * 이 엔드포인트의 허용 범위는 [0, 2). 낮으면 판박이가 되고, 너무 높이면 말이 무너진다.
+ * 기본을 high, guessWord를 max로 잡았다. qwen에서 무거운 추론이 느렸던 경험이 있지만
+ * 그건 다른 모델 얘기라 GPT-5.6에 그대로 옮겨진다는 보장이 없다. 깎는 건 실측하고 나서 할 일이지
+ * 미리 짐작으로 깎을 일이 아니다.
  *
- * 주의: 진짜 Anthropic API는 thinking이 켜져 있으면 temperature를 1로 고정하도록 막는다.
- * 이 브릿지도 같은 제약이면 400이 돌아오므로, 발화가 전부 대체 문구로 바뀌면 이 값을 의심할 것.
+ * 추론 토큰은 출력으로 과금되고(입력 $5/M · 출력 $30/M) 화면에는 안 보인다.
+ * 다만 본문(content)과는 다른 필드로 오기 때문에, qwen에서 겪었던 "사고 과정이 채팅에 튀어나오는" 일은
+ * 구조적으로 덜 일어난다. 그래도 index.ts의 looksInvalid 검사는 그대로 둔다.
  */
-const DEFAULT_TEMPERATURE = 1.2;
+async function callOpenAI(system: string, user: string, opts: Required<GenerateOptions>): Promise<string> {
+  const res = await getOpenAI().chat.completions.create({
+    model: required('GPT_MODEL', process.env.GPT_MODEL, 'OpenRouter (예: openai/gpt-5.6-sol)'),
+    max_completion_tokens: opts.maxTokens,
+    messages: [
+      { role: 'system', content: system },
+      { role: 'user', content: user },
+    ],
+    reasoning_effort: opts.effort === 'max' ? 'max' : 'high',
+  });
+
+  return res.choices[0]?.message?.content ?? '';
+}
+
+// ── 공통 ──────────────────────────────────────────────────────────────────
 
 export async function generate(
   system: string,
   user: string,
-  {
-    maxTokens = 1536,
-    thinking = DEFAULT_THINKING,
-    temperature = DEFAULT_TEMPERATURE,
-  }: { maxTokens?: number; thinking?: ThinkingConfig; temperature?: number } = {},
+  { maxTokens = 1536, effort = 'default' }: GenerateOptions = {},
 ): Promise<string> {
-  const res = await getClient().messages.create({
-    model: required('BOT_MODEL', model),
-    max_tokens: maxTokens,
-    system,
-    messages: [{ role: 'user', content: user }],
-    temperature,
-    thinking: thinking as unknown as Anthropic.Messages.ThinkingConfigParam,
-  });
-
-  const text = res.content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map((b) => b.text)
-    .join('')
-    .trim();
-
-  return stripQuotes(text);
+  const opts = { maxTokens, effort };
+  const raw = provider() === 'openai' ? await callOpenAI(system, user, opts) : await callAnthropic(system, user, opts);
+  return stripQuotes(raw.trim());
 }
 
 /** 모델이 따옴표나 이름표를 붙여 돌려주는 경우가 있어 걷어낸다. */

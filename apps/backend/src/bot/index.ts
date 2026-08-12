@@ -34,6 +34,31 @@ const CHAT_AS_ACCUSED_CHANCE = 0.7;
 const VOTE_WHILE_WAITING_CHANCE = 0.25;
 /** 내가 마지막으로 말한 뒤 아무도 입을 안 열 때, 이만큼 지나면 먼저 말을 꺼내도 된다. */
 const IDLE_BREAK_MS = 20000;
+/**
+ * 한 문장을 두 번에 나눠 보낼 확률.
+ *
+ * 실전 로그에서 사람들은 한 문장을 문법 중간에서 끊어 연달아 보냈다.
+ *   "그건 당신이" → "무지하기 때문이다"
+ *   "B의 동물원에서 인기많음" → "이란 발언은" → "범위가 넓다 생각한다"
+ * 봇은 연속으로 두 번 말할 때조차 각각을 완결된 문장으로 냈다.
+ *
+ * 뒷말을 LLM에게 다시 만들게 하지 않는다. 생성에 5~6초가 걸려 앞 조각이 그만큼
+ * 매달려 있게 되고, 이어지는 내용이 어긋날 수도 있다. 완성 문장을 한 번에 받아
+ * 코드가 자르면 이어짐이 보장되고 조각 사이 간격도 우리가 정한다.
+ */
+const SPLIT_CHANCE = 0.4;
+/** 이보다 짧으면 자르지 않는다. 짧은 반응을 쪼개면 말이 안 된다. */
+const MIN_SPLIT_LENGTH = 14;
+/**
+ * 맨 앞에 덜렁 붙은 라벨을 떼어낼 확률.
+ *
+ * 실전 피드백이 "대문자 알파벳 + 띄어쓰기 + 의견 같이 딱딱하고 형식적"이었고,
+ * 1대1 테스트에서 봇 발언 7개가 전부 상대 라벨로 시작했다.
+ * 사람은 섞어 쓴다 — 방금 말한 사람에겐 그냥 받아치고, 한참 전 얘기를 꺼낼 때만 이름을 붙인다.
+ *
+ * 항상 떼면 그것대로 규칙적이라 확률로 둔다. 모델이 이름을 붙일 자유는 남겨둔다.
+ */
+const DROP_LEADING_LABEL_CHANCE = 0.7;
 
 /**
  * 사람은 읽고 · 생각하고 · 타이핑하는 데 시간이 걸린다.
@@ -50,6 +75,131 @@ function humanDelay(text: string): number {
 /** 침묵을 고른 뒤 서버가 다시 물어보기까지의 간격. 이 값이 0이면 서버가 즉시 되물어 루프가 폭주한다. */
 function silentDelay(): number {
   return Math.round(3000 + Math.random() * 4000);
+}
+
+/**
+ * 끊어 보낸 뒷말까지의 간격.
+ *
+ * 실전 로그에서 같은 사람이 연달아 보낸 간격 30건을 세어보니 중앙값이 4초였고,
+ * 1~2초는 7건(23%)뿐이었다. 머릿속에 있던 말이라도 치는 데는 시간이 걸린다.
+ * 3~6초가 전체의 절반을 넘어 그 구간에 맞춘다.
+ */
+function tailDelay(): number {
+  return Math.round(3000 + Math.random() * 3000);
+}
+
+/**
+ * 사람이 실제로 끊었던 자리를 흉내낸다. 로그의 세 사례가 전부 조사 뒤였다.
+ *   "그건 당신이"(이) · "이란 발언은"(은) · "이 제시어 정답은"(은)
+ * 연결어미도 같은 자리로 쓴다.
+ */
+const CUT_SUFFIXES = [
+  '은', '는', '이', '가', '을', '를', '도', '만', '의', '에', '로', '와', '과', '랑',
+  '에서', '으로', '이란', '라는', '부터', '까지', '처럼', '보다',
+  '고', '서', '면', '는데', '니까', '지만', '다가', '거든',
+];
+
+/**
+ * 문장을 두 조각으로 자른다. 자를 만한 자리가 없으면 null — 그때는 통째로 내보낸다.
+ * 양쪽이 다 어느 정도 길이가 되는 자리 중 문장 가운데에 가장 가까운 곳을 고른다.
+ */
+function splitPoint(text: string): [string, string] | null {
+  const words = text.split(' ').filter((w) => w.length > 0);
+  if (words.length < 3) return null;
+
+  const mid = text.length / 2;
+  let best: number | null = null;
+  let bestDist = Infinity;
+
+  for (let i = 0; i < words.length - 1; i++) {
+    if (!CUT_SUFFIXES.some((s) => words[i]!.endsWith(s))) continue;
+    const head = words.slice(0, i + 1).join(' ');
+    const tail = words.slice(i + 1).join(' ');
+    if (head.length < 4 || tail.length < 4) continue;
+
+    const dist = Math.abs(head.length - mid);
+    if (dist < bestDist) {
+      best = i;
+      bestDist = dist;
+    }
+  }
+
+  if (best === null) return null;
+  return [words.slice(0, best + 1).join(' '), words.slice(best + 1).join(' ')];
+}
+
+/**
+ * 자르고 남은 뒷말을 다음 호출까지 들고 있는다.
+ *
+ * decideBotAction은 상태가 없으므로 여기 담아둔다. 앞 조각을 함께 저장해서,
+ * 다음 호출 때 "내 마지막 발언"이 그 조각과 정확히 같을 때만 이어 붙인다.
+ * 엉뚱한 판이나 엉뚱한 시점에 붙는 것을 이 대조가 막는다.
+ *
+ * 뒷말이 끝내 안 나가면 앞 조각만 남는데, 쓰다 말고 안 보내는 것도 사람이 하는 짓이라
+ * 실패해도 크게 이상하지 않다.
+ */
+const pendingTails = new Map<string, { head: string; tail: string }>();
+
+/** 라벨은 매 판 새로 배정되므로, 여기에 selfId를 붙이면 판을 구분하는 열쇠가 된다. */
+function roomKey(ctx: BotContext): string {
+  return `${ctx.selfId}|${ctx.players.map((p) => p.label).join('')}`;
+}
+
+function takePendingTail(ctx: BotContext): string | null {
+  const entry = pendingTails.get(roomKey(ctx));
+  if (entry === undefined) return null;
+
+  const mine = ctx.transcript.filter((m) => m.phase === ctx.phase && m.speakerId === ctx.selfId);
+  const last = mine[mine.length - 1];
+  if (last === undefined || last.text !== entry.head) return null;
+
+  pendingTails.delete(roomKey(ctx));
+  return entry.tail;
+}
+
+/**
+ * 이번 발언이 누구를 겨냥했는지 적어둔다.
+ *
+ * 맨 앞 라벨을 떼어내면 텍스트만 봐서는 대상을 알 수 없다. 그런데 "지목한 상대가 답할 때까지
+ * 기다린다"는 규칙이 그 대상을 필요로 한다. 그래서 떼어내기 전에 모델이 고른 대상을 붙잡아 둔다.
+ *
+ * 대상을 코드가 미리 정해 프롬프트에 넣는 방법도 있지만, 그러면 판단 로직이 하나 늘고
+ * 프롬프트가 길어져 응답이 느려진다. 모델이 이미 내린 결정을 주워 담는 편이 싸다.
+ */
+const lastTargets = new Map<string, { text: string; targetId: string }>();
+
+/** 겨냥한 상대를 떠올린다. 적어둔 게 없거나 어긋나면 예전처럼 텍스트를 뒤진다. */
+function recallTarget(ctx: BotContext, myLastText: string): string | null {
+  const entry = lastTargets.get(roomKey(ctx));
+  if (entry !== undefined && entry.text === myLastText) return entry.targetId;
+  return addressedPlayer(ctx, myLastText);
+}
+
+/** 끊어 보낸 뒷말이 나가면 내 마지막 발언이 그 뒷말로 바뀐다. 겨냥 기록도 따라 옮긴다. */
+function carryTarget(ctx: BotContext, tail: string): void {
+  const entry = lastTargets.get(roomKey(ctx));
+  if (entry !== undefined) lastTargets.set(roomKey(ctx), { text: tail, targetId: entry.targetId });
+}
+
+/**
+ * 맨 앞에 라벨만 덜렁 붙은 형태를 확률적으로 떼어낸다.
+ *
+ * 조사가 붙은 것("W가 먼저", "W는 근데")은 문장 성분이라 떼면 말이 깨진다. 건드리지 않는다.
+ * 그리고 직전에 말한 사람을 겨냥했을 때만 뗀다 — 한참 전에 말한 사람이면 이름이 빠지는 순간
+ * 누구 얘긴지 정말 알 수 없어진다. 사람도 그 경우엔 이름을 붙인다.
+ */
+function maybeDropLeadingLabel(ctx: BotContext, text: string, target: string | null): string {
+  if (target === null) return text;
+
+  const label = ctx.players.find((p) => p.id === target)?.label;
+  if (label === undefined || !text.startsWith(`${label} `)) return text;
+
+  const spoken = ctx.transcript.filter((m) => m.phase === ctx.phase && m.speakerId !== 'system');
+  const last = spoken[spoken.length - 1];
+  if (last === undefined || last.speakerId !== target) return text;
+
+  if (Math.random() >= DROP_LEADING_LABEL_CHANCE) return text;
+  return text.slice(label.length + 1).trim();
 }
 
 /**
@@ -96,7 +246,7 @@ function shouldWaitForOthers(ctx: BotContext): boolean {
   if (lastMine === -1) return false; // 이 단계에서 아직 한 마디도 안 했다
 
   const sinceMine = inPhase.slice(lastMine + 1);
-  const addressed = addressedPlayer(ctx, inPhase[lastMine]!.text);
+  const addressed = recallTarget(ctx, inPhase[lastMine]!.text);
 
   const answered =
     addressed === null
@@ -199,12 +349,28 @@ function isEcho(ctx: BotContext, text: string): boolean {
  * 다시 생성시키지 않는 이유는 같은 상황에서 같은 답이 또 나올 뿐이기 때문이다.
  */
 async function chatOrSilent(ctx: BotContext, prompt: string): Promise<BotAction> {
-  const { text, delayMs } = await speak(ctx, prompt);
+  const { text: raw, delayMs } = await speak(ctx, prompt);
+
+  // 대상은 떼어내기 전에 잡아둔다. 떼고 나면 텍스트에서 알아낼 방법이 없다.
+  const target = addressedPlayer(ctx, raw);
+  const text = maybeDropLeadingLabel(ctx, raw, target);
+
   if (isEcho(ctx, text)) {
     console.warn('[bot] 같은 말 반복 감지, 침묵으로 대체:', text);
     return { t: 'silent', delayMs: silentDelay() };
   }
-  return { t: 'chat', text, delayMs };
+
+  let emitted = text;
+  if (text.length >= MIN_SPLIT_LENGTH && Math.random() < SPLIT_CHANCE) {
+    const parts = splitPoint(text);
+    if (parts !== null) {
+      pendingTails.set(roomKey(ctx), { head: parts[0], tail: parts[1] });
+      emitted = parts[0];
+    }
+  }
+
+  if (target !== null) lastTargets.set(roomKey(ctx), { text: emitted, targetId: target });
+  return { t: 'chat', text: emitted, delayMs };
 }
 
 /**
@@ -259,6 +425,13 @@ export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise
      * 제한시간 내내 혼자 말하게 되므로(1판 실측 10연속), 침묵이 유일한 제동이다.
      */
     case 'finalDefense': {
+      // 끊어 보낸 뒷말이 있으면 그것부터. 자기 말을 잇는 것이라 대기 규칙을 건너뛴다.
+      const tail = takePendingTail(ctx);
+      if (tail !== null) {
+        carryTarget(ctx, tail);
+        return { t: 'chat', text: tail, delayMs: tailDelay() };
+      }
+
       const amAccused = ctx.accusedId === ctx.selfId;
       const chance = amAccused ? CHAT_AS_ACCUSED_CHANCE : CHAT_IN_FINAL_DEFENSE_CHANCE;
       if (shouldWaitForOthers(ctx) || Math.random() >= chance) {
@@ -269,6 +442,12 @@ export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise
 
     /** 서버는 토론 제한시간이 끝날 때까지 이 함수를 반복 호출한다. 매번 하나만 고른다. */
     case 'debate': {
+      const tail = takePendingTail(ctx);
+      if (tail !== null) {
+        carryTarget(ctx, tail);
+        return { t: 'chat', text: tail, delayMs: tailDelay() };
+      }
+
       if (shouldWaitForOthers(ctx)) {
         // 입은 다물되 표는 던질 수 있다. 이게 없으면 기다리기만 하다 기권으로 끝난다.
         if (ctx.myVote === null && Math.random() < VOTE_WHILE_WAITING_CHANCE) {
@@ -304,7 +483,7 @@ export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise
       try {
         const word = await generate(systemPrompt(ctx), guessWordPrompt(ctx), {
           maxTokens: 200,
-          thinking: { type: 'enabled', reasoning_effort: 'max' },
+          effort: 'max',
         });
         if (word.length > 0) return { t: 'guessWord', word };
       } catch (err) {
