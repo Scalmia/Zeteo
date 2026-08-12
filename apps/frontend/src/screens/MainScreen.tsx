@@ -117,7 +117,11 @@ export function MainScreen({
       <div className="zt-stage">
         <ChatLog messages={state.messages} players={state.players} myId={state.myId} modal={modal} />
 
-        {isDebate && (
+        {/* 8/12: 파트 D가 묘사 페이즈용 참가자 칩 목록을 새로 만들려던 걸 검토 후
+            폐기 — 대신 이 투표 패널을 묘사 페이즈에도 그대로 띄우고 mode='turn'으로
+            발언 순서 표시로 바꿔 쓴다(칩 목록 컴포넌트를 새로 안 만듦, 자세한 배경은
+            [[zeteo-partc]] 참고). isDebate 때와 똑같이 여닫이 시트를 공유한다. */}
+        {(isDebate || isDescribe) && (
           <aside
             id="zt-vote-panel"
             className={voteOpen ? 'zt-side-wide' : 'zt-side-wide is-collapsed'}
@@ -128,6 +132,8 @@ export function MainScreen({
               myVote={state.myVote}
               myId={state.myId}
               onVote={(targetId) => onEvent({ t: 'vote', targetId })}
+              mode={isDescribe ? 'turn' : 'vote'}
+              currentTurn={state.currentTurn}
             />
           </aside>
         )}
@@ -135,8 +141,9 @@ export function MainScreen({
 
       {/* 여닫이 손잡이 겸 상시 요약탭 — 시안 1은 폰뿐 아니라 데스크톱에서도 항상
           떠 있다(데스크톱은 투표 패널이 이미 펼쳐져 있어 여닫을 게 없을 뿐, 탭
-          자체는 계속 보인다). 화면 폭 전체를 쓰는 이유는 위 컴포넌트 주석 참고. */}
-      {isDebate && (
+          자체는 계속 보인다). 화면 폭 전체를 쓰는 이유는 위 컴포넌트 주석 참고.
+          묘사 페이즈엔 문구를 발언 순서 기준으로 바꾼다(8/12). */}
+      {(isDebate || isDescribe) && (
         <button
           type="button"
           className="zt-vote-bar"
@@ -145,10 +152,16 @@ export function MainScreen({
           onClick={() => setVoteOpen((open) => !open)}
         >
           <span className="zt-vote-bar-label">
-            투표 현황 · 내 선택{' '}
-            {state.myVote
-              ? (state.players.find((p) => p.id === state.myVote)?.label ?? state.myVote)
-              : '없음'}
+            {isDescribe ? (
+              <>발언 순서 · {turnName || '없음'}님 묘사 중</>
+            ) : (
+              <>
+                투표 현황 · 내 선택{' '}
+                {state.myVote
+                  ? (state.players.find((p) => p.id === state.myVote)?.label ?? state.myVote)
+                  : '없음'}
+              </>
+            )}
           </span>
           {/* 시안 1의 .bar .t — 요약탭 우측, 여닫이 화살표 바로 왼쪽(8/11) */}
           <Timer deadlineAt={state.deadlineAt} />

@@ -326,6 +326,16 @@
 .zt-vote-row.is-mine {
   border-color: var(--color-accent, #7c5cff);
 }
+/* 묘사 페이즈 "현재 발언자" 강조 — is-mine(내 투표)과 시각은 같아도 클래스는
+ * 분리한다(8/12, 파트 D 연동 검토 때 결정 — Avatar mine과 투표 is-mine이 헷갈렸던
+ * 전례를 반복하지 않으려는 목적, [[zeteo-partc]] 참고). PC는 is-mine과 같은 테두리
+ * 강조만 준다. */
+.zt-vote-row.is-turn {
+  border-color: var(--color-accent, #7c5cff);
+}
+.zt-vote-row:disabled {
+  cursor: default;
+}
 .zt-vote-name {
   display: flex;
   align-items: center;
@@ -333,6 +343,11 @@
 }
 .zt-vote-count {
   font-variant-numeric: tabular-nums;
+}
+.zt-vote-turn-tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-accent, #7c5cff);
 }
 
 /* 투표 현황 그래프 — 8/10 시안 1 확정. 위 zt-vote-list(클릭용 후보 버튼)와
@@ -639,7 +654,8 @@
    *   이 규칙은 PC 목록 행에서도 그대로 쓰이는 공용 .zt-vote-row.is-mine이라
    *   여기서 덮어쓰지 않고 이 미디어쿼리 안에서만 원형 버튼용으로 다시 정의한다
    *   (PC 쪽은 이번 피드백 범위 밖이라 안 건드림). */
-  .zt-vote-row.is-mine {
+  .zt-vote-row.is-mine,
+  .zt-vote-row.is-turn {
     border-color: var(--color-text, #e8e8ee);
     border-width: 2px;
     background: color-mix(in srgb, var(--color-accent, #7c5cff) 42%, var(--color-surface, #1a1a22));
@@ -674,6 +690,12 @@
   }
   .zt-vote-count {
     font-size: 0.7rem;
+  }
+  /* "제시어 묘사중" 문구는 51px 원형 버튼에 안 들어간다(글자 수가 많다) —
+   * zt-vote-label과 같은 이유로 폰에서는 숨기고, is-turn 링 강조만으로
+   * "지금 이 사람 차례"라는 신호를 준다(8/12). */
+  .zt-vote-turn-tag {
+    display: none;
   }
 
   /* 헤더 — zt-word가 항상 자리를 차지하면서(8/11) 브랜드+라운드+페이즈+제시어+
