@@ -1,19 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import type { Message, PublicPlayer } from '@zeteo/shared-types';
+import Avatar from './Avatar';
 
-interface Props {
+/** 8/11: 로그와 입력창을 분리했다. 시안 1은 하단 요약탭(zt-vote-bar)·입력창(zt-chat-input)이
+ *  채팅 기둥 폭이 아니라 화면 전체 폭으로 늘어난다 — 우측 투표 패널과는 그 두 줄에서만
+ *  나란한 게 아니라 그 아래에서 가로로 통합된다. 로그+입력창이 한 컴포넌트(.zt-chat) 안에
+ *  같이 들어있으면 MainScreen이 이 둘을 서로 다른 폭의 레이아웃에 따로 배치할 수 없어서,
+ *  ChatLog(로그만)와 ChatInputBar(입력창만)로 나눠 MainScreen이 각자 원하는 자리에 꽂는다. */
+
+interface LogProps {
   messages: Message[];
   players: PublicPlayer[];
-  /** 잠금 여부는 화면이 판단해서 내려준다. Chat이 스스로 규칙을 알지 않는다. */
-  locked: boolean;
-  /** 잠겼을 때 입력창 자리에 보여줄 문구 */
-  lockedLabel?: string;
-  placeholder?: string;
-  onSend: (text: string) => void;
+  /** 아바타에 내 발언인지 표시하는 용도로만 쓴다(VotePanel의 mine 강조 테두리와 같은 규칙) */
+  myId: string;
+  /** 페이즈 팝업(GameScreen의 <Modal>) — 8/11부터 전체 화면이 아니라 채팅 로그
+   *  영역 위에만 뜨도록 여기로 내려받아 zt-chat-log 안에 얹는다(설계 결정: 투표
+   *  패널·입력창은 팝업이 떠 있어도 계속 보여야 한다). null이면 팝업 없음. */
+  modal?: ReactNode;
 }
 
-export function Chat({ messages, players, locked, lockedLabel, placeholder, onSend }: Props) {
-  const [text, setText] = useState('');
+export function ChatLog({ messages, players, myId, modal }: LogProps) {
   const logRef = useRef<HTMLDivElement>(null);
 
   // 로그 요소만 직접 내린다. scrollIntoView 는 스크롤 가능한 조상을 찾아 거슬러 올라가므로,
@@ -29,6 +36,35 @@ export function Chat({ messages, players, locked, lockedLabel, placeholder, onSe
       ? '시스템'
       : (players.find((p) => p.id === speakerId)?.label ?? speakerId);
 
+  return (
+    <div className="zt-chat-log" ref={logRef}>
+      {messages.map((m) => (
+        <div key={m.id} className={m.speakerId === 'system' ? 'zt-msg is-system' : 'zt-msg'}>
+          {m.speakerId !== 'system' && (
+            <Avatar label={nameOf(m.speakerId)} variant={m.speakerId === myId ? 'mine' : 'default'} />
+          )}
+          <span className="zt-msg-name">{nameOf(m.speakerId)}</span>
+          <span className="zt-msg-text">{m.text}</span>
+        </div>
+      ))}
+
+      {modal}
+    </div>
+  );
+}
+
+interface InputProps {
+  /** 잠금 여부는 화면이 판단해서 내려준다. 이 컴포넌트가 스스로 규칙을 알지 않는다. */
+  locked: boolean;
+  /** 잠겼을 때 입력창 자리에 보여줄 문구 */
+  lockedLabel?: string;
+  placeholder?: string;
+  onSend: (text: string) => void;
+}
+
+export function ChatInputBar({ locked, lockedLabel, placeholder, onSend }: InputProps) {
+  const [text, setText] = useState('');
+
   const submit = () => {
     const t = text.trim();
     if (!t) return;
@@ -36,32 +72,21 @@ export function Chat({ messages, players, locked, lockedLabel, placeholder, onSe
     setText('');
   };
 
-  return (
-    <div className="zt-chat">
-      <div className="zt-chat-log" ref={logRef}>
-        {messages.map((m) => (
-          <div key={m.id} className={m.speakerId === 'system' ? 'zt-msg is-system' : 'zt-msg'}>
-            <span className="zt-msg-name">{nameOf(m.speakerId)}</span>
-            <span className="zt-msg-text">{m.text}</span>
-          </div>
-        ))}
-      </div>
+  if (locked) {
+    return <div className="zt-chat-locked">🔒 {lockedLabel}</div>;
+  }
 
-      {locked ? (
-        <div className="zt-chat-locked">🔒 {lockedLabel}</div>
-      ) : (
-        <div className="zt-chat-input">
-          <input
-            value={text}
-            placeholder={placeholder ?? '메시지 입력…'}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') submit();
-            }}
-          />
-          <button onClick={submit}>전송</button>
-        </div>
-      )}
+  return (
+    <div className="zt-chat-input">
+      <input
+        value={text}
+        placeholder={placeholder ?? '메시지 입력…'}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') submit();
+        }}
+      />
+      <button onClick={submit}>전송</button>
     </div>
   );
 }

@@ -1,5 +1,7 @@
+import { useState } from 'react';
+import type { ReactNode } from 'react';
 import type { ClientEvent, GameState } from '@zeteo/shared-types';
-import { Chat } from '../components/Chat';
+import { ChatInputBar, ChatLog } from '../components/Chat';
 import { Timer } from '../components/Timer';
 import { VotePanel } from '../components/VotePanel';
 
@@ -12,21 +14,47 @@ import { VotePanel } from '../components/VotePanel';
  *    · 지목 배너 (finalDefense 만)
  *    · 헤더 문구
  *
- *  roleReveal·lifeVote·reveal·guessWord 는 이 화면 위에 팝업으로 뜨고,
- *  그동안 blocked=true 로 채팅이 잠긴다. */
+ *  roleReveal·lifeVote·reveal·guessWord·botVote 는 이 화면 위에 팝업으로 뜨고,
+ *  그동안 blocked=true 로 채팅이 잠긴다. 팝업(modal)은 8/11부터 전체 화면이 아니라
+ *  Chat의 채팅 로그 영역 위에만 얹힌다 — 그대로 Chat에 넘겨줄 뿐 여기선 조립하지
+ *  않는다(GameScreen이 조립해서 내려준다, 설계 결정: Modal은 phase로 key를 받지
+ *  않아야 하므로 조립 지점을 하나로 유지).
+ *
+ *  ⚠️ 8/11 레이아웃 재정리: 시안 1(Zeteo_와이어프레임_시안.html)을 다시 맞춰보니
+ *  투표 요약탭(zt-vote-bar)·입력창(zt-chat-input)이 채팅 기둥 폭이 아니라 화면
+ *  전체 폭으로 늘어나야 했다 — 이전엔 둘 다 zt-chat 안에 있어서 zt-side-wide(우측
+ *  투표 패널, 260px)만큼 폭이 줄어 있었다. 그래서 구조를 다음처럼 나눴다.
+ *    zt-stage(채팅 로그 | 투표 패널, 나란히) → zt-vote-bar(전체 폭) → 입력창(전체 폭)
+ *  이러면 우측 투표 패널의 아랫변이 zt-vote-bar 윗변과 맞붙는다(둘 다 같은 폭 그룹의
+ *  경계라 gap이 없으면 자동으로 붙는다) — "우측 투표창이 하단바랑 떨어져 있다"는
+ *  문제가 이 구조 변경만으로 해결된다. 모바일에서 로그↔투표 패널↔요약탭↔입력창을
+ *  order로 재배치하던 이전의 display:contents 트릭도 이제 필요 없다 — 셋이 이미
+ *  DOM 순서 그대로 원하는 시각적 순서다(시안 1도 같은 DOM 순서를 쓴다). */
 export function MainScreen({
   state,
   onEvent,
   blocked,
+  modal,
 }: {
   state: GameState;
   onEvent: (e: ClientEvent) => void;
   /** 팝업이 떠 있는 동안 true. 잠금 규칙을 컴포넌트가 스스로 알지 않게 위에서 내려준다 */
   blocked: boolean;
+  /** GameScreen이 조립한 <Modal> 엘리먼트(또는 null). ChatLog가 채팅 로그 위에 얹는다 */
+  modal?: ReactNode;
 }) {
   const isDescribe = state.phase === 'describe';
   const isDebate = state.phase === 'debate';
   const isFinalDefense = state.phase === 'finalDefense';
+
+  // 폰 폭(≤768px)에서 투표 패널을 여닫는 하단 시트 상태. 데스크톱에선 game.css가
+  // is-collapsed를 무시하고 항상 펼쳐 보이므로 이 값은 폰에서만 의미가 있다.
+  // 기본값 true — 접어야 할 이유(가시성)가 생기기 전까지는 정보를 숨기지 않는다.
+  //
+  // ⚠️ 기획서 v3.0 D3: "세로로 이어붙이는 방식은 배제한다"(채팅→투표→입력창 순서로
+  // 쭉 쌓는 것). 이 상태 없이 CSS만으로 세로 배치하면 정확히 그 배제 대상이 된다 —
+  // 시안 1이 검증한 "하단 시트(접이식)"로 만들어야 스펙이 허용한 두 후보 중 하나가 된다.
+  const [voteOpen, setVoteOpen] = useState(true);
 
   const isMyTurn = state.currentTurn === state.myId;
   const turnName = state.players.find((p) => p.id === state.currentTurn)?.label ?? '';
@@ -37,22 +65,25 @@ export function MainScreen({
   const accused = state.players.find((p) => p.id === state.accused);
   const accusedVotes = state.accused ? (state.voteCounts[state.accused] ?? 0) : 0;
 
-  // 잠금 규칙은 여기 한 곳에서만 정한다. Chat 은 prop 으로 받기만 한다 (설계 결정 6).
+  // 잠금 규칙은 여기 한 곳에서만 정한다. ChatInputBar 는 prop 으로 받기만 한다 (설계 결정 6).
   const locked = blocked || (isDescribe && !isMyTurn);
   const lockedLabel = blocked ? '지금은 발언할 수 없습니다' : `${turnName}님의 차례입니다`;
 
   return (
     <div className="zt-screen">
       <header className="zt-head">
+        {/* 팀 로고 + 이름 — 8/10 시안 1 확정. Zeteo-logo3.png의 원형 'O' 부분만
+            잘라 public/zeteo-o.png로 뒀다(파비콘과 같은 정적 파일 관례). */}
+        <span className="zt-brand">
+          <img className="zt-brand-icon" src="/zeteo-o.png" alt="" />
+          <span className="zt-brand-name">ZETEO</span>
+        </span>
+
         <span className="zt-sub">
           {/* round 는 "지금 몇 번째 루프인가"라는 상태. 왜 돌아왔는지(사건)는
               시스템 메시지가 맡는다 — 대체 관계가 아니다 (설계 결정 10) */}
           <span className="zt-round">{state.round}라운드</span>
           {phaseLabel(state.phase)}
-          {/* 주제·제시어는 묘사 때만 띄운다(기존 Describe 헤더 그대로).
-              라이어는 word 가 null 이라 주제만 보인다 */}
-          {isDescribe && ` · ${state.category}`}
-          {isDescribe && state.word && ` · ${state.word}`}
         </span>
 
         {/* 좌측 참가자 목록을 없애면서 발언 순서·진행도가 갈 곳이 여기 하나뿐이다 */}
@@ -63,6 +94,14 @@ export function MainScreen({
             {turnName}
           </span>
         )}
+
+        {/* 제시어 — 시안 1 D4 답: 묘사 때만이 아니라 전 페이즈에서 헤더에 상시
+            고정. 라이어는 word가 null이라 "???"로 뜬다 — 자리를 비우면
+            "안 보이는 것" 자체가 단서가 되므로 카테고리와 같은 자리·같은
+            크기를 유지한다(8/11). */}
+        <span className="zt-word">
+          <span className="zt-word-cat">{state.category} /</span> {state.word ?? '???'}
+        </span>
 
         <Timer deadlineAt={state.deadlineAt} />
       </header>
@@ -75,20 +114,14 @@ export function MainScreen({
         </div>
       )}
 
-      <div className="zt-body">
-        <main className="zt-main">
-          <Chat
-            messages={state.messages}
-            players={state.players}
-            locked={locked}
-            lockedLabel={lockedLabel}
-            placeholder={isDescribe ? '묘사를 입력하세요…' : '메시지 입력…'}
-            onSend={(text) => onEvent(isDescribe ? { t: 'describe', text } : { t: 'chat', text })}
-          />
-        </main>
+      <div className="zt-stage">
+        <ChatLog messages={state.messages} players={state.players} myId={state.myId} modal={modal} />
 
         {isDebate && (
-          <aside className="zt-side zt-side-wide">
+          <aside
+            id="zt-vote-panel"
+            className={voteOpen ? 'zt-side-wide' : 'zt-side-wide is-collapsed'}
+          >
             <VotePanel
               players={state.players}
               voteCounts={state.voteCounts}
@@ -99,6 +132,38 @@ export function MainScreen({
           </aside>
         )}
       </div>
+
+      {/* 여닫이 손잡이 겸 상시 요약탭 — 시안 1은 폰뿐 아니라 데스크톱에서도 항상
+          떠 있다(데스크톱은 투표 패널이 이미 펼쳐져 있어 여닫을 게 없을 뿐, 탭
+          자체는 계속 보인다). 화면 폭 전체를 쓰는 이유는 위 컴포넌트 주석 참고. */}
+      {isDebate && (
+        <button
+          type="button"
+          className="zt-vote-bar"
+          aria-expanded={voteOpen}
+          aria-controls="zt-vote-panel"
+          onClick={() => setVoteOpen((open) => !open)}
+        >
+          <span className="zt-vote-bar-label">
+            투표 현황 · 내 선택{' '}
+            {state.myVote
+              ? (state.players.find((p) => p.id === state.myVote)?.label ?? state.myVote)
+              : '없음'}
+          </span>
+          {/* 시안 1의 .bar .t — 요약탭 우측, 여닫이 화살표 바로 왼쪽(8/11) */}
+          <Timer deadlineAt={state.deadlineAt} />
+          <span className="zt-vote-bar-chev" aria-hidden="true">
+            {voteOpen ? '▼' : '▲'}
+          </span>
+        </button>
+      )}
+
+      <ChatInputBar
+        locked={locked}
+        lockedLabel={lockedLabel}
+        placeholder={isDescribe ? '묘사를 입력하세요…' : '메시지 입력…'}
+        onSend={(text) => onEvent(isDescribe ? { t: 'describe', text } : { t: 'chat', text })}
+      />
     </div>
   );
 }
@@ -119,7 +184,9 @@ function phaseLabel(phase: GameState['phase']): string {
       return '결과';
     case 'guessWord':
       return '제시어 추측';
+    case 'botVote':
+      return '봇 지목';
     default:
-      return ''; // lobby·botVote·result·survey 는 파트 D 담당이라 여기 오지 않는다
+      return ''; // lobby·result·survey 는 파트 D 담당이라 여기 오지 않는다
   }
 }
