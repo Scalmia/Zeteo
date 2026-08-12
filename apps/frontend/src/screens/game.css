@@ -29,6 +29,20 @@
   background: var(--color-bg, #0f0f14);
   color: var(--color-text, #e8e8ee);
   font-family: var(--font-body, system-ui, sans-serif);
+  /* 8/12: 브라우저 창 전체를 꽉 채우고 있어 화면이 부담스럽다는 의견 — 크기는
+   * 그대로 두고(레이아웃 재설계 요청 아님) 가장자리에 옅은 테두리만 둘러
+   * "여기가 화면의 경계다"라는 시각적 마감을 준다. box-sizing:border-box가
+   * 전역 적용돼 있어(tokens.css) border를 더해도 100vh를 넘치지 않는다.
+   * 좌우만 1.5배 두껍게(8/12 추가 요청) — 위아래는 헤더·입력창 등 다른
+   * 가로줄 요소가 이미 시각적 경계 역할을 해서 그대로 1px 둔다.
+   * ⚠️ border-width:1.5px는 DPR 1 화면(표준 배율 데스크톱)에서 브라우저가
+   * 정수 픽셀로 반올림해버려 1px과 구분이 안 갔다(실측: getComputedStyle이
+   * 1.5px를 줘도 1px로 보고, 실제로도 그렇게 그려짐) — 눈에 띄게 두꺼워야
+   * 하므로 정수인 2px로 대신 키운다. */
+  border-top: 1px solid var(--color-line, #2a2a36);
+  border-bottom: 1px solid var(--color-line, #2a2a36);
+  border-left: 2px solid var(--color-line, #2a2a36);
+  border-right: 2px solid var(--color-line, #2a2a36);
 }
 .zt-center {
   align-items: center;
@@ -274,9 +288,15 @@
   border: 1px solid var(--color-line, #2a2a36);
   border-radius: 999px;
 }
+/* 입력 가능/잠김 두 상태가 같은 자리에서 서로 바뀌어 그려지는데, 잠겼을 때만
+ * padding이 두 배(space-4)라 자리를 누르면 화면이 그만큼 밀렸다 올라왔다 했다
+ * (8/12 지적 — 사진 두 장 비교로 확인). 높이를 min-height로 고정해 맞춘다. */
 .zt-chat-input {
   display: flex;
+  align-items: center;
   gap: var(--space-2, 8px);
+  min-height: 44px;
+  box-sizing: border-box;
   padding: var(--space-2, 8px);
   border-top: 1px solid var(--color-line, #2a2a36);
 }
@@ -285,7 +305,12 @@
   min-width: 0;
 }
 .zt-chat-locked {
-  padding: var(--space-4, 16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: var(--space-2, 8px) var(--space-4, 16px);
   text-align: center;
   color: var(--color-muted, #9a9aa8);
   border-top: 1px solid var(--color-line, #2a2a36);
