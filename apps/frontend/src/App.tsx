@@ -4,6 +4,8 @@ import LandingScreen from "./LandingScreen";
 import LobbyScreen from "./LobbyScreen";
 import { GameScreen } from "./screens/GameScreen";
 import { useGameState } from "./hooks/useGameState";
+import { Ambience } from "./components/Ambience";
+import { ParticleTrail } from "./components/ParticleTrail";
 import type { ClientEvent, GameState } from "@zeteo/shared-types";
 
 /**
@@ -126,6 +128,8 @@ export function App() {
 
   return (
     <div>
+      <Ambience />
+      <ParticleTrail />
       {!connected && (
         <div style={{ textAlign: "center", padding: 8, color: "var(--color-danger)" }}>
           서버와 연결이 끊겼습니다. 재연결 시도 중…

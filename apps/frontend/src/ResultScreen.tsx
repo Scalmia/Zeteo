@@ -44,24 +44,24 @@ export default function ResultScreen({
         >
           <div
             className="text-muted"
-            style={{ fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "var(--space-2)" }}
+            style={{ fontSize: "var(--text-caption)", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "var(--space-2)" }}
           >
             GAME OVER
           </div>
           <h1 style={{ marginBottom: "var(--space-4)" }}>라이어 게임</h1>
-          <div className="tag tag-accent" style={{ fontSize: 14, padding: "6px 16px", marginBottom: "var(--space-4)" }}>
+          <div className="tag tag-accent" style={{ fontSize: "var(--text-emphasis)", fontWeight: 700, padding: "6px 16px", marginBottom: "var(--space-4)" }}>
             {winner}
           </div>
           <div className="hr" />
           <div style={{ marginTop: "var(--space-4)" }}>
             <div className="card-title" style={{ fontSize: 20 }}>봇 색출</div>
-            <div className="text-muted" style={{ fontSize: 13 }}>
+            <div className="text-muted" style={{ fontSize: "var(--text-label)", fontWeight: 600 }}>
               {totalVoters}명 중 {botVoteCorrectCount}명이 봇을 정확히 지목했습니다
             </div>
           </div>
           <div style={{ marginTop: "var(--space-4)" }}>
             <div className="card-title" style={{ fontSize: 20 }}>제시어</div>
-            <div className="text-muted" style={{ fontSize: 13 }}>
+            <div className="text-muted" style={{ fontSize: "var(--text-label)", fontWeight: 600 }}>
               {category} — {word ?? "—"}
             </div>
           </div>
@@ -76,35 +76,32 @@ export default function ResultScreen({
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  justifyContent: "space-between",
                   padding: "var(--space-2) 0",
                   borderBottom: i < players.length - 1 ? "1px solid var(--color-line)" : "none"
                 }}
               >
-                <span style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span style={{ display: "flex", alignItems: "baseline", gap: "var(--space-2)" }}>
-                    <span style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: 16 }}>
-                      {player.label}
-                    </span>
-                    {player.name && (
-                      <span className="text-muted" style={{ fontSize: 13 }}>
-                        {player.name}
-                      </span>
-                    )}
+                <span style={{ display: "flex", alignItems: "baseline", gap: "var(--space-2)" }}>
+                  <span style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: "var(--text-body)" }}>
+                    {player.label}
                   </span>
-                  {player.votedFor && (
-                    <span className="text-muted" style={{ fontSize: 12 }}>
-                      → {player.votedFor} 지목
+                  {player.name && (
+                    <span className="text-muted" style={{ fontSize: "var(--text-label)", fontWeight: 600 }}>
+                      {player.name}
                     </span>
                   )}
                 </span>
-                <span className={`tag ${TAG_CLASS[player.tag]}`}>{player.tag}</span>
+                {player.votedFor && (
+                  <span style={{ fontFamily: "var(--font-body)", fontWeight: 600, fontSize: "var(--text-body)", marginLeft: "var(--space-2)" }}>
+                    → {player.votedFor} 지목
+                  </span>
+                )}
+                <span className={`tag ${TAG_CLASS[player.tag]}`} style={{ fontSize: "var(--text-label)", fontWeight: 600, marginLeft: "auto" }}>{player.tag}</span>
               </div>
             ))}
           </div>
         </div>
 
-        <Button block onClick={onNext}>
+        <Button block style={{ fontSize: "var(--text-button)" }} onClick={onNext}>
           다음
         </Button>
       </div>

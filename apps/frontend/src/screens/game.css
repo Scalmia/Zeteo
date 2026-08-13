@@ -25,10 +25,43 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
+  /* 8/12: 브라우저 창을 최대화하면 화면이 좌우로 한없이 늘어나 부담스럽다는
+   * 지적 — 좌우 폭에 상한을 두고 가운데 정렬한다. 세로(min-height:100vh)는
+   * 그대로 둔다(요청 범위 아님). */
+  max-width: 1200px;
+  margin: 0 auto;
   padding: var(--space-4, 16px);
   background: var(--color-bg, #0f0f14);
   color: var(--color-text, #e8e8ee);
   font-family: var(--font-body, system-ui, sans-serif);
+  /* 8/12: 브라우저 창 전체를 꽉 채우고 있어 화면이 부담스럽다는 의견 — 크기는
+   * 그대로 두고(레이아웃 재설계 요청 아님) 가장자리에 옅은 테두리만 둘러
+   * "여기가 화면의 경계다"라는 시각적 마감을 준다. box-sizing:border-box가
+   * 전역 적용돼 있어(tokens.css) border를 더해도 100vh를 넘치지 않는다.
+   * 좌우만 1.5배 두껍게(8/12 추가 요청) — 위아래는 헤더·입력창 등 다른
+   * 가로줄 요소가 이미 시각적 경계 역할을 해서 그대로 1px 둔다.
+   * ⚠️ border-width:1.5px는 DPR 1 화면(표준 배율 데스크톱)에서 브라우저가
+   * 정수 픽셀로 반올림해버려 1px과 구분이 안 갔다(실측: getComputedStyle이
+   * 1.5px를 줘도 1px로 보고, 실제로도 그렇게 그려짐) — 눈에 띄게 두꺼워야
+   * 하므로 정수인 2px로 대신 키운다. */
+  border-top: 1px solid var(--color-line, #2a2a36);
+  border-bottom: 1px solid var(--color-line, #2a2a36);
+  border-left: 2px solid var(--color-line, #2a2a36);
+  border-right: 2px solid var(--color-line, #2a2a36);
+}
+/* 8/12: dev 병합으로 들어온 새 폰트(--font-body: Hahmlet)가 투표 후보 목록·
+ * 봇 지목 팝업 목록·생사 투표 버튼·투표 요약탭에는 안 먹은 것처럼 보였다 —
+ * 이유는 폰트가 아니라 태그였다. body에 준 font-family는 대부분의 태그엔
+ * 상속되지만 button·input 같은 폼 컨트롤은 브라우저가 기본적으로 상속을
+ * 끊고 자기 UA 기본 폰트를 쓴다(이 네 군데가 전부 <button>인 게 공통점).
+ * 파트 C 화면 범위(.zt-screen) 안의 폼 컨트롤에만 상속을 강제로 켠다 —
+ * 다른 파트 화면·D의 .btn(이미 자체적으로 font-family를 명시해 문제 없음)엔
+ * 영향 없다. */
+.zt-screen button,
+.zt-screen input,
+.zt-screen select,
+.zt-screen textarea {
+  font-family: inherit;
 }
 .zt-center {
   align-items: center;
@@ -160,11 +193,20 @@
  * VotePanel(.zt-vote)은 더 이상 자기 배경을 갖지 않는 투명한 뼈대일 뿐이다 —
  * 그래야 패널이 zt-stage 높이를 꽉 채워 아래 zt-vote-bar와 맞닿는다(둥근 카드로
  * 안쪽에 떠 있으면 여백 때문에 못 붙는다). */
+/* ⚠️ 8/12: --vote-bg를 더 이상 여기서 쓰지 않는다. D의 tokens.css 8/11
+ * 리디자인에서 --vote-bg의 용도가 "패널 배경 틴트"(Day 0 합의)에서 "득표
+ * 진행률 바 채움색"으로 바뀌었다(D 파일 자체 주석에 명시) — 그런데 이 파일은
+ * 그 변경을 못 따라가 옛 의미(패널 배경)로 계속 썼고, 그 결과 진하고 쨍한
+ * bar-fill용 그라디언트가 패널 전체 배경으로 깔려 "배경이 너무 밝아서 그래프·
+ * 강조표시가 안 보인다"는 문제가 났다. 별도 틴트 없이 다른 카드·버튼과 같은
+ * --color-surface 그대로 쓴다 — 그게 원래 "어둡다"는 요청에 맞고, 패널 안
+ * 후보 버튼(.zt-vote-row)도 이미 같은 surface라 톤이 자연스럽게 이어진다.
+ * Day 0 합의 토큰만 쓰고 --vote-bg는 참조하지 않는다. */
 .zt-side-wide {
   flex: 0 0 260px;
   overflow-y: auto;
   padding: var(--space-4, 16px);
-  background: var(--vote-bg, color-mix(in srgb, var(--color-accent, #7c5cff) 22%, var(--color-surface, #1a1a22)));
+  background: var(--color-surface, #1a1a22);
   border-left: 1px solid var(--color-line, #2a2a36);
 }
 .zt-card {
@@ -274,9 +316,15 @@
   border: 1px solid var(--color-line, #2a2a36);
   border-radius: 999px;
 }
+/* 입력 가능/잠김 두 상태가 같은 자리에서 서로 바뀌어 그려지는데, 잠겼을 때만
+ * padding이 두 배(space-4)라 자리를 누르면 화면이 그만큼 밀렸다 올라왔다 했다
+ * (8/12 지적 — 사진 두 장 비교로 확인). 높이를 min-height로 고정해 맞춘다. */
 .zt-chat-input {
   display: flex;
+  align-items: center;
   gap: var(--space-2, 8px);
+  min-height: 44px;
+  box-sizing: border-box;
   padding: var(--space-2, 8px);
   border-top: 1px solid var(--color-line, #2a2a36);
 }
@@ -285,7 +333,12 @@
   min-width: 0;
 }
 .zt-chat-locked {
-  padding: var(--space-4, 16px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: var(--space-2, 8px) var(--space-4, 16px);
   text-align: center;
   color: var(--color-muted, #9a9aa8);
   border-top: 1px solid var(--color-line, #2a2a36);
@@ -302,7 +355,10 @@
 .zt-vote-title {
   margin: 0 0 var(--space-2, 8px);
   font-size: 0.85rem;
-  color: var(--color-muted, #9a9aa8);
+  /* 8/12: muted 톤이 배경(진한 레드/블랙)에서 잘 안 보인다는 지적 — 투표창
+   * 안에서만 흰색(color-text)으로 바꾼다. 다른 화면의 muted 텍스트는
+   * 범위 밖이라 안 건드림. */
+  color: var(--color-text, #e8e8ee);
 }
 .zt-vote-list {
   display: flex;
@@ -326,6 +382,16 @@
 .zt-vote-row.is-mine {
   border-color: var(--color-accent, #7c5cff);
 }
+/* 묘사 페이즈 "현재 발언자" 강조 — is-mine(내 투표)과 시각은 같아도 클래스는
+ * 분리한다(8/12, 파트 D 연동 검토 때 결정 — Avatar mine과 투표 is-mine이 헷갈렸던
+ * 전례를 반복하지 않으려는 목적, [[zeteo-partc]] 참고). PC는 is-mine과 같은 테두리
+ * 강조만 준다. */
+.zt-vote-row.is-turn {
+  border-color: var(--color-accent, #7c5cff);
+}
+.zt-vote-row:disabled {
+  cursor: default;
+}
 .zt-vote-name {
   display: flex;
   align-items: center;
@@ -333,6 +399,11 @@
 }
 .zt-vote-count {
   font-variant-numeric: tabular-nums;
+}
+.zt-vote-turn-tag {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-accent, #7c5cff);
 }
 
 /* 투표 현황 그래프 — 8/10 시안 1 확정. 위 zt-vote-list(클릭용 후보 버튼)와
@@ -349,7 +420,10 @@
   align-items: center;
   gap: var(--space-2, 8px);
   font-size: 0.75rem;
-  color: var(--color-muted, #9a9aa8);
+  /* 8/12: 위 .zt-vote-title과 같은 이유로 흰색으로 바꿈 — 내 선택(is-mine) 행만
+   * 흰색이던 걸 전부 흰색으로 통일. is-mine과 구분은 아래 .zt-tally-label의
+   * accent색으로 계속 남는다(글자색이 아니라 이니셜 배지 색으로 구분). */
+  color: var(--color-text, #e8e8ee);
 }
 .zt-tally-row.is-mine {
   color: var(--color-text, #e8e8ee);
@@ -639,10 +713,27 @@
    *   이 규칙은 PC 목록 행에서도 그대로 쓰이는 공용 .zt-vote-row.is-mine이라
    *   여기서 덮어쓰지 않고 이 미디어쿼리 안에서만 원형 버튼용으로 다시 정의한다
    *   (PC 쪽은 이번 피드백 범위 밖이라 안 건드림). */
-  .zt-vote-row.is-mine {
+  .zt-vote-row.is-mine,
+  .zt-vote-row.is-turn {
     border-color: var(--color-text, #e8e8ee);
     border-width: 2px;
-    background: color-mix(in srgb, var(--color-accent, #7c5cff) 42%, var(--color-surface, #1a1a22));
+    /* ⚠️ 8/12: D의 tokens.css 8/11 리디자인에서 --color-surface가 단색에서
+     * 그라디언트로 바뀌었다 — color-mix()는 <color>끼리만 섞을 수 있어
+     * 그라디언트가 섞이는 순간 값 전체가 무효 처리돼 배경이 통째로 사라졌다
+     * (실측: getComputedStyle이 rgba(0,0,0,0)만 보고함, 링만 남고 채움이 안
+     * 보였다 — "강조표시가 제대로 안 보인다" 지적의 일부가 이거였을 수 있다).
+     * background 다중 레이어는 마지막 레이어만 순수 <color>를 받고 나머지는
+     * <image>여야 한다 — 그래서 색 두 개를 그냥 콤마로 겹치는 것도 무효였다
+     * (재확인: 처음 고친 버전도 여전히 rgba(0,0,0,0)이었다). accent 단색을
+     * 양끝이 같은 색인 linear-gradient(= 사실상 반투명 색 레이어, <image>로
+     * 유효)로 만들어 surface 위에 겹친다 — surface가 단색이든 그라디언트든
+     * 항상 유효하다. */
+    background:
+      linear-gradient(
+        color-mix(in srgb, var(--color-accent, #7c5cff) 42%, transparent),
+        color-mix(in srgb, var(--color-accent, #7c5cff) 42%, transparent)
+      ),
+      var(--color-surface, #1a1a22);
   }
   /* ⚠️ 8/11 5차: 아바타(.avatar)는 원래 자기 몫의 배경·테두리·둥근모서리를 가진
    * 작은 배지다(데스크톱 목록 행에서 이름 앞에 붙는 용도) — 그걸 그대로 두면
@@ -674,6 +765,12 @@
   }
   .zt-vote-count {
     font-size: 0.7rem;
+  }
+  /* "제시어 묘사중" 문구는 51px 원형 버튼에 안 들어간다(글자 수가 많다) —
+   * zt-vote-label과 같은 이유로 폰에서는 숨기고, is-turn 링 강조만으로
+   * "지금 이 사람 차례"라는 신호를 준다(8/12). */
+  .zt-vote-turn-tag {
+    display: none;
   }
 
   /* 헤더 — zt-word가 항상 자리를 차지하면서(8/11) 브랜드+라운드+페이즈+제시어+
