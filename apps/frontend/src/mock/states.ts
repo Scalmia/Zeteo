@@ -102,6 +102,8 @@ const base: GameState = {
   lifeVoteCounts: { kill: 0, spare: 0 },
   revealedRole: null,
   liarGameResult: null,
+  // S5-a 라이어가 제출한 제시어. liarGameResult 와 같은 시점(result 진입)에만 채워진다.
+  guessWord: null,
 
   // S6·S7 (파트 D). 서버가 result 진입 직전에만 채우므로,
   // 파트 C mock 은 전부 result 이전 페이즈라 항상 기본값이다.
