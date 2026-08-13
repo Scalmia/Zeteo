@@ -68,3 +68,31 @@ export async function submitSurveyResponse(
   const { error: reasonErr } = await supabase.from('survey_response_reasons').insert(rows);
   if (reasonErr) console.error(`[${room.roomId}] 설문 사유 기록 실패:`, reasonErr.message);
 }
+export interface SurveyResponseRow {
+  voterLabel: string;
+  reasonIds: number[];
+  freeText: string | null;
+}
+
+/** 게임이 끝난 뒤 최종 로그를 만들 때, 그 판의 설문 응답을 전부 모아온다. */
+export async function fetchSurveyResponsesForGame(gameId: string): Promise<SurveyResponseRow[]> {
+  const { data: responses, error } = await supabase
+    .from('survey_responses')
+    .select('id, voter_label, free_text')
+    .eq('game_id', gameId);
+  if (error || !responses?.length) return [];
+
+  const responseIds = responses.map((r) => r.id);
+  const { data: reasonRows } = await supabase
+    .from('survey_response_reasons')
+    .select('survey_response_id, reason_id')
+    .in('survey_response_id', responseIds);
+
+  return responses.map((r) => ({
+    voterLabel: r.voter_label,
+    freeText: r.free_text,
+    reasonIds: (reasonRows ?? [])
+      .filter((row) => row.survey_response_id === r.id)
+      .map((row) => row.reason_id),
+  }));
+}

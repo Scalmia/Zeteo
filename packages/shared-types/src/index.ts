@@ -29,7 +29,6 @@ export interface PublicPlayer {
   label: string;
   isAlive: boolean;
   isReady: boolean; // 대기실에서 준비 완료 여부. 서버 room.readyIds 기준
-  name: string | null;
 }
 
 export interface Message {

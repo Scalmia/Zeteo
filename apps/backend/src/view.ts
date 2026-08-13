@@ -41,16 +41,15 @@ export async function buildGameStateFor(room: RoomInternalState, playerId: strin
   const isPostGame = room.phase === 'result' || room.phase === 'survey';
   const myPhase = room.phase === 'result' && room.surveyedIds.has(playerId) ? 'survey' : room.phase;
   const publicPlayers: PublicPlayer[] = room.players.map((p) => ({
-    id: p.id,
-    label: p.label,
+    id: room.phase === 'lobby' ? (room.lobbyTokens.get(p.id) ?? p.id) : p.id,
+    label: room.phase === 'lobby' ? p.name : p.label,
     isAlive: p.isAlive,
     isReady: room.readyIds.has(p.id),
-    name: room.phase === 'lobby' ? p.name : null,
   }));
 
   return {
     roomId: room.roomId,
-    phase: phase,
+    phase: myPhase,
     players: publicPlayers,
     category: room.category,
     // ★ A-4 수정: 게임이 끝난 뒤(result·survey)엔 라이어에게도 제시어를 공개해야 한다
@@ -64,7 +63,7 @@ export async function buildGameStateFor(room: RoomInternalState, playerId: strin
     voteCounts: countVotes(room.votes),
     myVote: room.votes[playerId] ?? null,
     accused: room.accusedId,
-    myId: playerId,
+    myId: room.phase === 'lobby' ? (room.lobbyTokens.get(playerId) ?? playerId) : playerId,
     round: room.round,
     myLifeVote: room.lifeVotes[playerId] ?? null,
     lifeVoteCounts: countLifeVotes(room.lifeVotes),
