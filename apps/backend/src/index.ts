@@ -19,7 +19,6 @@ import {
   isEveryoneReady,
   assignRoles,
   assignLabels,
-  shufflePlayers,
   removePlayerFromLobby,
   deleteRoom,
   RoomInternalState,
@@ -185,22 +184,6 @@ async function sendFinalReportToDiscord(room: RoomInternalState) {
 // stateMachine으로 다음 phase 계산 → 필요한 부수효과 처리 → 다음 타이머 설정 → 브로드캐스트
 function advancePhase(room: RoomInternalState) {
   nextPhase(room);
-
-  if (room.phase === 'describe') {
-    const ids = room.players.map((p) => p.id);
-    for (let i = ids.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [ids[i], ids[j]] = [ids[j]!, ids[i]!];
-    }
-    room.turnOrder = ids;
-    room.currentTurnIndex = 0;
-
-    // describe가 시작되는 시점에 바로 참가자 목록도 turnOrder와 같은 순서로 맞춘다.
-    // 이후 화면(투표 현황 등)이 전부 room.players 순서를 그대로 쓰기 때문에,
-    // describe 시작 순간부터 채팅 순서 = 참가자 목록 순서가 된다.
-    const order = new Map(ids.map((id, i) => [id, i]));
-    room.players.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
-  }
 
   if (room.phase === 'result') {
     logTranscript(room);
@@ -495,7 +478,19 @@ io.on('connection', (socket) => {
           if (room.phase === 'lobby' && isEveryoneReady(room)) {
             assignRoles(room);
             assignLabels(room);
-            shufflePlayers(room);
+            // roleReveal 시작 시점에 describe 발언 순서(turnOrder)를 미리 정해두고,
+            // 참가자 목록도 바로 그 순서에 맞춰 정렬한다. describe 화면까지 갈 필요 없이
+            // roleReveal부터 이미 같은 순서로 보이게 하기 위함. (기존 shufflePlayers는
+            // 이 정렬이 사실상 같은 역할을 하므로 대체됨)
+            const ids = room.players.map((p) => p.id);
+            for (let i = ids.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [ids[i], ids[j]] = [ids[j]!, ids[i]!];
+            }
+            room.turnOrder = ids;
+            room.currentTurnIndex = 0;
+            const order = new Map(ids.map((id, i) => [id, i]));
+            room.players.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
             const { category, word } = await pickRandomCategoryAndWord();
             room.category = category;
             room.word = word;
