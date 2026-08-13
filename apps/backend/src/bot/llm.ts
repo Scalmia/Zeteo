@@ -26,7 +26,14 @@ export type Provider = 'anthropic' | 'openai';
  */
 const PROVIDER_FILE = path.join(__dirname, '../../.bot-provider');
 
+/**
+ * 배포된 서버는 파일을 못 쓸 수도 있어서 메모리에도 들고 있는다.
+ * 이 프로세스가 마지막으로 정한 값이 있으면 그것을 우선한다.
+ */
+let override: Provider | null = null;
+
 export function provider(): Provider {
+  if (override !== null) return override;
   try {
     const fromFile = fs.readFileSync(PROVIDER_FILE, 'utf8').trim();
     if (fromFile === 'anthropic' || fromFile === 'openai') return fromFile;
@@ -34,6 +41,17 @@ export function provider(): Provider {
     // 파일이 없는 것은 정상이다. 아래로 넘어간다.
   }
   return process.env.BOT_PROVIDER === 'openai' ? 'openai' : 'anthropic';
+}
+
+/** 바꾸고, 파일에도 남길 수 있으면 남긴다. 파일에 못 남겨도 이 프로세스가 사는 동안은 유지된다. */
+export function setProvider(next: Provider): { persisted: boolean } {
+  override = next;
+  try {
+    fs.writeFileSync(PROVIDER_FILE, next, 'utf8');
+    return { persisted: true };
+  } catch {
+    return { persisted: false };
+  }
 }
 
 function required(name: string, value: string | undefined, where: string): string {
