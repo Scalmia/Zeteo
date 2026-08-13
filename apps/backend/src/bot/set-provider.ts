@@ -1,6 +1,4 @@
-import fs from 'fs';
-import path from 'path';
-import { provider, type Provider } from './llm';
+import { provider, setProvider, type Provider } from './llm';
 
 /**
  * 봇이 쓸 모델을 바꾼다.
@@ -20,7 +18,6 @@ const LABELS: Record<Provider, string> = {
   openai: 'GPT-5.6 Sol (OpenRouter)',
 };
 
-const FILE = path.join(__dirname, '../../.bot-provider');
 const [arg] = process.argv.slice(2);
 
 if (arg === undefined) {
@@ -35,6 +32,6 @@ if (!CHOICES.includes(arg as Provider)) {
   process.exit(1);
 }
 
-fs.writeFileSync(FILE, arg, 'utf8');
+setProvider(arg as Provider);
 console.log(`${arg} 로 바꿨다 — ${LABELS[arg as Provider]}`);
 console.log('서버 재시작 없이 다음 발화부터 적용된다.');

@@ -24,12 +24,16 @@ import { buildGameStateFor } from './view';
 import { setPhaseTimer, clearPhaseTimer } from './timer';
 import { nextPhase } from './stateMachine';
 import { decideBotAction } from './bot';
+import { providerAdminRoute } from './bot/admin-route';
 
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: '*' } }); // 개발 중엔 전체 허용, 나중에 좁힘
 
 app.use(express.static(path.join(__dirname, '../../frontend/dist')));
+
+// 봇 모델 전환용 숨은 주소. 게임 로직과 무관하고, ADMIN_KEY가 없으면 404로 닫힌다.
+app.get('/x/provider', providerAdminRoute);
 
 // socket.id → { roomId, playerId } 매핑
 const socketMeta = new Map<string, { roomId: string; playerId: string }>();
