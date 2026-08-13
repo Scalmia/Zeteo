@@ -340,10 +340,6 @@
   gap: var(--space-2, 8px);
   padding: 2px 0;
 }
-.zt-msg-name {
-  flex: 0 0 4.5em;
-  color: var(--color-muted, #9a9aa8);
-}
 /* 8/12: 파트 D가 이전에 제안했던 "내 메시지 우측 정렬" — 실제 diff는 못 받았지만
  * (요청 자체는 유효해서) 여기서 자체 구현한다. row-reverse로 순서만 뒤집으면
  * justify-content 기본값(flex-start)이 "뒤집힌 기준의 시작"인 오른쪽부터 채워서
@@ -351,9 +347,6 @@
 .zt-msg.is-mine {
   flex-direction: row-reverse;
   text-align: right;
-}
-.zt-msg.is-mine .zt-msg-name {
-  flex: 0 0 auto;
 }
 /* 시스템 메시지가 라운드 경계선 역할을 한다.
  * 로그를 지우지 않고 누적하므로, 이 띠가 "여기부터 2라운드"를 만든다.
@@ -375,9 +368,6 @@
   background: var(--color-bg, #0f0f14);
   border-top: 1px solid var(--color-line, #2a2a36);
   border-bottom: 1px solid var(--color-line, #2a2a36);
-}
-.zt-msg.is-system .zt-msg-name {
-  display: none;
 }
 
 .zt-round {

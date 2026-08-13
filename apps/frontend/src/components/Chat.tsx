@@ -89,7 +89,6 @@ export function ChatLog({ messages, players, myId, modal }: LogProps) {
               {m.speakerId !== 'system' && (
                 <Avatar label={nameOf(m.speakerId)} variant={isMine ? 'mine' : 'default'} />
               )}
-              <span className="zt-msg-name">{nameOf(m.speakerId)}</span>
               <span className="zt-msg-text">{m.text}</span>
             </div>
           );
