@@ -849,6 +849,14 @@
     border: none;
     border-radius: 0;
   }
+  /* 8/13: 위에서 박스 스타일을 통째로 지우면서 avatar-mine의 테두리·glow만으로는
+   * "이게 나 자신이다" 표시가 거의 안 보인다는 지적(무슨 색인지도 모르겠다는
+   * 피드백) — 테두리·배경은 이중 링 재발 방지를 위해 그대로 안 살리고, 글자
+   * 색만 다른 강조 요소(is-mine/is-turn 테두리, 링크 등)와 같은 accent색으로
+   * 바꿔 눈에 띄게 한다. */
+  .zt-vote-row:not(.zt-botvote *) .avatar-mine {
+    color: var(--color-accent, #ff2733);
+  }
   /* ② 기권도 다른 후보와 똑같은 원형·크기여야 했다(8/11 6차, 사용자 스크린샷
    * 지적) — 전엔 aspect-ratio:auto로 낮은 타원이 돼 다른 원들과 크기가
    * 어긋나 보였다. base .zt-vote-row의 aspect-ratio:1/1을 그대로 물려받게
