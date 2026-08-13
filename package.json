@@ -8,8 +8,13 @@
     "packages/*"
   ],
   "scripts": {
+    "build": "npm run build -w frontend && npm run build -w backend",
+    "start": "node apps/backend/dist/index.js",
     "format": "prettier --write \"**/*.{ts,tsx,css,json,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,css,json,md}\""
+  },
+  "engines": {
+    "node": ">=20"
   },
   "license": "ISC",
   "type": "commonjs",
