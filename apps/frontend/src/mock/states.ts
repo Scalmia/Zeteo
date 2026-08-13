@@ -261,6 +261,8 @@ export const MOCK_STATES: Record<string, GameState> = {
     accused: 'p2',
     revealedRole: 'liar',
     liarGameResult: 'citizenWin',
+    // 라이어가 잡힌 뒤 제시어를 틀린 경우(citizenWin). 정답이면 '호랑이' 로 바꿔 확인한다.
+    guessWord: '사자',
     botVoteCounts: { voted: 4, total: 4 },
     botVoteCorrectCount: 3, // 아래 botVoteResults 에서 p5(봇)를 맞힌 사람 수와 일치시킨다
     revealedBotId: 'p5',

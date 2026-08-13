@@ -112,6 +112,7 @@ function renderMock(state: GameState, onEvent: (e: ClientEvent) => void) {
           botVoteCorrectCount={state.botVoteCorrectCount}
           category={state.category}
           word={state.word}
+          guessWord={state.guessWord}
           players={resultPlayers}
           onNext={() => onEvent({ t: 'ready' })}
         />
