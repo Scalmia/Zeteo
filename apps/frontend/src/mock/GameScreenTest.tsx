@@ -115,22 +115,37 @@ export function GameScreenTest() {
   );
 
   // 실제 팝업(있다면) 위에 mock 칩 바를 같이 얹는다 — 팝업을 안 닫고도 다른
-  // 칩으로 바로 넘어가 볼 수 있어야 하므로 스크림(z-index:10)보다 위(20)에 둔다.
+  // 칩으로 바로 넘어가 볼 수 있어야 하므로 스크림(z-index:10)보다 위에 둔다.
+  //
+  // 8/13: 원래 화면 폭 전체를 덮는 bottom:0 띠였는데, 새 메시지 알림 핀
+  // (.zt-chat-newmsg, 하단 가운데)을 가려버렸다("핀이 안 보인다" 피드백). 그래서
+  // top:0으로 옮겨봤더니 이번엔 모달을 ✕로 접었을 때 나오는 "다시 보기" 칩
+  // (.zt-modal-chip, 우측 상단)을 가리는 걸로 자리만 바꿔 옮긴 꼴이었다(Playwright로
+  // 실제 클릭 실패까지 확인) — 화면 폭 전체를 덮는 불투명한 띠인 이상 위든 아래든
+  // 어느 한쪽 끝에 있는 실제 UI(핀은 하단 가운데, 접기 칩은 상단 우측)와 반드시
+  // 겹친다. 그래서 아예 화면 전체 폭을 덮는 띠를 그만두고, `position: fixed`로
+  // 뷰포트 좌측 상단 구석에 내용 크기만큼만 차지하는 작은 패널로 바꿨다 — 핀(하단
+  // 가운데)·접기 칩(상단 우측) 둘 다 이 구석과 안 겹친다. `position:fixed`라
+  // `.zt-chat-log-wrap`의 스크롤·레이아웃과 무관하게 항상 뷰포트 기준 같은 자리에
+  // 떠 있고, z-index만 충분히 크면(9999) 스크림 위에 뜨는 원래 목적도 그대로
+  // 만족한다 — DOM 위치 자체는 그대로 `modal` prop 안에 둬도 무방하지만(fixed는
+  // 어차피 위치 계산에 DOM 위치를 안 씀), 의미상 더 명확하도록 그대로 유지한다. */
   const chipBar = (
     <div
       style={{
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 20,
+        position: 'fixed',
+        top: 8,
+        left: 8,
+        maxWidth: 300,
+        zIndex: 9999,
         display: 'flex',
         flexWrap: 'wrap',
         alignItems: 'center',
         gap: 6,
         padding: '8px 12px',
         background: '#000',
-        borderTop: '2px dashed #ff9800',
+        border: '2px dashed #ff9800',
+        borderRadius: 8,
         fontFamily: 'system-ui, sans-serif',
       }}
     >
