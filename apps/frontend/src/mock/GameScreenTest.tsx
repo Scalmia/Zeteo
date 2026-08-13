@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ClientEvent, GameState } from '@zeteo/shared-types';
 import { Modal } from '../components/Modal';
 import { MainScreen } from '../screens/MainScreen';
@@ -36,6 +36,40 @@ export function GameScreenTest() {
   const [baseState, setBaseState] = useState<GameState>(MOCK_STATES['debate-voted']);
   const [popupKey, setPopupKey] = useState<string | null>(null);
   const [popupState, setPopupState] = useState<GameState | null>(null);
+
+  // 8/13: 팝업 스크롤 고정(zt-chat-log-wrap)·새 메시지 알림 핀(zt-chat-newmsg)을
+  // 눈으로 직접 켜보고 테스트하기 위한 mock 전용 도구 — 참가자가 돌아가며 "1·2·3·4"를
+  // 세는 채팅을 5초마다 하나씩 자동으로 채팅 로그에 추가한다. 기본은 꺼짐(off) —
+  // 로그가 계속 쌓이면 다른 mock 조작(칩 전환 등)을 하기 불편하므로, 테스트할 때만
+  // 켜고 충분히 쌓이면 꺼서 멈출 수 있게 토글로 뒀다. 배포 코드 경로(GameScreen.tsx)엔
+  // 안 쓰이는 mock 전용 기능이라 여기(GameScreenTest.tsx)에만 둔다.
+  const [autoChat, setAutoChat] = useState(false);
+  const autoChatCountRef = useRef(0);
+
+  useEffect(() => {
+    if (!autoChat) return;
+    const interval = setInterval(() => {
+      autoChatCountRef.current += 1;
+      const n = autoChatCountRef.current;
+      setBaseState((s) => {
+        const speaker = s.players[(n - 1) % s.players.length];
+        return {
+          ...s,
+          messages: [
+            ...s.messages,
+            {
+              id: `autochat${Date.now()}_${n}`,
+              speakerId: speaker.id,
+              text: String(((n - 1) % 4) + 1),
+              phase: s.phase,
+              at: Date.now(),
+            },
+          ],
+        };
+      });
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [autoChat]);
 
   const openPopup = (key: string) => {
     setPopupKey(key);
@@ -103,6 +137,25 @@ export function GameScreenTest() {
       <span style={{ fontSize: 11, fontWeight: 700, color: '#ff9800', marginRight: 4 }}>
         MOCK 테스트 · 팝업 띄우기
       </span>
+      {/* 8/13: 채팅 팝업 스크롤 고정·새 메시지 알림 핀 테스트용 — 켜면 참가자가
+          돌아가며 1·2·3·4를 세는 채팅이 5초마다 하나씩 쌓인다. 팝업 칩과 헷갈리지
+          않게 색을 초록 계열로 구분했다. */}
+      <button
+        type="button"
+        onClick={() => setAutoChat((v) => !v)}
+        style={{
+          padding: '4px 10px',
+          fontSize: 12,
+          fontWeight: 600,
+          color: autoChat ? '#000' : '#4caf50',
+          background: autoChat ? '#4caf50' : 'transparent',
+          border: '1px solid #4caf50',
+          borderRadius: 999,
+          cursor: 'pointer',
+        }}
+      >
+        {autoChat ? '채팅 자동생성 중지' : '채팅 자동생성 시작 (5초마다 1·2·3·4)'}
+      </button>
       <button
         type="button"
         onClick={closePopup}
