@@ -65,6 +65,7 @@ export interface GameState {
   lifeVoteCounts: { kill: number; spare: number }; // S4 생사 투표 집계
   revealedRole: Role | null; // S5 처형자 역할 공개
   liarGameResult: 'liarWin' | 'citizenWin' | null; // S5 라이어 게임 승패
+  guessWord: string | null; // S7 라이어가 제출한 제시어
   botVoteCounts: { voted: number; total: number }; // S6 익명 투표 진행도
   botVoteCorrectCount: number; // S7 봇을 맞힌 인원 수 (result 이전엔 0)
   revealedBotId: string | null; // S7 봇이었던 사람 (result 이전엔 null)

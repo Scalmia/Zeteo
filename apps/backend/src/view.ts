@@ -71,7 +71,8 @@ export async function buildGameStateFor(room: RoomInternalState, playerId: strin
     // ★ 변경: 게임이 끝나기 전(result·survey 이전)엔 무조건 null로 감춤
     // (내부적으론 이미 계산돼 있어도 노출 안 함)
     liarGameResult: room.liarGameResult,
-
+    guessedWord: isPostGame ? room.guessedWord : null,
+    
     // result·survey에서만 실제 값
     // botVote 진행도는 스포일러가 아니라 언제나 실제 값 (투표 안 한 phase에선 room.botVotes가
     // 비어있으니 자연스럽게 voted:0으로 나옴)

@@ -327,6 +327,7 @@ async function maybeTriggerBot(room: RoomInternalState) {
   }
   if (action.t === 'guessWord') {
     const correct = action.word.trim() === room.word.trim();
+    room.guessedWord = action.word.trim();
     room.pendingLiarGameResult = correct ? 'liarWin' : 'citizenWin';
     clearPhaseTimer(room.roomId);
     advancePhase(room);
@@ -496,6 +497,7 @@ io.on('connection', (socket) => {
             throw new Error('라이어만 제시어를 추측할 수 있습니다');
           clearPhaseTimer(room.roomId);
           const correct = action.word.trim() === room.word.trim();
+          room.guessedWord = action.word.trim(); 
           room.pendingLiarGameResult = correct ? 'liarWin' : 'citizenWin';
           room.liarGameResult = room.pendingLiarGameResult; // 제출 즉시 공개
           advancePhase(room);
