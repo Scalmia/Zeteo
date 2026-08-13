@@ -14,7 +14,7 @@
     "format:check": "prettier --check \"**/*.{ts,tsx,css,json,md}\""
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "license": "ISC",
   "type": "commonjs",
