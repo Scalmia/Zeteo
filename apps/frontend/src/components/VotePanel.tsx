@@ -17,6 +17,11 @@ interface Props {
   mode?: 'vote' | 'turn';
   /** mode==='turn'일 때만 쓴다 — 현재 발언 차례인 참가자 id (GameState.currentTurn). */
   currentTurn?: string | null;
+  /** 8/13: 투표 패널을 토론(debate) 페이즈가 아닌 다른 페이즈에서도 계속 띄워두기로
+   *  하면서(요청: "페이즈가 바뀌어도 항상 보이게") 생긴 구분 — mode='vote'라도 지금이
+   *  실제 투표 시점이 아니면 클릭이 먹으면 안 된다(엉뚱한 시점에 vote 이벤트가 나가면
+   *  안 됨). 그래프·내 선택 표시 등 보여주는 내용은 그대로 두고 클릭만 막는다. */
+  readOnly?: boolean;
 }
 
 export function VotePanel({
@@ -27,8 +32,10 @@ export function VotePanel({
   onVote,
   mode = 'vote',
   currentTurn = null,
+  readOnly = false,
 }: Props) {
   const isTurnMode = mode === 'turn';
+  const isDisabled = isTurnMode || readOnly;
   // 정렬하지 않는다 — 표(또는 발언 순서)가 바뀔 때마다 목록이 튀면 클릭·시선 대상이 흔들린다.
   // 자기 자신도 후보에서 빼지 않는다 (룰북: 자기 자신에게 투표 가능, 제한 없음).
 
@@ -59,8 +66,8 @@ export function VotePanel({
                       ? 'zt-vote-row is-mine'
                       : 'zt-vote-row'
                 }
-                onClick={isTurnMode ? undefined : () => onVote(p.id)}
-                disabled={isTurnMode}
+                onClick={isDisabled ? undefined : () => onVote(p.id)}
+                disabled={isDisabled}
               >
                 <span className="zt-vote-name">
                   {/* isAlive 기반 dead 표시는 넣지 않는다 — 이 게임엔 "토론 도중 탈락한
@@ -98,8 +105,8 @@ export function VotePanel({
               className={
                 myVote === null ? 'zt-vote-row zt-vote-row-abstain is-mine' : 'zt-vote-row zt-vote-row-abstain'
               }
-              onClick={() => onVote(null)}
-              disabled={myVote === null}
+              onClick={readOnly ? undefined : () => onVote(null)}
+              disabled={myVote === null || readOnly}
             >
               <span className="zt-vote-name">기권</span>
             </button>

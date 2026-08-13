@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { ClientEvent, GameState } from '@zeteo/shared-types';
 import { ChatInputBar, ChatLog } from '../components/Chat';
@@ -49,12 +49,21 @@ export function MainScreen({
 
   // 폰 폭(≤768px)에서 투표 패널을 여닫는 하단 시트 상태. 데스크톱에선 game.css가
   // is-collapsed를 무시하고 항상 펼쳐 보이므로 이 값은 폰에서만 의미가 있다.
-  // 기본값 true — 접어야 할 이유(가시성)가 생기기 전까지는 정보를 숨기지 않는다.
   //
   // ⚠️ 기획서 v3.0 D3: "세로로 이어붙이는 방식은 배제한다"(채팅→투표→입력창 순서로
   // 쭉 쌓는 것). 이 상태 없이 CSS만으로 세로 배치하면 정확히 그 배제 대상이 된다 —
   // 시안 1이 검증한 "하단 시트(접이식)"로 만들어야 스펙이 허용한 두 후보 중 하나가 된다.
-  const [voteOpen, setVoteOpen] = useState(true);
+  //
+  // 8/13: 투표 패널·요약탭을 전 페이즈에서 항상 띄워두기로 하면서(요청: "페이즈가
+  // 바뀌어도 항상 보이게"), 폰에서는 대신 "투표시(토론)에만 저절로 열리고, 다른
+  // 페이즈에선 접힌 채로 시작하되 탭을 눌러 볼 수는 있게" 하기로 함 — isDebate가
+  // 바뀔 때만 자동으로 열고/닫는다. isDebate가 그대로인 동안은(같은 토론이 계속되는
+  // 중이든, 다른 비-토론 페이즈끼리 넘어가는 중이든) 사용자가 직접 누른 상태를
+  // 존중해 이 effect가 되돌리지 않는다.
+  const [voteOpen, setVoteOpen] = useState(isDebate);
+  useEffect(() => {
+    setVoteOpen(isDebate);
+  }, [isDebate]);
 
   const isMyTurn = state.currentTurn === state.myId;
   const turnName = state.players.find((p) => p.id === state.currentTurn)?.label ?? '';
@@ -120,56 +129,61 @@ export function MainScreen({
         {/* 8/12: 파트 D가 묘사 페이즈용 참가자 칩 목록을 새로 만들려던 걸 검토 후
             폐기 — 대신 이 투표 패널을 묘사 페이즈에도 그대로 띄우고 mode='turn'으로
             발언 순서 표시로 바꿔 쓴다(칩 목록 컴포넌트를 새로 안 만듦, 자세한 배경은
-            [[zeteo-partc]] 참고). isDebate 때와 똑같이 여닫이 시트를 공유한다. */}
-        {(isDebate || isDescribe) && (
-          <aside
-            id="zt-vote-panel"
-            className={voteOpen ? 'zt-side-wide' : 'zt-side-wide is-collapsed'}
-          >
-            <VotePanel
-              players={state.players}
-              voteCounts={state.voteCounts}
-              myVote={state.myVote}
-              myId={state.myId}
-              onVote={(targetId) => onEvent({ t: 'vote', targetId })}
-              mode={isDescribe ? 'turn' : 'vote'}
-              currentTurn={state.currentTurn}
-            />
-          </aside>
-        )}
+            [[zeteo-partc]] 참고).
+            8/13: describe·debate 두 페이즈로만 좁혀뒀던 걸 전 페이즈로 넓혔다(요청:
+            "페이즈가 바뀌어도 투표창이 항상 보이게") — 원래 설계 의도(GameScreen.tsx
+            주석: "투표 패널·입력창은 팝업 중에도 계속 보여야 한다")와도 맞다. 토론이
+            아닌 페이즈에선 마지막으로 반영된 투표 현황을 읽기 전용으로 계속 보여준다
+            (readOnly, 아래 참고) — 클릭해서 새로 투표하는 건 토론 페이즈에서만. */}
+        <aside
+          id="zt-vote-panel"
+          className={voteOpen ? 'zt-side-wide' : 'zt-side-wide is-collapsed'}
+        >
+          <VotePanel
+            players={state.players}
+            voteCounts={state.voteCounts}
+            myVote={state.myVote}
+            myId={state.myId}
+            onVote={(targetId) => onEvent({ t: 'vote', targetId })}
+            mode={isDescribe ? 'turn' : 'vote'}
+            currentTurn={state.currentTurn}
+            readOnly={!isDebate}
+          />
+        </aside>
       </div>
 
       {/* 여닫이 손잡이 겸 상시 요약탭 — 시안 1은 폰뿐 아니라 데스크톱에서도 항상
           떠 있다(데스크톱은 투표 패널이 이미 펼쳐져 있어 여닫을 게 없을 뿐, 탭
           자체는 계속 보인다). 화면 폭 전체를 쓰는 이유는 위 컴포넌트 주석 참고.
-          묘사 페이즈엔 문구를 발언 순서 기준으로 바꾼다(8/12). */}
-      {(isDebate || isDescribe) && (
-        <button
-          type="button"
-          className="zt-vote-bar"
-          aria-expanded={voteOpen}
-          aria-controls="zt-vote-panel"
-          onClick={() => setVoteOpen((open) => !open)}
-        >
-          <span className="zt-vote-bar-label">
-            {isDescribe ? (
-              <>발언 순서 · {turnName || '없음'}님 묘사 중</>
-            ) : (
-              <>
-                투표 현황 · 내 선택{' '}
-                {state.myVote
-                  ? (state.players.find((p) => p.id === state.myVote)?.label ?? state.myVote)
-                  : '없음'}
-              </>
-            )}
-          </span>
-          {/* 시안 1의 .bar .t — 요약탭 우측, 여닫이 화살표 바로 왼쪽(8/11) */}
-          <Timer deadlineAt={state.deadlineAt} />
-          <span className="zt-vote-bar-chev" aria-hidden="true">
-            {voteOpen ? '▼' : '▲'}
-          </span>
-        </button>
-      )}
+          묘사 페이즈엔 문구를 발언 순서 기준으로 바꾼다(8/12).
+          8/13: 위 투표 패널과 같은 이유로 describe·debate 제한을 없애 전 페이즈에서
+          계속 보이게 했다 — 폰에서 눌러 여닫는 대상 자체(zt-vote-panel)가 이제 항상
+          DOM에 있으므로 탭도 항상 같이 있어야 한다. */}
+      <button
+        type="button"
+        className="zt-vote-bar"
+        aria-expanded={voteOpen}
+        aria-controls="zt-vote-panel"
+        onClick={() => setVoteOpen((open) => !open)}
+      >
+        <span className="zt-vote-bar-label">
+          {isDescribe ? (
+            <>발언 순서 · {turnName || '없음'}님 묘사 중</>
+          ) : (
+            <>
+              투표 현황 · 내 선택{' '}
+              {state.myVote
+                ? (state.players.find((p) => p.id === state.myVote)?.label ?? state.myVote)
+                : '없음'}
+            </>
+          )}
+        </span>
+        {/* 시안 1의 .bar .t — 요약탭 우측, 여닫이 화살표 바로 왼쪽(8/11) */}
+        <Timer deadlineAt={state.deadlineAt} />
+        <span className="zt-vote-bar-chev" aria-hidden="true">
+          {voteOpen ? '▼' : '▲'}
+        </span>
+      </button>
 
       <ChatInputBar
         locked={locked}
