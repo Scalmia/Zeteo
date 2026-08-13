@@ -13,12 +13,6 @@
 
 body {
   filter: url(#zt-noise);
-  animation: zt-bg-pulse 15s ease-in-out infinite;
-}
-
-@keyframes zt-bg-pulse {
-  0%, 100% { filter: url(#zt-noise) brightness(1); }
-  50% { filter: url(#zt-noise) brightness(1.05) saturate(1.1); }
 }
 
 .moonlight {
