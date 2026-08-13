@@ -337,8 +337,22 @@
 }
 .zt-msg {
   display: flex;
+  align-items: flex-start;
   gap: var(--space-2, 8px);
   padding: 2px 0;
+}
+/* 8/13: 말풍선 스타일 — 시안 1(Zeteo_와이어프레임_시안.html)의 .bub를 그대로 옮김.
+ * 시스템 메시지(is-system)는 이미 라운드 경계 띠로 따로 스타일이 있어 제외한다.
+ * --color-surface가 gradient라 color-mix에 못 들어가므로([[zeteo-partc]] 함정
+ * 참고) 기본 배경은 var(--color-surface)를 그대로 쓰고, 내 메시지 강조는 아래
+ * .is-mine에서 반투명 accent 레이어를 얹는 방식(.zt-side-wide와 동일 패턴)으로 낸다. */
+.zt-msg:not(.is-system) .zt-msg-text {
+  max-width: 86%;
+  padding: 7px 11px;
+  overflow-wrap: break-word;
+  background: var(--color-surface, #1a1a22);
+  border: 1px solid var(--color-line, #2a2a36);
+  border-radius: var(--radius, 9px);
 }
 /* 8/12: 파트 D가 이전에 제안했던 "내 메시지 우측 정렬" — 실제 diff는 못 받았지만
  * (요청 자체는 유효해서) 여기서 자체 구현한다. row-reverse로 순서만 뒤집으면
@@ -347,6 +361,12 @@
 .zt-msg.is-mine {
   flex-direction: row-reverse;
   text-align: right;
+}
+.zt-msg.is-mine .zt-msg-text {
+  background:
+    linear-gradient(color-mix(in srgb, var(--color-accent) 26%, transparent), color-mix(in srgb, var(--color-accent) 26%, transparent)),
+    var(--color-surface, #1a1a22);
+  border-color: color-mix(in srgb, var(--color-accent) 50%, transparent);
 }
 /* 시스템 메시지가 라운드 경계선 역할을 한다.
  * 로그를 지우지 않고 누적하므로, 이 띠가 "여기부터 2라운드"를 만든다.
