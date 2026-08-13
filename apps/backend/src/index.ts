@@ -410,7 +410,7 @@ io.on('connection', (socket) => {
           if (!room) {
             room = createRoom(action.roomId);
             // 테스트용: 방 새로 만들어질 때 봇 1명 자동 참가 + 자동 ready
-            const bot = joinRoom(action.roomId, '테스트봇', true);
+            const bot = joinRoom(action.roomId, 'Zeteo', true);
             markReady(room, bot.id);
           }
           const player = joinRoom(action.roomId, action.name);
