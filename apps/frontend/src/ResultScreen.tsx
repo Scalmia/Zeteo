@@ -8,8 +8,8 @@ interface ResultScreenProps extends ResultScreenState {
 
 const TAG_CLASS: Record<ResultPlayer["tag"], string> = {
   봇: "tag-accent",
-  라이어: "tag-neutral",
-  시민: "tag-outline"
+  라이어: "tag-outline",
+  시민: "tag-neutral"
 };
 
 export default function ResultScreen({
