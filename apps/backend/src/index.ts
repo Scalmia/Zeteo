@@ -5,6 +5,7 @@ import { Server } from 'socket.io';
 import { pickRandomCategoryAndWord } from './db/content';
 import { startGame } from './db/game';
 import { logMessage, logVote } from './db/log';
+import { sendLogToDiscord } from './db/webhook';  
 import { finalizeGame } from './db/game';
 import { submitSurveyResponse } from './db/survey';
 import path from 'path';
@@ -17,6 +18,7 @@ import {
   markReady,
   isEveryoneReady,
   assignRoles,
+  assignLabels,
   removePlayerFromLobby,
   RoomInternalState,
 } from './room';
@@ -106,8 +108,39 @@ function logTranscript(room: RoomInternalState) {
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const base = path.join(LOG_DIR, `${room.roomId}_${stamp}`);
 
-    const mdLines = [
+    const bot = room.players.find((p) => p.isBot);
+    const liar = room.players.find((p) => p.role === 'liar');
+
+    // ── 요약 헤더 ──
+    const summaryLines = [
       `# [${room.roomId}] 대화 로그`,
+      '',
+      `- 주제: ${room.category} / 제시어: ${room.word}`,
+      `- 봇: ${bot ? describe(bot.id) : '?'}`,
+      `- 라이어: ${liar ? describe(liar.id) : '?'}`,
+      `- 라이어의 답: ${room.guessWord ?? '미제출'}`,
+      `- 결과: ${room.liarGameResult ?? '미확정'}`,
+      `- 총 라운드: ${room.round}`,
+      '',
+    ];
+
+    // ── 봇 지목 표 ──
+    const botVoteLines = [
+      '## 봇 지목',
+      '',
+      '| 투표자 | 지목 | 적중 |',
+      '|---|---|---|',
+      ...Object.entries(room.botVotes).map(([voterId, targetId]) => {
+        const targetLabel = room.players.find((p) => p.id === targetId)?.label ?? targetId;
+        const hit = room.players.find((p) => p.id === targetId)?.isBot ? 'O' : 'X';
+        return `| ${describe(voterId)} | ${targetLabel} | ${hit} |`;
+      }),
+      '',
+    ];
+
+    // ── 대화 표 ──
+    const chatLines = [
+      '## 대화 로그',
       '',
       '| 시간 | 단계 | 발언자 | 내용 |',
       '|---|---|---|---|',
@@ -116,9 +149,13 @@ function logTranscript(room: RoomInternalState) {
         return `| ${time} | ${m.phase} | ${describe(m.speakerId)} | ${m.text.replace(/\|/g, '\\|')} |`;
       }),
     ];
-    fs.writeFileSync(`${base}.md`, mdLines.join('\n') + '\n', 'utf-8');
 
+    const mdLines = [...summaryLines, ...botVoteLines, ...chatLines];
+
+    fs.writeFileSync(`${base}.md`, mdLines.join('\n') + '\n', 'utf-8');
     console.log(`[${room.roomId}] 대화 로그 파일 저장: ${base}.md`);
+
+    void sendLogToDiscord(room, mdLines.join('\n'));   // ← 추가, void로 fire-and-forget
   } catch (e) {
     console.error(`[${room.roomId}] 대화 로그 파일 저장 실패:`, e);
   }
@@ -136,6 +173,7 @@ function advancePhase(room: RoomInternalState) {
   if (room.phase === 'result') {
     logTranscript(room);
     void finalizeGame(room);
+    room.readyIds.clear();
   }
 
   enterPhase(room);
@@ -170,8 +208,7 @@ function skipDescribeTurn(room: RoomInternalState) {
 // (kill이 남은 인원 전부 spare로 던져도 못 뒤집을 만큼 앞섰거나, 반대로 spare가
 // 남은 인원 전부 kill로 던져도 방어되는 경우) 이럴 땐 전원 투표를 기다리지 않는다.
 function isLifeVoteDecided(room: RoomInternalState): boolean {
-  const alive = room.players.filter((p) => p.isAlive);
-  let kill = 0;
+  const alive = room.players.filter((p) => p.isAlive && p.id !== room.accusedId);  let kill = 0;
   let spare = 0;
   for (const p of alive) {
     const v = room.lifeVotes[p.id];
@@ -187,7 +224,10 @@ function isLifeVoteDecided(room: RoomInternalState): boolean {
 function isVotingComplete(room: RoomInternalState): boolean {
   const alive = room.players.filter((p) => p.isAlive);
   if (room.phase === 'debate') return alive.every((p) => room.votes[p.id] !== undefined);
-  if (room.phase === 'lifeVote') return alive.every((p) => room.lifeVotes[p.id] !== undefined);
+  if (room.phase === 'lifeVote') {
+    const eligible = alive.filter((p) => p.id !== room.accusedId);
+    return eligible.every((p) => room.lifeVotes[p.id] !== undefined);
+  }
   if (room.phase === 'botVote') {
     const humans = room.players.filter((p) => !p.isBot); // 봇 제외, 죽은 사람도 포함
     return humans.every((p) => room.botVotes[p.id] !== undefined);
@@ -238,6 +278,7 @@ async function maybeTriggerBot(room: RoomInternalState) {
   } else if (room.phase === 'finalDefense') {
     // 피고인이 아니어도 질의 형태로 자유 채팅에 참여할 수 있어야 한다
   } else if (room.phase === 'lifeVote') {
+    if (bot.id === room.accusedId) return;
     if (room.lifeVotes[bot.id] !== undefined) return;
   } else if (room.phase === 'guessWord') {
     if (bot.id !== room.accusedId) return;
@@ -327,7 +368,7 @@ async function maybeTriggerBot(room: RoomInternalState) {
   }
   if (action.t === 'guessWord') {
     const correct = action.word.trim() === room.word.trim();
-    room.guessedWord = action.word.trim();
+    room.guessWord = action.word.trim();
     room.pendingLiarGameResult = correct ? 'liarWin' : 'citizenWin';
     clearPhaseTimer(room.roomId);
     advancePhase(room);
@@ -413,14 +454,15 @@ io.on('connection', (socket) => {
           const room = getRoom(meta.roomId);
           if (!room) throw new Error('room not found');
           if (room.phase === 'result') {
-            advancePhase(room); // result → survey 전이 (결과 화면 "다음" 버튼)
-            return;
+            room.surveyedIds.add(meta.playerId); // 이 사람만 개인적으로 survey로 이동
+            break;           
           }
 
           markReady(room, meta.playerId);
 
           if (room.phase === 'lobby' && isEveryoneReady(room)) {
             assignRoles(room);
+            assignLabels(room);
             const { category, word } = await pickRandomCategoryAndWord();
             room.category = category;
             room.word = word;
@@ -451,11 +493,6 @@ io.on('connection', (socket) => {
             void logVote(room, 'liar_vote', voter.label, target.label);
           }
 
-          if (isVotingComplete(room)) {
-            clearPhaseTimer(room.roomId);
-            advancePhase(room);
-            return;
-          }
           break;
         }
         case 'lifeVote': {
@@ -464,6 +501,9 @@ io.on('connection', (socket) => {
           const room = getRoom(meta.roomId);
           if (!room) throw new Error('room not found');
           if (room.phase !== 'lifeVote') throw new Error('지금은 생사 투표 단계가 아닙니다');
+          if (meta.playerId === room.accusedId) {
+            throw new Error('본인에 대한 생사 투표에는 참여할 수 없습니다');
+          }
           if (room.lifeVotes[meta.playerId] !== undefined) {
             throw new Error('이미 투표했습니다');
           }
@@ -497,7 +537,7 @@ io.on('connection', (socket) => {
             throw new Error('라이어만 제시어를 추측할 수 있습니다');
           clearPhaseTimer(room.roomId);
           const correct = action.word.trim() === room.word.trim();
-          room.guessedWord = action.word.trim(); 
+          room.guessWord = action.word.trim(); 
           room.pendingLiarGameResult = correct ? 'liarWin' : 'citizenWin';
           room.liarGameResult = room.pendingLiarGameResult; // 제출 즉시 공개
           advancePhase(room);
@@ -526,8 +566,7 @@ io.on('connection', (socket) => {
           if (!meta) throw new Error('아직 방에 입장하지 않았습니다');
           const room = getRoom(meta.roomId);
           if (!room) throw new Error('room not found');
-          if (room.phase !== 'survey') throw new Error('지금은 설문 단계가 아닙니다');
-
+          if (!room.surveyedIds.has(meta.playerId)) throw new Error('지금은 설문 단계가 아닙니다');
           await submitSurveyResponse(room, meta.playerId, action.reasonIds, action.freeText);
 
           // 설문 제출 = 게임 완전히 끝. disconnect를 기다리지 않고 제출 시점에 바로
@@ -566,8 +605,8 @@ io.on('connection', (socket) => {
     }
 
     if (room.phase === 'survey') {
-      // 게임이 완전히 끝난 뒤라 "중도 탈락 없음" 원칙과 무관. 다들 나가서
-      // 방이 비면 정리해서 메모리에 안 남게 한다.
+      // 이 사람은 개인적으로 이미 result 확인을 마치고 survey로 넘어간 뒤라
+      // "중도 탈락 없음" 원칙과 무관. 나가면 정리해서 메모리에 안 남게 한다.
       removePlayerFromLobby(meta.roomId, meta.playerId);
     }
     // 그 외(게임 진행 중)엔 기획서 원칙대로 그대로 둠 — 중도 탈락 없음

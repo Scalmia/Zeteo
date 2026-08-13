@@ -19,11 +19,13 @@ export interface RoomInternalState {
   revealedRole: Role | null; // S5 처형자 역할 공개
   liarGameResult: 'liarWin' | 'citizenWin' | null; // S5 라이어게임 승패
   pendingLiarGameResult: 'liarWin' | 'citizenWin' | null; // 확정된 승패를 result 진입 전까지 숨겨두는 내부 버퍼
-  guessedWord: string | null;   // ← 추가: 라이어가 제출한 제시어 추측값
+  guess
+  Word: string | null;   // ← 추가: 라이어가 제출한 제시어 추측값
   lifeVoteDecided: boolean; // 생사투표 결과가 이미 확정돼서 3초 타이머가 걸린 상태인지
   createdAt: number;
   readyIds: Set<string>;
   dbGameId: string | null;
+  surveyedIds: Set<string>;
 }
 
 const rooms = new Map<string, RoomInternalState>();
@@ -47,11 +49,12 @@ export function createRoom(roomId: string): RoomInternalState {
     revealedRole: null,
     liarGameResult: null,
     pendingLiarGameResult: null,
-    guessedWord: null,
+    guessWord: null,
     createdAt: Date.now(),
     readyIds: new Set(),
     lifeVoteDecided: false,
     dbGameId: null,
+    surveyedIds: new Set(),
   };
   rooms.set(roomId, room);
   return room;
@@ -98,7 +101,7 @@ export function joinRoom(roomId: string, name: string, isBot = false): InternalP
     isAlive: true,
     isBot,
     role: 'citizen',
-    label: assignLabel(room),
+    label: '',
   };
   room.players.push(player);
   shufflePlayers(room);
@@ -111,6 +114,11 @@ export function assignRoles(room: RoomInternalState) {
   if (!liar) return; // 참가자가 없으면 아무것도 안 함
   room.players.forEach((p) => (p.role = 'citizen'));
   liar.role = 'liar';
+}
+export function assignLabels(room: RoomInternalState) {
+  room.players.forEach((p) => {
+    p.label = assignLabel(room);
+  });
 }
 
 // A-1: 봇이 항상 입장 순서(=배열 0번)에 고정되던 문제 수정.

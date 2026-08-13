@@ -39,17 +39,18 @@ export async function buildGameStateFor(room: RoomInternalState, playerId: strin
   // 그러면 방금 공개됐던 봇 정체/라이어/제시어/승패가 설문 화면에서 다시 숨겨지는
   // 회귀가 생기므로, "결과가 이미 공개된 상태"를 result·survey 둘 다로 정의한다.
   const isPostGame = room.phase === 'result' || room.phase === 'survey';
-
+  const myPhase = room.phase === 'result' && room.surveyedIds.has(playerId) ? 'survey' : room.phase;
   const publicPlayers: PublicPlayer[] = room.players.map((p) => ({
     id: p.id,
     label: p.label,
     isAlive: p.isAlive,
     isReady: room.readyIds.has(p.id),
+    name: room.phase === 'lobby' ? p.name : null,
   }));
 
   return {
     roomId: room.roomId,
-    phase: room.phase,
+    phase: phase,
     players: publicPlayers,
     category: room.category,
     // ★ A-4 수정: 게임이 끝난 뒤(result·survey)엔 라이어에게도 제시어를 공개해야 한다
@@ -71,8 +72,8 @@ export async function buildGameStateFor(room: RoomInternalState, playerId: strin
     // ★ 변경: 게임이 끝나기 전(result·survey 이전)엔 무조건 null로 감춤
     // (내부적으론 이미 계산돼 있어도 노출 안 함)
     liarGameResult: room.liarGameResult,
-    guessedWord: isPostGame ? room.guessedWord : null,
-    
+    guessWord: isPostGame ? room.guessWord : null,
+
     // result·survey에서만 실제 값
     // botVote 진행도는 스포일러가 아니라 언제나 실제 값 (투표 안 한 phase에선 room.botVotes가
     // 비어있으니 자연스럽게 voted:0으로 나옴)
@@ -93,6 +94,6 @@ export async function buildGameStateFor(room: RoomInternalState, playerId: strin
     botVoteResults: isPostGame ? { ...room.botVotes } : null,
 
     // 설문 선택지는 survey 화면에서만 필요하다 (result·survey 공통이 아니라 survey 단독).
-    reasons: room.phase === 'survey' ? await fetchSurveyReasons() : [],
+    reasons: myPhase === 'survey' ? await fetchSurveyReasons() : [],
   };
 }
