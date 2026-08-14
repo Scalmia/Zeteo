@@ -65,6 +65,29 @@ export function MainScreen({
     setVoteOpen(isDebate);
   }, [isDebate]);
 
+  // 전체화면 버튼(8/14) — 모바일 주소창·하단 메뉴바가 위아래를 가리는 문제 대응.
+  // document.fullscreenEnabled 로 지원 여부를 확인해, 지원 안 하는 브라우저(대표적으로
+  // iOS Safari — video 제외 Fullscreen API 자체를 지원하지 않는다, game.css 8/14 주석
+  // 참고)에서는 버튼을 아예 렌더링하지 않는다. fullscreenchange 이벤트로 아이콘 상태를
+  // 실제 전체화면 여부와 항상 맞춘다(다른 방법으로 전체화면이 풀렸을 때도 동기화되도록).
+  const fullscreenSupported = typeof document !== 'undefined' && document.fullscreenEnabled;
+  const [isFullscreen, setIsFullscreen] = useState(
+    () => typeof document !== 'undefined' && !!document.fullscreenElement,
+  );
+  useEffect(() => {
+    if (!fullscreenSupported) return;
+    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onChange);
+    return () => document.removeEventListener('fullscreenchange', onChange);
+  }, [fullscreenSupported]);
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen();
+    } else {
+      document.documentElement.requestFullscreen().catch(() => {});
+    }
+  };
+
   const isMyTurn = state.currentTurn === state.myId;
   const turnName = state.players.find((p) => p.id === state.currentTurn)?.label ?? '';
   // 진행도: turnOrder 안에서 현재 차례가 몇 번째인가. 계약에 currentTurnIndex 는 없지만
@@ -113,6 +136,32 @@ export function MainScreen({
         </span>
 
         <Timer deadlineAt={state.deadlineAt} />
+
+        {fullscreenSupported && (
+          <button
+            type="button"
+            className="zt-fullscreen-btn"
+            onClick={toggleFullscreen}
+            aria-label={isFullscreen ? '전체화면 종료' : '전체화면'}
+            title={isFullscreen ? '전체화면 종료' : '전체화면'}
+          >
+            {isFullscreen ? (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M8 3v3a2 2 0 0 1-2 2H3" />
+                <path d="M21 8h-3a2 2 0 0 1-2-2V3" />
+                <path d="M3 16h3a2 2 0 0 1 2 2v3" />
+                <path d="M16 21v-3a2 2 0 0 1 2-2h3" />
+              </svg>
+            ) : (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                <path d="M21 8V5a2 2 0 0 0-2-2h-3" />
+                <path d="M3 16v3a2 2 0 0 0 2 2h3" />
+                <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+              </svg>
+            )}
+          </button>
+        )}
       </header>
 
       {isFinalDefense && (

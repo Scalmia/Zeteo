@@ -88,8 +88,18 @@
  * 되풀이됨). `dvh`(동적 뷰포트 높이) 단위는 주소창 상태가 바뀔 때마다 실시간
  * 재계산되어 이 불일치가 없다 — 구형 브라우저 대비 `vh`를 먼저 두고 `dvh`를
  * 뒤에 덮어써서, 지원 안 하는 브라우저는 기존 `vh`로 자연히 폴백한다(PC는 주소창
- * 토글이 없어 원래도 문제가 안 됐지만 dvh든 vh든 결과가 같다). */
+ * 토글이 없어 원래도 문제가 안 됐지만 dvh든 vh든 결과가 같다).
+ *
+ * 8/14: 위 dvh 수정과 별개로 스크롤바가 남아 있던 원인 — 이 규칙은 height만 덮어쓰고,
+ * .zt-screen 기본 규칙의 min-height:100vh(24번째 줄)는 그대로 남아 있었다. min-height는
+ * "바닥"이라 height:100dvh가 더 작아지면(모바일 키보드가 뜰 때 dvh가 vh보다 훨씬 크게
+ * 줄어든다 — 주소창 접힘보다 폭이 크다) min-height:100vh가 그 작은 값을 덮어씌워
+ * 화면이 실제 보이는 영역보다 커진다 — 그만큼 body가 늘어나 페이지 전체 스크롤바가
+ * 생긴다(채팅 로그 안쪽 스크롤과는 별개로). 박스모델 격리 테스트로 재현·확인:
+ * min-height:844px + height:400px → 계산된 height가 844px로 나옴(min-height가 이김),
+ * 여기 min-height:0을 추가하면 400px로 정확히 줄어드는 것도 같은 테스트로 확인. */
 .zt-screen:has(.zt-stage) {
+  min-height: 0;
   height: 100vh;
   height: 100dvh;
 }
@@ -155,6 +165,34 @@
   font-variant-numeric: tabular-nums;
   font-size: var(--text-emphasis, 28px); /* was 1.5rem(24px) 리터럴 */
   font-weight: 700;
+}
+
+/* 전체화면 버튼 — 헤더 맨 우측(zt-word의 margin-left:auto가 자신+뒤따르는 형제를
+ * 전부 오른쪽으로 미는데, 이 버튼을 Timer 뒤 마지막 자식으로 두면 그 흐름에
+ * 자연히 묶여 별도 margin 없이도 맨 끝에 붙는다). 모바일 브라우저 상단 주소창·
+ * 하단 메뉴바가 게임 화면 위아래를 가리는 문제 대응(8/14) — 클릭 시 문서 전체를
+ * 브라우저 전체화면으로 전환해 그 바들을 가린다.
+ * ⚠️ iOS Safari는 video 요소를 제외하면 Fullscreen API 자체를 지원하지 않는다
+ * (애플 정책, 2025년 기준도 동일 — WebKit 표준화 이슈에 계속 열려 있음). 아이폰에서는
+ * 이 버튼을 눌러도 아무 효과가 없으므로, MainScreen.tsx가 document.fullscreenEnabled로
+ * 지원 여부를 확인해 지원 안 하면 버튼 자체를 렌더링하지 않는다 — 안 눌리는 버튼을
+ * 보여주지 않기 위함. */
+.zt-fullscreen-btn {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  color: var(--color-text, #e8e8ee);
+  background: transparent;
+  border: 1px solid var(--color-line, #2a2a36);
+  border-radius: var(--radius, 9px);
+  cursor: pointer;
+}
+.zt-fullscreen-btn:hover {
+  border-color: var(--color-accent, #ff2733);
 }
 
 /* 묘사 진행도 — 좌측 참가자 목록을 없애면서 발언 순서·진행도가 갈 곳이 여기 하나뿐이다.
@@ -419,6 +457,13 @@
   min-width: 0;
   min-height: 32px; /* 8/12: 공용 .input 기본(36px)보다 살짝 낮춰 버튼과 높이를 맞춤 */
   padding: 6px 10px;
+  /* 8/14: 공용 .input 기본 font-size(14px)를 여기서만 16px로 올린다 — iOS Safari는
+   * font-size 16px 미만인 입력창을 포커스하면 자동으로 화면을 확대한다(글자가 안
+   * 보일까봐 하는 접근성 동작, 페이지 자체가 아니라 브라우저가 하는 것이라 코드로
+   * 막을 방법이 없고 크기를 16px 이상으로 올리는 것만이 표준적인 해법). 채팅 입력 중
+   * "키보드가 뜨면서 화면이 확대된다"는 신고의 실제 원인으로 보임 — 다른 화면(.input
+   * 기본값 14px)은 이 신고 범위 밖이라 안 건드림. */
+  font-size: var(--text-body, 16px);
 }
 .zt-chat-input .btn {
   padding: 5px 18px; /* 8/12: 공용 .btn 기본(8px 24px)보다 좁게 — 입력창 높이(54px)에 맞춤 */
