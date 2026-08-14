@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Message, PublicPlayer } from '@zeteo/shared-types';
 import Avatar from './Avatar';
@@ -20,6 +20,35 @@ interface LogProps {
    *  패널·입력창은 팝업이 떠 있어도 계속 보여야 한다). null이면 팝업 없음. */
   modal?: ReactNode;
 }
+
+/** 메시지 한 줄. React.memo로 감싸서 — 투표·봇 발화·페이즈 전환 등 채팅과 무관한
+ *  브로드캐스트로 ChatLog가 리렌더될 때마다 안 바뀐 옛날 메시지까지 Avatar까지
+ *  포함해 매번 다시 그리던 것을 막는다(메시지가 쌓일수록 이벤트당 비용이 N에
+ *  비례해 커지던 원인 — 모바일 CPU에서 "채팅 쌓일수록 렉"으로 체감됨).
+ *  ⚠️ message 객체를 통째로 넘기지 않고 text/speakerId를 개별 prop으로 푼다 —
+ *     state는 서버 브로드캐스트마다 소켓을 통해 JSON으로 새로 파싱돼 들어오므로,
+ *     내용이 같은 메시지라도 객체 참조는 매번 새로 생긴다. 객체를 그대로 넘기면
+ *     memo의 기본 얕은 비교가 매번 "참조가 다르다"고 판단해 최적화가 무효화된다.
+ *     원시값(string/boolean)으로 넘겨야 값 비교가 성립해 실제로 리렌더가 스킵된다. */
+const ChatMessageRow = memo(function ChatMessageRow({
+  text,
+  speakerId,
+  isMine,
+  name,
+}: {
+  text: string;
+  speakerId: string;
+  isMine: boolean;
+  name: string;
+}) {
+  const rowClass = speakerId === 'system' ? 'zt-msg is-system' : isMine ? 'zt-msg is-mine' : 'zt-msg';
+  return (
+    <div className={rowClass}>
+      {speakerId !== 'system' && <Avatar label={name} variant={isMine ? 'mine' : 'default'} />}
+      <span className="zt-msg-text">{text}</span>
+    </div>
+  );
+});
 
 export function ChatLog({ messages, players, myId, modal }: LogProps) {
   const logRef = useRef<HTMLDivElement>(null);
@@ -83,14 +112,14 @@ export function ChatLog({ messages, players, myId, modal }: LogProps) {
           // 겹칠 일이 없다(system은 myId가 될 수 없음). 시스템 메시지 판정이 우선이라
           // 순서상 먼저 검사한다.
           const isMine = m.speakerId !== 'system' && m.speakerId === myId;
-          const rowClass = m.speakerId === 'system' ? 'zt-msg is-system' : isMine ? 'zt-msg is-mine' : 'zt-msg';
           return (
-            <div key={m.id} className={rowClass}>
-              {m.speakerId !== 'system' && (
-                <Avatar label={nameOf(m.speakerId)} variant={isMine ? 'mine' : 'default'} />
-              )}
-              <span className="zt-msg-text">{m.text}</span>
-            </div>
+            <ChatMessageRow
+              key={m.id}
+              text={m.text}
+              speakerId={m.speakerId}
+              isMine={isMine}
+              name={nameOf(m.speakerId)}
+            />
           );
         })}
       </div>
@@ -113,9 +142,13 @@ interface InputProps {
   lockedLabel?: string;
   placeholder?: string;
   onSend: (text: string) => void;
+  /** 8/14: 모바일에서 입력 포커스 중엔 투표창(하단 시트)을 닫으라는 요청 — 그 판단은
+   *  MainScreen이 하고, 이 컴포넌트는 포커스/블러 시점만 그대로 전달한다(locked과 같은 설계). */
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
-export function ChatInputBar({ locked, lockedLabel, placeholder, onSend }: InputProps) {
+export function ChatInputBar({ locked, lockedLabel, placeholder, onSend, onFocus, onBlur }: InputProps) {
   const [text, setText] = useState('');
 
   const submit = () => {
@@ -142,6 +175,8 @@ export function ChatInputBar({ locked, lockedLabel, placeholder, onSend }: Input
         onKeyDown={(e) => {
           if (e.key === 'Enter') submit();
         }}
+        onFocus={onFocus}
+        onBlur={onBlur}
       />
       <Button onClick={submit} style={{ fontSize: 'var(--text-button)' }}>
         전송
