@@ -142,9 +142,13 @@ interface InputProps {
   lockedLabel?: string;
   placeholder?: string;
   onSend: (text: string) => void;
+  /** 8/14: 모바일에서 입력 포커스 중엔 투표창(하단 시트)을 닫으라는 요청 — 그 판단은
+   *  MainScreen이 하고, 이 컴포넌트는 포커스/블러 시점만 그대로 전달한다(locked과 같은 설계). */
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
-export function ChatInputBar({ locked, lockedLabel, placeholder, onSend }: InputProps) {
+export function ChatInputBar({ locked, lockedLabel, placeholder, onSend, onFocus, onBlur }: InputProps) {
   const [text, setText] = useState('');
 
   const submit = () => {
@@ -171,6 +175,8 @@ export function ChatInputBar({ locked, lockedLabel, placeholder, onSend }: Input
         onKeyDown={(e) => {
           if (e.key === 'Enter') submit();
         }}
+        onFocus={onFocus}
+        onBlur={onBlur}
       />
       <Button onClick={submit} style={{ fontSize: 'var(--text-button)' }}>
         전송
