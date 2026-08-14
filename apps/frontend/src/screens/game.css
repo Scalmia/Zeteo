@@ -442,12 +442,19 @@
  * (8/12 지적 — 사진 두 장 비교로 확인). 높이를 min-height로 고정해 맞춘다.
  * 8/12 2차: 입력창·전송 버튼이 파트 D 공용 스타일(.input, Button/.btn) 적용받으며
  * 실측 높이가 커져서(버튼 --text-button 21px 기준 자연 높이가 44px보다 큼) 54px로
- * 올렸다 — 잠금 상태도 짝을 맞춰 같이 54px로 올린다(둘 다 항상 같이 바꿀 것). */
+ * 올렸다 — 잠금 상태도 짝을 맞춰 같이 54px로 올린다(둘 다 항상 같이 바꿀 것).
+ * 8/14 2차: 입력창 font-size를 14px→16px로 올리면서(iOS 자동확대 버그 수정) 입력창
+ * 자체의 필요 높이(줄높이 1.55×16px + padding 12px + border 2px ≈ 38.8px)가 이 요소의
+ * 안쪽 여유(min-height 54px - 위아래 padding 16px = 38px)를 0.8px 넘어서게 됐다 —
+ * 입력 가능 상태만 min-height를 살짝 넘겨 54.8px 안팎으로 커지고, 잠금 상태(글자만
+ * 있어 여유 안에 들어감)는 그대로 54px라 두 상태 높이가 미세하게 달라졌다(실측:
+ * Playwright로 55.8px vs 54px 확인). 56px로 올려 다시 여유를 확보 — 잠금 상태도
+ * 짝을 맞춰 같이 56px로 올린다(위 규칙 그대로 유지, 둘 다 항상 같이 바꿀 것). */
 .zt-chat-input {
   display: flex;
   align-items: center;
   gap: var(--space-2, 8px);
-  min-height: 54px;
+  min-height: 56px;
   box-sizing: border-box;
   padding: var(--space-2, 8px);
   border-top: 1px solid var(--color-line, #2a2a36);
@@ -472,7 +479,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 54px;
+  min-height: 56px; /* 8/14 2차: .zt-chat-input과 항상 짝 맞춰 바꾸는 값 — 위 주석 참고 */
   box-sizing: border-box;
   padding: var(--space-2, 8px) var(--space-4, 16px);
   text-align: center;
