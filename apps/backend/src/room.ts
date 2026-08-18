@@ -1,5 +1,6 @@
 import { InternalPlayer, Phase, Message, Role } from '@zeteo/shared-types';
 import { logMessage } from './db/log';
+import { randomUUID } from 'crypto';
 
 export interface RoomInternalState {
   roomId: string;
@@ -19,10 +20,14 @@ export interface RoomInternalState {
   revealedRole: Role | null; // S5 처형자 역할 공개
   liarGameResult: 'liarWin' | 'citizenWin' | null; // S5 라이어게임 승패
   pendingLiarGameResult: 'liarWin' | 'citizenWin' | null; // 확정된 승패를 result 진입 전까지 숨겨두는 내부 버퍼
+  guessWord: string | null;   // ← 추가: 라이어가 제출한 제시어 추측값
   lifeVoteDecided: boolean; // 생사투표 결과가 이미 확정돼서 3초 타이머가 걸린 상태인지
   createdAt: number;
   readyIds: Set<string>;
   dbGameId: string | null;
+  lobbyTokens: Map<string, string>;
+  surveyedIds: Set<string>;
+  submittedSurveyIds: Set<string>;
 }
 
 const rooms = new Map<string, RoomInternalState>();
@@ -46,10 +51,14 @@ export function createRoom(roomId: string): RoomInternalState {
     revealedRole: null,
     liarGameResult: null,
     pendingLiarGameResult: null,
+    guessWord: null,
     createdAt: Date.now(),
     readyIds: new Set(),
     lifeVoteDecided: false,
     dbGameId: null,
+    lobbyTokens: new Map(),
+    surveyedIds: new Set(),
+    submittedSurveyIds: new Set(),
   };
   rooms.set(roomId, room);
   return room;
@@ -96,9 +105,10 @@ export function joinRoom(roomId: string, name: string, isBot = false): InternalP
     isAlive: true,
     isBot,
     role: 'citizen',
-    label: assignLabel(room),
+    label: '',
   };
   room.players.push(player);
+  room.lobbyTokens.set(player.id, randomUUID()); // ← 추가
   shufflePlayers(room);
   return player;
 }
@@ -109,6 +119,11 @@ export function assignRoles(room: RoomInternalState) {
   if (!liar) return; // 참가자가 없으면 아무것도 안 함
   room.players.forEach((p) => (p.role = 'citizen'));
   liar.role = 'liar';
+}
+export function assignLabels(room: RoomInternalState) {
+  room.players.forEach((p) => {
+    p.label = assignLabel(room);
+  });
 }
 
 // A-1: 봇이 항상 입장 순서(=배열 0번)에 고정되던 문제 수정.
@@ -129,12 +144,18 @@ export function isEveryoneReady(room: RoomInternalState): boolean {
   return room.players.length > 0 && room.players.every((p) => room.readyIds.has(p.id));
 }
 
-export function removePlayerFromLobby(roomId: string, playerId: string) {
+export function removePlayerFromLobby(roomId: string, playerId: string): boolean {
   const room = getRoom(roomId);
-  if (!room) return;
+  if (!room) return false;
   room.players = room.players.filter((p) => p.id !== playerId);
   room.readyIds.delete(playerId);
   if (room.players.length === 0) {
     rooms.delete(roomId); // 아무도 안 남으면 방 자체도 정리
+    return true; // 방이 실제로 정리됐음 — 최종 로그 전송 트리거용
   }
+  return false;
+}
+/** 인원 전체가 확실히 끝났다고 확정된 순간(설문 전원 제출)에만 호출 — 방을 통째로 정리한다. */
+export function deleteRoom(roomId: string) {
+  rooms.delete(roomId);
 }

@@ -1,25 +1,9 @@
 /* 파트 D 소유 — 박진
  *
- * Blood Moon 장식 레이어(달빛·피 방울·노이즈 텍스처). Ambience.tsx가 마운트하는
+ * Blood Moon 장식 레이어(달빛·피 방울). Ambience.tsx가 마운트하는
  * 마크업을 스타일링한다. 클릭을 막지 않도록 전부 pointer-events:none.
  * prefers-reduced-motion 사용자는 애니메이션을 끈다.
  */
-
-.ambience-noise {
-  position: absolute;
-  width: 0;
-  height: 0;
-}
-
-body {
-  filter: url(#zt-noise);
-  animation: zt-bg-pulse 15s ease-in-out infinite;
-}
-
-@keyframes zt-bg-pulse {
-  0%, 100% { filter: url(#zt-noise) brightness(1); }
-  50% { filter: url(#zt-noise) brightness(1.05) saturate(1.1); }
-}
 
 .moonlight {
   position: fixed;
@@ -84,10 +68,4 @@ body {
 @keyframes zt-particle-fade {
   0% { opacity: 0.8; transform: scale(1); }
   100% { opacity: 0; transform: scale(0.2); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  body { animation: none; filter: none; }
-  .moonlight, .blood-drop { animation: none; }
-  .zt-particle { display: none; }
 }

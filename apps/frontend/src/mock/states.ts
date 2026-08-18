@@ -102,6 +102,8 @@ const base: GameState = {
   lifeVoteCounts: { kill: 0, spare: 0 },
   revealedRole: null,
   liarGameResult: null,
+  // S5-a 라이어가 제출한 제시어. liarGameResult 와 같은 시점(result 진입)에만 채워진다.
+  guessWord: null,
 
   // S6·S7 (파트 D). 서버가 result 진입 직전에만 채우므로,
   // 파트 C mock 은 전부 result 이전 페이즈라 항상 기본값이다.
@@ -259,6 +261,8 @@ export const MOCK_STATES: Record<string, GameState> = {
     accused: 'p2',
     revealedRole: 'liar',
     liarGameResult: 'citizenWin',
+    // 라이어가 잡힌 뒤 제시어를 틀린 경우(citizenWin). 정답이면 '호랑이' 로 바꿔 확인한다.
+    guessWord: '사자',
     botVoteCounts: { voted: 4, total: 4 },
     botVoteCorrectCount: 3, // 아래 botVoteResults 에서 p5(봇)를 맞힌 사람 수와 일치시킨다
     revealedBotId: 'p5',

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { Message, PublicPlayer } from '@zeteo/shared-types';
 import Avatar from './Avatar';
+import Button from './Button';
 
 /** 8/11: 로그와 입력창을 분리했다. 시안 1은 하단 요약탭(zt-vote-bar)·입력창(zt-chat-input)이
  *  채팅 기둥 폭이 아니라 화면 전체 폭으로 늘어난다 — 우측 투표 패널과는 그 두 줄에서만
@@ -20,16 +21,77 @@ interface LogProps {
   modal?: ReactNode;
 }
 
+/** 메시지 한 줄. React.memo로 감싸서 — 투표·봇 발화·페이즈 전환 등 채팅과 무관한
+ *  브로드캐스트로 ChatLog가 리렌더될 때마다 안 바뀐 옛날 메시지까지 Avatar까지
+ *  포함해 매번 다시 그리던 것을 막는다(메시지가 쌓일수록 이벤트당 비용이 N에
+ *  비례해 커지던 원인 — 모바일 CPU에서 "채팅 쌓일수록 렉"으로 체감됨).
+ *  ⚠️ message 객체를 통째로 넘기지 않고 text/speakerId를 개별 prop으로 푼다 —
+ *     state는 서버 브로드캐스트마다 소켓을 통해 JSON으로 새로 파싱돼 들어오므로,
+ *     내용이 같은 메시지라도 객체 참조는 매번 새로 생긴다. 객체를 그대로 넘기면
+ *     memo의 기본 얕은 비교가 매번 "참조가 다르다"고 판단해 최적화가 무효화된다.
+ *     원시값(string/boolean)으로 넘겨야 값 비교가 성립해 실제로 리렌더가 스킵된다. */
+const ChatMessageRow = memo(function ChatMessageRow({
+  text,
+  speakerId,
+  isMine,
+  name,
+}: {
+  text: string;
+  speakerId: string;
+  isMine: boolean;
+  name: string;
+}) {
+  const rowClass = speakerId === 'system' ? 'zt-msg is-system' : isMine ? 'zt-msg is-mine' : 'zt-msg';
+  return (
+    <div className={rowClass}>
+      {speakerId !== 'system' && <Avatar label={name} variant={isMine ? 'mine' : 'default'} />}
+      <span className="zt-msg-text">{text}</span>
+    </div>
+  );
+});
+
 export function ChatLog({ messages, players, myId, modal }: LogProps) {
   const logRef = useRef<HTMLDivElement>(null);
+  // 사용자가 "바닥 근처"에 있었는지를 스크롤 이벤트로 실시간 추적한다. 메시지가
+  // 늘어난 뒤(effect 시점)에 계산하면 DOM엔 이미 새 글이 들어가 있어 항상 바닥으로
+  // 나온다 — 그래서 스크롤이 실제로 일어날 때마다(사용자 스크롤이든, 우리가 직접
+  // scrollTop을 바꾼 것이든 상관없이) 갱신해 둔다(8/13).
+  const nearBottomRef = useRef(true);
+  const prevLenRef = useRef(messages.length);
+  const [newCount, setNewCount] = useState(0);
 
-  // 로그 요소만 직접 내린다. scrollIntoView 는 스크롤 가능한 조상을 찾아 거슬러 올라가므로,
-  // 로그가 스크롤 컨테이너가 아닌 순간 페이지 전체를 끌어내린다 — 2판 테스트에서
-  // 타이머와 투표 패널 윗부분이 화면 밖으로 밀려난 원인이었다. scrollTop 은 이 요소만 움직인다.
+  const handleScroll = () => {
+    const el = logRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const atBottom = distanceFromBottom < 40; // 여유 40px — 정확히 바닥이 아니어도 "거의 다 봤다"로 취급
+    nearBottomRef.current = atBottom;
+    if (atBottom) setNewCount(0);
+  };
+
+  // 8/13: 예전엔 메시지가 늘 때마다 무조건 바닥으로 스크롤했다 — 위쪽 글을 읽던
+  // 중에 새 채팅이 오면 강제로 아래로 끌려가 불편하다는 지적. 이제 "바닥 근처에
+  // 있었을 때만" 자동으로 따라가고, 위로 스크롤해 읽는 중이었다면 스크롤은 그대로
+  // 두고 대신 하단에 작은 "새 메시지" 알림만 띄운다(zt-chat-newmsg, 클릭하면 바닥으로).
   useEffect(() => {
     const el = logRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
+    if (!el) return;
+    const delta = messages.length - prevLenRef.current;
+    prevLenRef.current = messages.length;
+    if (delta <= 0) return;
+    if (nearBottomRef.current) {
+      el.scrollTop = el.scrollHeight;
+    } else {
+      setNewCount((n) => n + delta);
+    }
   }, [messages.length]);
+
+  const jumpToBottom = () => {
+    const el = logRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+    nearBottomRef.current = true;
+    setNewCount(0);
+  };
 
   const nameOf = (speakerId: string) =>
     speakerId === 'system'
@@ -37,16 +99,36 @@ export function ChatLog({ messages, players, myId, modal }: LogProps) {
       : (players.find((p) => p.id === speakerId)?.label ?? speakerId);
 
   return (
-    <div className="zt-chat-log" ref={logRef}>
-      {messages.map((m) => (
-        <div key={m.id} className={m.speakerId === 'system' ? 'zt-msg is-system' : 'zt-msg'}>
-          {m.speakerId !== 'system' && (
-            <Avatar label={nameOf(m.speakerId)} variant={m.speakerId === myId ? 'mine' : 'default'} />
-          )}
-          <span className="zt-msg-name">{nameOf(m.speakerId)}</span>
-          <span className="zt-msg-text">{m.text}</span>
-        </div>
-      ))}
+    // 8/13: 팝업(modal)이 로그 스크롤을 따라 같이 밀려 올라가 안 보이던 버그 —
+    // 예전엔 modal이 스크롤되는 .zt-chat-log 안쪽에 같이 들어 있어서, absolute
+    // 위치 기준(.zt-chat-log 자신)이 스크롤 콘텐츠와 함께 움직였다. 스크롤 안 되는
+    // 바깥 래퍼(zt-chat-log-wrap)를 하나 더 두고, 그 위에 스크롤되는 로그와 modal을
+    // 각자 절대 위치의 형제로 얹는다 — modal은 이제 로그가 얼마나 스크롤됐든
+    // 항상 같은 자리(래퍼 기준 inset:0)에 고정된다.
+    <div className="zt-chat-log-wrap">
+      <div className="zt-chat-log" ref={logRef} onScroll={handleScroll}>
+        {messages.map((m) => {
+          // 8/12: 파트 D 코멘트로 다시 요청받은 "내 메시지 우측 정렬" — is-system과는
+          // 겹칠 일이 없다(system은 myId가 될 수 없음). 시스템 메시지 판정이 우선이라
+          // 순서상 먼저 검사한다.
+          const isMine = m.speakerId !== 'system' && m.speakerId === myId;
+          return (
+            <ChatMessageRow
+              key={m.id}
+              text={m.text}
+              speakerId={m.speakerId}
+              isMine={isMine}
+              name={nameOf(m.speakerId)}
+            />
+          );
+        })}
+      </div>
+
+      {newCount > 0 && (
+        <button type="button" className="zt-chat-newmsg" onClick={jumpToBottom}>
+          새 메시지 {newCount}개 ↓
+        </button>
+      )}
 
       {modal}
     </div>
@@ -60,9 +142,13 @@ interface InputProps {
   lockedLabel?: string;
   placeholder?: string;
   onSend: (text: string) => void;
+  /** 8/14: 모바일에서 입력 포커스 중엔 투표창(하단 시트)을 닫으라는 요청 — 그 판단은
+   *  MainScreen이 하고, 이 컴포넌트는 포커스/블러 시점만 그대로 전달한다(locked과 같은 설계). */
+  onFocus?: () => void;
+  onBlur?: () => void;
 }
 
-export function ChatInputBar({ locked, lockedLabel, placeholder, onSend }: InputProps) {
+export function ChatInputBar({ locked, lockedLabel, placeholder, onSend, onFocus, onBlur }: InputProps) {
   const [text, setText] = useState('');
 
   const submit = () => {
@@ -78,15 +164,23 @@ export function ChatInputBar({ locked, lockedLabel, placeholder, onSend }: Input
 
   return (
     <div className="zt-chat-input">
+      {/* 8/12: 파트 D의 화면 간 디자인 통일 지침 — 입력창은 tokens.css의 공용 .input,
+          전송 버튼은 공용 Button(.btn .btn-primary) + --text-button(21px)을 그대로
+          따른다. 이전엔 둘 다 브라우저 기본 스타일 그대로였다. */}
       <input
+        className="input"
         value={text}
         placeholder={placeholder ?? '메시지 입력…'}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === 'Enter') submit();
         }}
+        onFocus={onFocus}
+        onBlur={onBlur}
       />
-      <button onClick={submit}>전송</button>
+      <Button onClick={submit} style={{ fontSize: 'var(--text-button)' }}>
+        전송
+      </Button>
     </div>
   );
 }

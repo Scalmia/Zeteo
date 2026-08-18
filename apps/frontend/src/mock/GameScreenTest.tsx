@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { ClientEvent, GameState } from '@zeteo/shared-types';
 import { Modal } from '../components/Modal';
 import { MainScreen } from '../screens/MainScreen';
@@ -36,6 +36,40 @@ export function GameScreenTest() {
   const [baseState, setBaseState] = useState<GameState>(MOCK_STATES['debate-voted']);
   const [popupKey, setPopupKey] = useState<string | null>(null);
   const [popupState, setPopupState] = useState<GameState | null>(null);
+
+  // 8/13: 팝업 스크롤 고정(zt-chat-log-wrap)·새 메시지 알림 핀(zt-chat-newmsg)을
+  // 눈으로 직접 켜보고 테스트하기 위한 mock 전용 도구 — 참가자가 돌아가며 "1·2·3·4"를
+  // 세는 채팅을 5초마다 하나씩 자동으로 채팅 로그에 추가한다. 기본은 꺼짐(off) —
+  // 로그가 계속 쌓이면 다른 mock 조작(칩 전환 등)을 하기 불편하므로, 테스트할 때만
+  // 켜고 충분히 쌓이면 꺼서 멈출 수 있게 토글로 뒀다. 배포 코드 경로(GameScreen.tsx)엔
+  // 안 쓰이는 mock 전용 기능이라 여기(GameScreenTest.tsx)에만 둔다.
+  const [autoChat, setAutoChat] = useState(false);
+  const autoChatCountRef = useRef(0);
+
+  useEffect(() => {
+    if (!autoChat) return;
+    const interval = setInterval(() => {
+      autoChatCountRef.current += 1;
+      const n = autoChatCountRef.current;
+      setBaseState((s) => {
+        const speaker = s.players[(n - 1) % s.players.length];
+        return {
+          ...s,
+          messages: [
+            ...s.messages,
+            {
+              id: `autochat${Date.now()}_${n}`,
+              speakerId: speaker.id,
+              text: String(((n - 1) % 4) + 1),
+              phase: s.phase,
+              at: Date.now(),
+            },
+          ],
+        };
+      });
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [autoChat]);
 
   const openPopup = (key: string) => {
     setPopupKey(key);
@@ -81,28 +115,62 @@ export function GameScreenTest() {
   );
 
   // 실제 팝업(있다면) 위에 mock 칩 바를 같이 얹는다 — 팝업을 안 닫고도 다른
-  // 칩으로 바로 넘어가 볼 수 있어야 하므로 스크림(z-index:10)보다 위(20)에 둔다.
+  // 칩으로 바로 넘어가 볼 수 있어야 하므로 스크림(z-index:10)보다 위에 둔다.
+  //
+  // 8/13: 원래 화면 폭 전체를 덮는 bottom:0 띠였는데, 새 메시지 알림 핀
+  // (.zt-chat-newmsg, 하단 가운데)을 가려버렸다("핀이 안 보인다" 피드백). 그래서
+  // top:0으로 옮겨봤더니 이번엔 모달을 ✕로 접었을 때 나오는 "다시 보기" 칩
+  // (.zt-modal-chip, 우측 상단)을 가리는 걸로 자리만 바꿔 옮긴 꼴이었다(Playwright로
+  // 실제 클릭 실패까지 확인) — 화면 폭 전체를 덮는 불투명한 띠인 이상 위든 아래든
+  // 어느 한쪽 끝에 있는 실제 UI(핀은 하단 가운데, 접기 칩은 상단 우측)와 반드시
+  // 겹친다. 그래서 아예 화면 전체 폭을 덮는 띠를 그만두고, `position: fixed`로
+  // 뷰포트 좌측 상단 구석에 내용 크기만큼만 차지하는 작은 패널로 바꿨다 — 핀(하단
+  // 가운데)·접기 칩(상단 우측) 둘 다 이 구석과 안 겹친다. `position:fixed`라
+  // `.zt-chat-log-wrap`의 스크롤·레이아웃과 무관하게 항상 뷰포트 기준 같은 자리에
+  // 떠 있고, z-index만 충분히 크면(9999) 스크림 위에 뜨는 원래 목적도 그대로
+  // 만족한다 — DOM 위치 자체는 그대로 `modal` prop 안에 둬도 무방하지만(fixed는
+  // 어차피 위치 계산에 DOM 위치를 안 씀), 의미상 더 명확하도록 그대로 유지한다. */
   const chipBar = (
     <div
       style={{
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: 0,
-        zIndex: 20,
+        position: 'fixed',
+        top: 8,
+        left: 8,
+        maxWidth: 300,
+        zIndex: 9999,
         display: 'flex',
         flexWrap: 'wrap',
         alignItems: 'center',
         gap: 6,
         padding: '8px 12px',
         background: '#000',
-        borderTop: '2px dashed #ff9800',
+        border: '2px dashed #ff9800',
+        borderRadius: 8,
         fontFamily: 'system-ui, sans-serif',
       }}
     >
       <span style={{ fontSize: 11, fontWeight: 700, color: '#ff9800', marginRight: 4 }}>
         MOCK 테스트 · 팝업 띄우기
       </span>
+      {/* 8/13: 채팅 팝업 스크롤 고정·새 메시지 알림 핀 테스트용 — 켜면 참가자가
+          돌아가며 1·2·3·4를 세는 채팅이 5초마다 하나씩 쌓인다. 팝업 칩과 헷갈리지
+          않게 색을 초록 계열로 구분했다. */}
+      <button
+        type="button"
+        onClick={() => setAutoChat((v) => !v)}
+        style={{
+          padding: '4px 10px',
+          fontSize: 12,
+          fontWeight: 600,
+          color: autoChat ? '#000' : '#4caf50',
+          background: autoChat ? '#4caf50' : 'transparent',
+          border: '1px solid #4caf50',
+          borderRadius: 999,
+          cursor: 'pointer',
+        }}
+      >
+        {autoChat ? '채팅 자동생성 중지' : '채팅 자동생성 시작 (5초마다 1·2·3·4)'}
+      </button>
       <button
         type="button"
         onClick={closePopup}

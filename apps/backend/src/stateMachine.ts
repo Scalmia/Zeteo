@@ -9,7 +9,10 @@ const transitions: Record<Phase, Transition> = {
 
   roleReveal: () => 'describe',
 
-  describe: () => 'debate',
+   describe: (room) => {
+    pushSystemMessage(room, '묘사가 모두 끝났습니다. 토론을 시작합니다.');
+    return 'debate';
+  },
 
   debate: (room) => {
     const { accusedId, tie } = tallyDebateVotes(room);

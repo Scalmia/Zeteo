@@ -8,8 +8,8 @@ interface ResultScreenProps extends ResultScreenState {
 
 const TAG_CLASS: Record<ResultPlayer["tag"], string> = {
   봇: "tag-accent",
-  라이어: "tag-neutral",
-  시민: "tag-outline"
+  라이어: "tag-outline",
+  시민: "tag-neutral"
 };
 
 export default function ResultScreen({
@@ -18,9 +18,15 @@ export default function ResultScreen({
   botVoteCorrectCount,
   category,
   word,
+  guessWord,
   players,
   onNext
 }: ResultScreenProps) {
+  // 라이어가 안 잡혔거나 시간 초과로 못 냈으면 guessWord 가 null 이라 이 줄 자체를 숨긴다.
+  // 맞았는지는 화면에서 직접 비교한다 — 서버가 승패(winner)로만 알려주는데,
+  // 봇 지목 결과까지 섞인 문구라 제시어 정답 여부를 따로 읽어낼 수 없다.
+  const guessedRight = guessWord !== null && word !== null && guessWord.trim() === word.trim();
+
   return (
     <div
       style={{
@@ -52,6 +58,21 @@ export default function ResultScreen({
           <div className="tag tag-accent" style={{ fontSize: "var(--text-emphasis)", fontWeight: 700, padding: "6px 16px", marginBottom: "var(--space-4)" }}>
             {winner}
           </div>
+          {guessWord !== null && (
+            <div style={{ marginBottom: "var(--space-4)" }}>
+              <div className="card-title" style={{ fontSize: 20 }}>라이어의 추측</div>
+              <div
+                className="text-muted"
+                style={{
+                  fontSize: "var(--text-label)",
+                  fontWeight: 600,
+                  color: guessedRight ? "var(--color-accent)" : undefined
+                }}
+              >
+                {guessWord} · {guessedRight ? "정답" : "오답"}
+              </div>
+            </div>
+          )}
           <div className="hr" />
           <div style={{ marginTop: "var(--space-4)" }}>
             <div className="card-title" style={{ fontSize: 20 }}>봇 색출</div>

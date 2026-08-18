@@ -5,8 +5,9 @@ import { Server } from 'socket.io';
 import { pickRandomCategoryAndWord } from './db/content';
 import { startGame } from './db/game';
 import { logMessage, logVote } from './db/log';
+import { sendLogToDiscord } from './db/webhook';  
 import { finalizeGame } from './db/game';
-import { submitSurveyResponse } from './db/survey';
+import { submitSurveyResponse, fetchSurveyResponsesForGame, SurveyResponseRow } from './db/survey';
 import path from 'path';
 import fs from 'fs';
 import { ClientEvent, ServerEvent, Phase, BotContext } from '@zeteo/shared-types';
@@ -17,7 +18,9 @@ import {
   markReady,
   isEveryoneReady,
   assignRoles,
+  assignLabels,
   removePlayerFromLobby,
+  deleteRoom,
   RoomInternalState,
 } from './room';
 import { buildGameStateFor } from './view';
@@ -46,7 +49,7 @@ const PHASE_DURATIONS: Partial<Record<Phase, number>> = {
   finalDefense: 60000,
   lifeVote: 30000,
   reveal: 10000,
-  guessWord: 15000,
+  guessWord: 20000,
   botVote: 20000,
 };
 // describe 턴 하나당 제한시간. LLM 응답 6~13초 + 사람 타이핑 여유를 감안한 상한.
@@ -88,17 +91,75 @@ function enterPhase(room: RoomInternalState) {
 // 팀이 직접 복기할 때 누가 봇이었는지 바로 보이도록 표시해준다.
 const LOG_DIR = path.join(__dirname, '../logs');
 
-function logTranscript(room: RoomInternalState) {
-  const describe = (id: string): string => {
-    if (id === 'system') return '[시스템]';
-    const p = room.players.find((pl) => pl.id === id);
-    if (!p) return id;
-    return `${p.name}(${p.label}${p.isBot ? ' · 봇' : ''}${p.role === 'liar' ? ' · 라이어' : ''})`;
-  };
+function describePlayer(room: RoomInternalState, id: string): string {
+  if (id === 'system') return '[시스템]';
+  const p = room.players.find((pl) => pl.id === id);
+  if (!p) return id;
+  return `${p.name}(${p.label}${p.isBot ? ' · 봇' : ''}${p.role === 'liar' ? ' · 라이어' : ''})`;
+}
 
+// 설문 응답(surveyRows)은 result 진입 시점엔 아직 없을 수 있어서 매개변수로 받는다.
+// 로컬 로그(logTranscript)는 빈 배열로, 최종 디스코드 전송(sendFinalReportToDiscord)은
+// Supabase에서 실제로 모아온 값으로 이 함수를 각각 호출한다.
+function buildTranscriptMarkdown(room: RoomInternalState, surveyRows: SurveyResponseRow[]): string {
+  const bot = room.players.find((p) => p.isBot);
+  const liar = room.players.find((p) => p.role === 'liar');
+
+  const summaryLines = [
+    `# [${room.roomId}] 대화 로그`,
+    '',
+    `- 주제: ${room.category} / 제시어: ${room.word}`,
+    `- 봇: ${bot ? describePlayer(room, bot.id) : '?'}`,
+    `- 라이어: ${liar ? describePlayer(room, liar.id) : '?'}`,
+    `- 라이어의 답: ${room.guessWord ?? '미제출'}`,
+    `- 결과: ${room.liarGameResult ?? '미확정'}`,
+    `- 총 라운드: ${room.round}`,
+    '',
+  ];
+
+  const botVoteLines = [
+    '## 봇 지목',
+    '',
+    '| 투표자 | 지목 | 적중 |',
+    '|---|---|---|',
+    ...Object.entries(room.botVotes).map(([voterId, targetId]) => {
+      const targetLabel = room.players.find((p) => p.id === targetId)?.label ?? targetId;
+      const hit = room.players.find((p) => p.id === targetId)?.isBot ? 'O' : 'X';
+      return `| ${describePlayer(room, voterId)} | ${targetLabel} | ${hit} |`;
+    }),
+    '',
+  ];
+
+  const surveyLines = [
+    '## 설문 응답',
+    '',
+    '| 응답자 | 선택한 이유(id) | 자유 서술 |',
+    '|---|---|---|',
+    ...surveyRows.map(
+      (r) => `| ${r.voterLabel} | ${r.reasonIds.join(', ') || '-'} | ${r.freeText ?? '-'} |`,
+    ),
+    '',
+  ];
+
+  const chatLines = [
+    '## 대화 로그',
+    '',
+    '| 시간 | 단계 | 발언자 | 내용 |',
+    '|---|---|---|---|',
+    ...room.messages.map((m) => {
+      const time = new Date(m.at).toLocaleTimeString('ko-KR', { hour12: false });
+      return `| ${time} | ${m.phase} | ${describePlayer(room, m.speakerId)} | ${m.text.replace(/\|/g, '\\|')} |`;
+    }),
+  ];
+
+  return [...summaryLines, ...botVoteLines, ...surveyLines, ...chatLines].join('\n');
+}
+
+// result 진입 즉시 남기는 로컬 백업/콘솔용. 이 시점엔 설문이 아직 없으니 빈 배열로 만든다.
+function logTranscript(room: RoomInternalState) {
   const plainLines = room.messages.map((m) => {
     const time = new Date(m.at).toLocaleTimeString('ko-KR', { hour12: false });
-    return `[${time}] (${m.phase}) ${describe(m.speakerId)}: ${m.text}`;
+    return `[${time}] (${m.phase}) ${describePlayer(room, m.speakerId)}: ${m.text}`;
   });
 
   console.log(`\n===== [${room.roomId}] 대화 로그 (총 ${plainLines.length}건) =====`);
@@ -109,37 +170,29 @@ function logTranscript(room: RoomInternalState) {
     fs.mkdirSync(LOG_DIR, { recursive: true });
     const stamp = new Date().toISOString().replace(/[:.]/g, '-');
     const base = path.join(LOG_DIR, `${room.roomId}_${stamp}`);
-
-    const mdLines = [
-      `# [${room.roomId}] 대화 로그`,
-      '',
-      '| 시간 | 단계 | 발언자 | 내용 |',
-      '|---|---|---|---|',
-      ...room.messages.map((m) => {
-        const time = new Date(m.at).toLocaleTimeString('ko-KR', { hour12: false });
-        return `| ${time} | ${m.phase} | ${describe(m.speakerId)} | ${m.text.replace(/\|/g, '\\|')} |`;
-      }),
-    ];
-    fs.writeFileSync(`${base}.md`, mdLines.join('\n') + '\n', 'utf-8');
-
+    fs.writeFileSync(`${base}.md`, buildTranscriptMarkdown(room, []) + '\n', 'utf-8');
     console.log(`[${room.roomId}] 대화 로그 파일 저장: ${base}.md`);
   } catch (e) {
     console.error(`[${room.roomId}] 대화 로그 파일 저장 실패:`, e);
   }
 }
 
+// 방이 완전히 빌 때(마지막 인원이 설문까지 마치거나 나갈 때) 호출한다.
+// 그때쯤이면 제출된 설문 응답이 Supabase에 쌓여있으니, 그걸 합쳐서 최종본을 디스코드로 보낸다.
+async function sendFinalReportToDiscord(room: RoomInternalState) {
+  if (!room.dbGameId) return;
+  const surveyRows = await fetchSurveyResponsesForGame(room.dbGameId);
+  void sendLogToDiscord(room, buildTranscriptMarkdown(room, surveyRows));
+}
+
 // stateMachine으로 다음 phase 계산 → 필요한 부수효과 처리 → 다음 타이머 설정 → 브로드캐스트
 function advancePhase(room: RoomInternalState) {
   nextPhase(room);
 
-  if (room.phase === 'describe') {
-    room.turnOrder = room.players.map((p) => p.id);
-    room.currentTurnIndex = 0;
-  }
-
   if (room.phase === 'result') {
     logTranscript(room);
     void finalizeGame(room);
+    room.readyIds.clear();
   }
 
   enterPhase(room);
@@ -174,8 +227,7 @@ function skipDescribeTurn(room: RoomInternalState) {
 // (kill이 남은 인원 전부 spare로 던져도 못 뒤집을 만큼 앞섰거나, 반대로 spare가
 // 남은 인원 전부 kill로 던져도 방어되는 경우) 이럴 땐 전원 투표를 기다리지 않는다.
 function isLifeVoteDecided(room: RoomInternalState): boolean {
-  const alive = room.players.filter((p) => p.isAlive);
-  let kill = 0;
+  const alive = room.players.filter((p) => p.isAlive && p.id !== room.accusedId);  let kill = 0;
   let spare = 0;
   for (const p of alive) {
     const v = room.lifeVotes[p.id];
@@ -191,7 +243,10 @@ function isLifeVoteDecided(room: RoomInternalState): boolean {
 function isVotingComplete(room: RoomInternalState): boolean {
   const alive = room.players.filter((p) => p.isAlive);
   if (room.phase === 'debate') return alive.every((p) => room.votes[p.id] !== undefined);
-  if (room.phase === 'lifeVote') return alive.every((p) => room.lifeVotes[p.id] !== undefined);
+  if (room.phase === 'lifeVote') {
+    const eligible = alive.filter((p) => p.id !== room.accusedId);
+    return eligible.every((p) => room.lifeVotes[p.id] !== undefined);
+  }
   if (room.phase === 'botVote') {
     const humans = room.players.filter((p) => !p.isBot); // 봇 제외, 죽은 사람도 포함
     return humans.every((p) => room.botVotes[p.id] !== undefined);
@@ -242,6 +297,7 @@ async function maybeTriggerBot(room: RoomInternalState) {
   } else if (room.phase === 'finalDefense') {
     // 피고인이 아니어도 질의 형태로 자유 채팅에 참여할 수 있어야 한다
   } else if (room.phase === 'lifeVote') {
+    if (bot.id === room.accusedId) return;
     if (room.lifeVotes[bot.id] !== undefined) return;
   } else if (room.phase === 'guessWord') {
     if (bot.id !== room.accusedId) return;
@@ -331,6 +387,7 @@ async function maybeTriggerBot(room: RoomInternalState) {
   }
   if (action.t === 'guessWord') {
     const correct = action.word.trim() === room.word.trim();
+    room.guessWord = action.word.trim();
     room.pendingLiarGameResult = correct ? 'liarWin' : 'citizenWin';
     clearPhaseTimer(room.roomId);
     advancePhase(room);
@@ -372,7 +429,7 @@ io.on('connection', (socket) => {
           if (!room) {
             room = createRoom(action.roomId);
             // 테스트용: 방 새로 만들어질 때 봇 1명 자동 참가 + 자동 ready
-            const bot = joinRoom(action.roomId, '테스트봇', true);
+            const bot = joinRoom(action.roomId, 'Zeteo', true);
             markReady(room, bot.id);
           }
           const player = joinRoom(action.roomId, action.name);
@@ -416,14 +473,28 @@ io.on('connection', (socket) => {
           const room = getRoom(meta.roomId);
           if (!room) throw new Error('room not found');
           if (room.phase === 'result') {
-            advancePhase(room); // result → survey 전이 (결과 화면 "다음" 버튼)
-            return;
+            room.surveyedIds.add(meta.playerId); // 이 사람만 개인적으로 survey로 이동
+            break;           
           }
 
           markReady(room, meta.playerId);
 
           if (room.phase === 'lobby' && isEveryoneReady(room)) {
             assignRoles(room);
+            assignLabels(room);
+            // roleReveal 시작 시점에 describe 발언 순서(turnOrder)를 미리 정해두고,
+            // 참가자 목록도 바로 그 순서에 맞춰 정렬한다. describe 화면까지 갈 필요 없이
+            // roleReveal부터 이미 같은 순서로 보이게 하기 위함. (기존 shufflePlayers는
+            // 이 정렬이 사실상 같은 역할을 하므로 대체됨)
+            const ids = room.players.map((p) => p.id);
+            for (let i = ids.length - 1; i > 0; i--) {
+              const j = Math.floor(Math.random() * (i + 1));
+              [ids[i], ids[j]] = [ids[j]!, ids[i]!];
+            }
+            room.turnOrder = ids;
+            room.currentTurnIndex = 0;
+            const order = new Map(ids.map((id, i) => [id, i]));
+            room.players.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
             const { category, word } = await pickRandomCategoryAndWord();
             room.category = category;
             room.word = word;
@@ -454,11 +525,6 @@ io.on('connection', (socket) => {
             void logVote(room, 'liar_vote', voter.label, target.label);
           }
 
-          if (isVotingComplete(room)) {
-            clearPhaseTimer(room.roomId);
-            advancePhase(room);
-            return;
-          }
           break;
         }
         case 'lifeVote': {
@@ -467,6 +533,9 @@ io.on('connection', (socket) => {
           const room = getRoom(meta.roomId);
           if (!room) throw new Error('room not found');
           if (room.phase !== 'lifeVote') throw new Error('지금은 생사 투표 단계가 아닙니다');
+          if (meta.playerId === room.accusedId) {
+            throw new Error('본인에 대한 생사 투표에는 참여할 수 없습니다');
+          }
           if (room.lifeVotes[meta.playerId] !== undefined) {
             throw new Error('이미 투표했습니다');
           }
@@ -500,6 +569,7 @@ io.on('connection', (socket) => {
             throw new Error('라이어만 제시어를 추측할 수 있습니다');
           clearPhaseTimer(room.roomId);
           const correct = action.word.trim() === room.word.trim();
+          room.guessWord = action.word.trim(); 
           room.pendingLiarGameResult = correct ? 'liarWin' : 'citizenWin';
           room.liarGameResult = room.pendingLiarGameResult; // 제출 즉시 공개
           advancePhase(room);
@@ -528,21 +598,28 @@ io.on('connection', (socket) => {
           if (!meta) throw new Error('아직 방에 입장하지 않았습니다');
           const room = getRoom(meta.roomId);
           if (!room) throw new Error('room not found');
-          if (room.phase !== 'survey') throw new Error('지금은 설문 단계가 아닙니다');
-
+          if (!room.surveyedIds.has(meta.playerId)) throw new Error('지금은 설문 단계가 아닙니다');
           await submitSurveyResponse(room, meta.playerId, action.reasonIds, action.freeText);
+          room.submittedSurveyIds.add(meta.playerId);
 
-          // 설문 제출 = 게임 완전히 끝. disconnect를 기다리지 않고 제출 시점에 바로
-          // 방에서 제거한다 (emit 직후 프론트가 소켓을 끊는 타이밍에 기대는 것보다 안전).
-          removePlayerFromLobby(meta.roomId, meta.playerId);
           socketMeta.delete(socket.id);
           socket.leave(meta.roomId);
+
+          // 봇은 설문을 제출하지 않아서 room.players가 물리적으로 0명이 되는 일이 없다.
+          // "봇을 뺀 사람 전원이 설문까지 제출했는가"로 게임이 완전히 끝났는지 판정한다.
+          const humans = room.players.filter((p) => !p.isBot);
+          const allDone = humans.every((p) => room.submittedSurveyIds.has(p.id));
+          if (allDone) {
+            // room.players 명단이 아직 온전할 때(먼저 낸 사람도 안 지워진 상태) 리포트부터 만든다.
+            await sendFinalReportToDiscord(room);
+            deleteRoom(meta.roomId);
+          }
           return; // 게임 상태에 영향 없으니 broadcast 불필요
+          }
+          default:
+            console.log('아직 처리 안 하는 액션:', action);
+            return;
         }
-        default:
-          console.log('아직 처리 안 하는 액션:', action);
-          return;
-      }
 
       const meta = socketMeta.get(socket.id);
       if (meta) broadcastRoom(meta.roomId);
@@ -567,9 +644,9 @@ io.on('connection', (socket) => {
       return;
     }
 
-    if (room.phase === 'survey') {
-      // 게임이 완전히 끝난 뒤라 "중도 탈락 없음" 원칙과 무관. 다들 나가서
-      // 방이 비면 정리해서 메모리에 안 남게 한다.
+   if (room.surveyedIds.has(meta.playerId)) {
+      // 설문 화면까지 왔다가 제출 전에 나간 경우 — 명단만 정리한다.
+      // 최종 리포트 전송은 case 'survey'에서 전원 제출이 확인됐을 때만 한다.
       removePlayerFromLobby(meta.roomId, meta.playerId);
     }
     // 그 외(게임 진행 중)엔 기획서 원칙대로 그대로 둠 — 중도 탈락 없음

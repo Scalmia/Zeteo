@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ClientEvent, GameState } from '@zeteo/shared-types';
+import Button from '../components/Button';
 
 /** S5 정체 공개 + S5-a 제시어 추측.
  *  두 페이즈를 한 파일이 담당한다 — 룰북상 "처형자가 라이어일 때만" 추측이 붙는
@@ -30,6 +31,7 @@ export function Reveal({
         {canGuess ? (
           <div className="zt-chat-input">
             <input
+              className="input"
               value={guess}
               placeholder="제시어 입력…"
               onChange={(e) => setGuess(e.target.value)}
@@ -37,12 +39,13 @@ export function Reveal({
                 if (e.key === 'Enter' && guess.trim()) onEvent({ t: 'guessWord', word: guess.trim() });
               }}
             />
-            <button
+            <Button
               disabled={!guess.trim()}
               onClick={() => onEvent({ t: 'guessWord', word: guess.trim() })}
+              style={{ fontSize: 'var(--text-button)' }}
             >
               확정
-            </button>
+            </Button>
           </div>
         ) : (
           <p className="zt-muted">라이어가 제시어를 추측하는 중입니다…</p>

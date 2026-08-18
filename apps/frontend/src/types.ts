@@ -19,6 +19,8 @@ export interface ResultScreenState {
   botVoteCorrectCount: number;
   category: string;
   word: string | null;
+  /** 라이어가 제출한 추측 단어. 라이어가 안 잡혔거나 시간 초과로 못 냈으면 null */
+  guessWord: string | null;
   players: ResultPlayer[];
 }
 

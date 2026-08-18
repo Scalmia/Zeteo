@@ -3,7 +3,6 @@ import { useEffect } from 'react';
 /** 파트 D 소유 — 박진. 마우스를 따라가는 붉은 파티클 트레일. 50ms 쓰로틀, reduced-motion 사용자는 끈다. */
 export function ParticleTrail() {
   useEffect(() => {
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     let lastTime = 0;
     const onMove = (e: MouseEvent) => {
