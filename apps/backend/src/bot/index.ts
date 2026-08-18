@@ -481,6 +481,7 @@ export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise
 
     case 'guessWord': {
       try {
+        // 개버그. 이렇게 쓰면 안됨. max로 지정 후 200으로 해버리면 생각할 기회조차 주어지지 않음.
         const word = await generate(systemPrompt(ctx), guessWordPrompt(ctx), {
           maxTokens: 200,
           effort: 'max',
