@@ -2,23 +2,38 @@ import { supabase } from './supabase';
 import { SurveyReason } from '@zeteo/shared-types';
 import { RoomInternalState } from '../room';
 
-const SURVEY_QUESTION_CODE = 'bot_reason'; 
+const SURVEY_QUESTION_CODE = 'bot_reason';
+
+// survey_reasons는 게임 도중 안 바뀌는 정적 데이터라, 브로드캐스트마다(=survey를 보는
+// 인원수만큼) 매번 다시 쿼리할 필요가 없다. 최초 성공 시에만 캐싱한다 — 에러로 실패한
+// 경우엔 캐시하지 않고 다음 호출에서 재시도되게 둔다.
+let cachedReasons: SurveyReason[] | null = null;
 
 export async function fetchSurveyReasons(): Promise<SurveyReason[]> {
-  const { data: question } = await supabase
+  if (cachedReasons) return cachedReasons;
+
+  const { data: question, error: questionErr } = await supabase
     .from('survey_questions')
     .select('id')
     .eq('code', SURVEY_QUESTION_CODE)
     .single();
-  if (!question) return [];
+  if (questionErr || !question) {
+    console.error('설문 질문 조회 실패:', questionErr?.message);
+    return [];
+  }
 
-  const { data: reasons } = await supabase
+  const { data: reasons, error: reasonsErr } = await supabase
     .from('survey_reasons')
     .select('id, text, is_other')
     .eq('question_id', question.id)
     .order('sort_order');
+  if (reasonsErr) {
+    console.error('설문 선택지 조회 실패:', reasonsErr.message);
+    return [];
+  }
 
-  return (reasons ?? []).map((r) => ({ id: r.id, label: r.text }));
+  cachedReasons = (reasons ?? []).map((r) => ({ id: r.id, label: r.text }));
+  return cachedReasons;
 }
 
 export async function submitSurveyResponse(
@@ -31,6 +46,9 @@ export async function submitSurveyResponse(
   const voter = room.players.find((p) => p.id === voterId);
   if (!voter) return;
 
+  // botVote 단계엔 20초 타이머가 있다(index.ts PHASE_DURATIONS.botVote) — 그 안에 지목을
+  // 못 했으면 room.botVotes에 이 사람 항목 자체가 없다. 그런 채로 survey까지 왔을 수
+  // 있으므로, 지목 대상이 없으면(=guessedTarget이 없으면) 응답을 남기지 않고 건너뛴다.
   const guessedTargetId = room.botVotes[voterId];
   const guessedTarget = room.players.find((p) => p.id === guessedTargetId);
   if (!guessedTarget) return;
