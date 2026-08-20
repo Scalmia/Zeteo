@@ -1,3 +1,17 @@
+/**
+ * 한 판이 도는 동안 방 하나가 기억해야 할 것 전부와, 그것을 만들고 지우는 일.
+ *
+ * 방 상태는 이 파일의 rooms 맵, 즉 서버 메모리에만 산다. DB는 끝난 판을 받아
+ * 적기만 하고 진행 중인 게임은 거치지 않는다 — 그래서 서버가 재시작되면 진행
+ * 중이던 판은 사라진다. 한 판이 짧아 그 편이 낫다고 본 선택이다.
+ *
+ * 구역
+ *   1. 방이 기억하는 것          RoomInternalState · rooms
+ *   2. 방이 생기고 사람이 모인다   createRoom · getRoom · joinRoom · 준비 확인
+ *   3. 판이 시작된다             역할 배정 · 라벨 배정
+ *   4. 판이 도는 동안            pushSystemMessage
+ *   5. 방이 정리된다             removePlayerFromLobby · deleteRoom
+ */
 import { InternalPlayer, Phase, Message, Role } from '@zeteo/shared-types';
 import { logMessage } from './db/log';
 import { randomUUID } from 'crypto';
@@ -21,7 +35,15 @@ export interface RoomInternalState {
   accusedId: string | null;
   revealedRole: Role | null; // S5 처형자 역할 공개
   liarGameResult: 'liarWin' | 'citizenWin' | null; // S5 라이어게임 승패
-  pendingLiarGameResult: 'liarWin' | 'citizenWin' | null; // 확정된 승패를 result 진입 전까지 숨겨두는 내부 버퍼
+  /**
+   * 확정된 승패를 result 진입 전까지 숨겨두는 내부 버퍼.
+   * 승패는 정체 공개 시점에 이미 정해지지만, 그때 내보내면 아직 남은
+   * 제시어 추측·봇 지목의 긴장이 통째로 사라진다. 그래서 서버는 알고
+   * 있으면서도 result 로 넘어갈 때까지 liarGameResult 에 옮기지 않는다.
+   *
+   * ※ 숨기는 이유는 코드에서 읽어낸 추정 — 소유자 확인 필요
+   */
+  pendingLiarGameResult: 'liarWin' | 'citizenWin' | null;
   guessWord: string | null;   // ← 추가: 라이어가 제출한 제시어 추측값
   lifeVoteDecided: boolean; // 생사투표 결과가 이미 확정돼서 3초 타이머가 걸린 상태인지
   createdAt: number;
@@ -32,6 +54,7 @@ export interface RoomInternalState {
   submittedSurveyIds: Set<string>;
 }
 
+/** 살아 있는 방 전부. 이 맵이 서버가 가진 유일한 게임 상태다. */
 const rooms = new Map<string, RoomInternalState>();
 
 // ── 2. 방이 생기고 사람이 모인다 ─────────────────────────────────────
@@ -72,6 +95,13 @@ export function getRoom(roomId: string): RoomInternalState | undefined {
   return rooms.get(roomId);
 }
 
+/**
+ * 플레이어 id 는 프로세스 전역에서 하나씩 올라간다 (p1, p2, …).
+ * 방마다 세면 다른 방에 같은 id 가 생겨, 소켓 하나가 여러 방에 걸칠 때
+ * 누구인지 가릴 수 없다.
+ *
+ * ※ 전역으로 둔 이유는 추정 — 소유자 확인 필요
+ */
 let idCounter = 0;
 
 // A-1: 봇이 항상 입장 순서(=배열 0번)에 고정되던 문제 수정.
@@ -112,6 +142,11 @@ export function isEveryoneReady(room: RoomInternalState): boolean {
 
 // ── 3. 판이 시작된다 ─────────────────────────────────────────────────
 
+/**
+ * 라이어 한 명을 뽑는다. 봇을 빼지 않고 전체에서 뽑으므로 봇이 라이어가
+ * 되는 판도 실제로 나온다 — 봇이 늘 시민이면 그 규칙성 자체가 봇을
+ * 찾는 단서가 되기 때문이다.
+ */
 export function assignRoles(room: RoomInternalState) {
   const shuffled = [...room.players].sort(() => Math.random() - 0.5);
   const liar = shuffled[0];
@@ -120,6 +155,12 @@ export function assignRoles(room: RoomInternalState) {
   liar.role = 'liar';
 }
 
+/**
+ * 화면에 보이는 이름은 실명이 아니라 이 라벨이다 (A, B, C …).
+ * 남는 것 중 무작위로 뽑는다 — 앞에서부터 순서대로 주면 라벨이 곧 입장
+ * 순서가 되어, 먼저 들어온 사람이 누구인지 라벨만 보고 알 수 있게 된다.
+ * (같은 이유로 shufflePlayers 가 배열 자체도 섞는다 — 아래 A-1 주석 참고)
+ */
 const LABEL_POOL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
 function assignLabel(room: RoomInternalState): string {
@@ -156,6 +197,13 @@ export function pushSystemMessage(room: RoomInternalState, text: string) {
 
 // ── 5. 방이 정리된다 ─────────────────────────────────────────────────
 
+/**
+ * 대기실에서 나갈 때. 방이 사라지는 경로는 둘이고 이게 그중 하나다.
+ *   · 여기 — 마지막 한 명까지 나가서 자동으로 정리되는 경우
+ *   · deleteRoom — 설문까지 전원 마쳐서 판이 확실히 끝난 경우
+ * 둘을 합치지 않는 이유는 "아무도 없어서 지운다"와 "끝나서 지운다"가
+ * 최종 로그를 보낼지 말지에서 갈리기 때문이다.
+ */
 export function removePlayerFromLobby(roomId: string, playerId: string): boolean {
   const room = getRoom(roomId);
   if (!room) return false;
