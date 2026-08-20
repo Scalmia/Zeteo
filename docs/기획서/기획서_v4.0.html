@@ -1,0 +1,597 @@
+<title>Zeteo 기술 구현 기획서 v4.0</title>
+
+<style>
+  :root {
+    --paper:      #edeef1;
+    --surface:    #ffffff;
+    --surface-2:  #f5f6f8;
+    --ink:        #15171b;
+    --muted:      #656b75;
+    --line:       #d2d6dd;
+    --line-soft:  #e3e6ea;
+    --accent:     #8c2f39;
+    --accent-dim: #f4e6e7;
+    --open:       #8a6a18;
+    --open-dim:   #f6efdc;
+    --set:        #2e6a50;
+    --set-dim:    #e2efe8;
+
+    --sans: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont,
+            "Apple SD Gothic Neo", "Malgun Gothic", "맑은 고딕", system-ui, sans-serif;
+    --mono: "Cascadia Mono", "D2Coding", ui-monospace, Consolas, "Liberation Mono", monospace;
+
+    --s1: 4px; --s2: 8px; --s3: 14px; --s4: 22px; --s5: 34px; --s6: 52px; --s7: 80px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #131519;
+      --surface:    #1a1d22;
+      --surface-2:  #1f232a;
+      --ink:        #e7e9ed;
+      --muted:      #979ea9;
+      --line:       #2c3037;
+      --line-soft:  #23272d;
+      --accent:     #d9737d;
+      --accent-dim: #2b1c1f;
+      --open:       #c9a24a;
+      --open-dim:   #2a2418;
+      --set:        #6faf8e;
+      --set-dim:    #18261f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper:      #131519;
+    --surface:    #1a1d22;
+    --surface-2:  #1f232a;
+    --ink:        #e7e9ed;
+    --muted:      #979ea9;
+    --line:       #2c3037;
+    --line-soft:  #23272d;
+    --accent:     #d9737d;
+    --accent-dim: #2b1c1f;
+    --open:       #c9a24a;
+    --open-dim:   #2a2418;
+    --set:        #6faf8e;
+    --set-dim:    #18261f;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1000px; margin: 0 auto; padding: 0 var(--s4) var(--s7); }
+
+  /* ── 머리말 ─────────────────────────────── */
+  header.doc {
+    padding: var(--s7) 0 var(--s5);
+    border-bottom: 2px solid var(--ink);
+  }
+  .rev {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: var(--s3);
+  }
+  h1 {
+    font-size: clamp(38px, 7vw, 68px);
+    line-height: 1.04;
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    margin: 0 0 var(--s4);
+    text-wrap: balance;
+  }
+  .thesis {
+    font-size: 19px;
+    color: var(--muted);
+    max-width: 60ch;
+    margin: 0;
+    text-wrap: pretty;
+  }
+  .thesis strong { color: var(--ink); font-weight: 600; }
+
+  .facts {
+    margin-top: var(--s5);
+    display: grid;
+    gap: 1px;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    background: var(--line);
+    border: 1px solid var(--line);
+  }
+  .fact { background: var(--surface); padding: var(--s3) var(--s4); }
+  .fact dt {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: var(--s1);
+  }
+  .fact dd {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  /* ── 절 ─────────────────────────────────── */
+  section { padding: var(--s6) 0 0; }
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    gap: var(--s3);
+    padding-bottom: var(--s3);
+    border-bottom: 1px solid var(--line);
+    margin-bottom: var(--s4);
+  }
+  .sec-num {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    flex: none;
+  }
+  h2 {
+    font-size: clamp(21px, 3vw, 27px);
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0;
+    text-wrap: balance;
+  }
+  h3 {
+    font-size: 17px;
+    font-weight: 700;
+    margin: var(--s4) 0 var(--s2);
+    letter-spacing: -0.01em;
+  }
+  p { margin: 0 0 var(--s3); max-width: 68ch; text-wrap: pretty; }
+  p:last-child { margin-bottom: 0; }
+  .lede { font-size: 17px; color: var(--muted); max-width: 64ch; margin-bottom: var(--s4); }
+  .lede strong { color: var(--ink); font-weight: 600; }
+
+  ul { margin: 0 0 var(--s3); padding-left: 1.1em; max-width: 68ch; }
+  li { margin-bottom: var(--s2); }
+  li::marker { color: var(--muted); }
+  li:last-child { margin-bottom: 0; }
+
+  strong { font-weight: 700; }
+  code {
+    font-family: var(--mono);
+    font-size: 0.86em;
+    background: var(--surface-2);
+    border: 1px solid var(--line-soft);
+    padding: 0.1em 0.36em;
+    border-radius: 3px;
+    word-break: break-word;
+  }
+
+  /* ── 상태 칩 ────────────────────────────── */
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    padding: 3px 9px;
+    border-radius: 3px;
+    white-space: nowrap;
+  }
+  .chip::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+  .chip-open { background: var(--open-dim); color: var(--open); }
+  .chip-set  { background: var(--set-dim);  color: var(--set); }
+  .chip-new  { background: var(--accent-dim); color: var(--accent); }
+
+  /* ── 목표 셋 ────────────────────────────── */
+  .goals { display: grid; gap: var(--s4); grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .goal {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-top: 3px solid var(--accent);
+    padding: var(--s4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s3);
+  }
+  .goal-tag {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .goal h3 { margin: 0; font-size: 20px; line-height: 1.35; letter-spacing: -0.015em; }
+  .goal p { font-size: 15px; color: var(--muted); margin: 0; max-width: none; }
+  .goal p strong { color: var(--ink); }
+  .goal-meta {
+    margin-top: auto;
+    padding-top: var(--s3);
+    border-top: 1px solid var(--line-soft);
+    display: flex;
+    flex-direction: column;
+    gap: var(--s2);
+  }
+  .goal-row {
+    display: flex;
+    gap: var(--s2);
+    align-items: baseline;
+    font-size: 14px;
+  }
+  .goal-row .k {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    flex: none;
+    width: 52px;
+  }
+  .goal-row .v { color: var(--ink); }
+
+  /* ── 표 ─────────────────────────────────── */
+  .scroll {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    margin-bottom: var(--s3);
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 15px; min-width: 480px; }
+  th, td {
+    text-align: left;
+    padding: var(--s2) var(--s3);
+    border-bottom: 1px solid var(--line-soft);
+    vertical-align: top;
+  }
+  thead th {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 700;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td:first-child { font-weight: 600; white-space: nowrap; }
+  td.mono { font-family: var(--mono); font-size: 13px; }
+
+  /* ── 메모 상자 ──────────────────────────── */
+  .note {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-left: 3px solid var(--accent);
+    padding: var(--s3) var(--s4);
+    margin-bottom: var(--s3);
+    max-width: 68ch;
+  }
+  .note-lbl {
+    display: block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.11em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: var(--s1);
+  }
+  .note p { margin-bottom: 0; font-size: 15px; }
+
+  /* ── 순서 후보 ──────────────────────────── */
+  .flows { display: flex; flex-direction: column; gap: var(--s2); margin-bottom: var(--s3); }
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    background: var(--surface);
+    border: 1px solid var(--line);
+    padding: var(--s2) var(--s3);
+    font-family: var(--mono);
+    font-size: 14px;
+    overflow-x: auto;
+  }
+  .flow .lbl {
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    flex: none;
+    width: 48px;
+  }
+  .flow .path { white-space: nowrap; }
+  .flow em { font-style: normal; color: var(--accent); font-weight: 700; }
+
+  /* ── 일정 ───────────────────────────────── */
+  .plan { display: grid; gap: 1px; background: var(--line); border: 1px solid var(--line); }
+  .day {
+    background: var(--surface);
+    padding: var(--s3) var(--s4);
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: var(--s3);
+    align-items: baseline;
+  }
+  .day.mark { background: var(--accent-dim); }
+  .day-d {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .day-t { font-size: 15px; }
+  .day-t em { font-style: normal; display: block; color: var(--muted); font-size: 13.5px; }
+
+  footer {
+    margin-top: var(--s6);
+    padding-top: var(--s4);
+    border-top: 1px solid var(--line);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  footer p { margin: 0 0 var(--s1); max-width: none; }
+
+  @media (max-width: 620px) {
+    body { font-size: 15.5px; }
+    header.doc { padding-top: var(--s5); }
+    .day { grid-template-columns: 1fr; gap: var(--s1); }
+    .goal-row { flex-direction: column; gap: 0; }
+    .goal-row .k { width: auto; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+</style>
+
+<div class="wrap">
+
+<header class="doc">
+  <div class="rev">기술 구현 기획서 · 개정 4판 · 2026-08-20</div>
+  <h1>정한 것만<br>적어둔다</h1>
+  <p class="thesis">
+    v3.0은 다섯 판을 돌려보고 <strong>알게 된 것</strong>을 담았다.
+    이 문서는 중간발표를 끝내고 <strong>정한 것</strong>만 담는다.
+    목표 셋과 마감 하나, 그리고 그 사이에 깔아둘 바닥.
+    <strong>어떻게 만들지는 각자 정한다</strong> — 여기 적지 않는다.
+  </p>
+
+  <dl class="facts">
+    <div class="fact"><dt>마감</dt><dd>08 / 30 <span style="font-size:14px;font-weight:500;color:var(--muted)">일</span></dd></div>
+    <div class="fact"><dt>목표</dt><dd>3</dd></div>
+    <div class="fact"><dt>남은 기간</dt><dd>10일</dd></div>
+    <div class="fact"><dt>배포</dt><dd>운영 중</dd></div>
+  </dl>
+</header>
+
+<!-- ═══════════════════════════════════ 1 -->
+<section id="s1">
+  <div class="sec-head"><span class="sec-num">§1</span><h2>이 문서가 v3.0과 다른 점</h2></div>
+
+  <p class="lede">
+    v3.0은 읽고 나면 구현이 시작되는 문서였다. 이번은 아니다.
+    <strong>세 방향에 합의하는 것</strong>까지가 이 문서의 역할이고, 그 아래는 각자 파고든다.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr><th style="width:22%">항목</th><th>v3.0</th><th>v4.0</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>문서의 역할</td>
+          <td>설계까지 확정 — 테이블·화면·제한시간이 전부 적혀 있었다</td>
+          <td><strong>방향만 확정</strong> — 무엇을 만들지만 적고 어떻게는 각자 정한다</td>
+        </tr>
+        <tr>
+          <td>분량</td>
+          <td>8절 · 미결정 7건</td>
+          <td>5절 · 열린 질문은 목표마다 하나씩</td>
+        </tr>
+        <tr>
+          <td>전제</td>
+          <td>만들면서 알게 된 것</td>
+          <td><strong>발표를 받고 정한 것</strong> — 목표 3은 중간발표 피드백에서 나왔다</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <span class="note-lbl">왜 얇게 쓰는가</span>
+    <p>
+      v3.0을 두껍게 쓴 이유는 네 명이 병렬로 일하려면 계약이 먼저 필요했기 때문이다.
+      지금은 계약(<code>@zeteo/shared-types</code>)이 안정돼 있고 각자 자기 파트를 안다.
+      이 시점에 세부 설계를 문서로 먼저 못 박으면 <strong>실제로 짜면서 알게 될 것을 추측으로 미리 굳히게 된다.</strong>
+      결론은 여기 남기고, 과정은 코드와 <code>-logs</code>에 남긴다.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════ 2 -->
+<section id="s2">
+  <div class="sec-head"><span class="sec-num">§2</span><h2>목표 셋</h2></div>
+
+  <p class="lede">
+    셋 다 <strong>설계 전</strong>이다. 아래는 무엇을 만들지에 대한 합의이지 설계안이 아니다.
+    각 항목의 <strong>열린 질문</strong>이 그 목표에서 가장 먼저 답해야 할 것이다.
+  </p>
+
+  <div class="goals">
+
+    <article class="goal">
+      <div class="goal-tag">학습</div>
+      <h3>쌓인 데이터로 봇이 스스로 나아지게</h3>
+      <p>
+        지금은 게임이 끝나면 기록이 DB에 들어가고 <strong>거기서 멈춘다.</strong>
+        조회해서 무엇이 문제였는지 판단하고, 그것을 다음 판의 봇에 되먹이는 고리를 닫는다.
+      </p>
+      <div class="goal-meta">
+        <div class="goal-row"><span class="k">경계</span><span class="v">적재까지 유민성 · 조회부터 김정현</span></div>
+        <div class="goal-row"><span class="k">상태</span><span class="v"><span class="chip chip-open">설계 전</span></span></div>
+        <div class="goal-row"><span class="k">열린</span><span class="v">무엇을 학습 기준으로 볼 것인가</span></div>
+      </div>
+    </article>
+
+    <article class="goal">
+      <div class="goal-tag">방</div>
+      <h3>번호를 치지 않고 목록에서 골라 들어가게</h3>
+      <p>
+        지금은 <strong>미리 정해둔 번호를 입력해</strong> 들어간다.
+        열려 있는 방이 대시보드에 보이고, <strong>눌러서 들어간다.</strong>
+        제목으로 찾을 수 있고, 나갔다 다시 들어올 수 있다.
+      </p>
+      <div class="goal-meta">
+        <div class="goal-row"><span class="k">범위</span><span class="v">방 목록 화면(신규) · 서버 방 생명주기</span></div>
+        <div class="goal-row"><span class="k">상태</span><span class="v"><span class="chip chip-open">설계 전</span></span></div>
+        <div class="goal-row"><span class="k">열린</span><span class="v">진행 중인 방을 목록에서 어떻게 다룰 것인가 &mdash; 잠글지, 재입장만 열지</span></div>
+      </div>
+    </article>
+
+    <article class="goal">
+      <div class="goal-tag">리플레이 <span class="chip chip-new">신규</span></div>
+      <h3>게임이 끝난 뒤 대화를 다시 볼 수 있게</h3>
+      <p>
+        <strong>중간발표 피드백에서 나온 항목이다.</strong>
+        <strong>설문 화면 안에</strong> 둔다. 답을 쓰다가 대화를 다시 보고, 보다가 답으로 돌아온다.
+        따로 떨어진 단계가 아니라 설문과 오가는 한 자리다.
+      </p>
+      <div class="goal-meta">
+        <div class="goal-row"><span class="k">효과</span><span class="v">설문 답변의 근거가 기억에서 기록으로 바뀐다</span></div>
+        <div class="goal-row"><span class="k">상태</span><span class="v"><span class="chip chip-open">설계 전</span></span></div>
+        <div class="goal-row"><span class="k">열린</span><span class="v">오갈 때 쓰던 답이 남아 있어야 하는가</span></div>
+      </div>
+    </article>
+
+  </div>
+
+  <h3>화면 흐름은 그대로다</h3>
+  <div class="flows">
+    <div class="flow"><span class="lbl">전</span><span class="path">결과 &nbsp;→&nbsp; 설문 &nbsp;→&nbsp; 랜딩</span></div>
+    <div class="flow"><span class="lbl">후</span><span class="path">결과 &nbsp;→&nbsp; 설문 <em>⇄ 리플레이</em> &nbsp;→&nbsp; 랜딩</span></div>
+  </div>
+  <p>
+    리플레이는 <strong>단계가 아니라 설문 안의 자리</strong>다. 순서를 새로 정할 일이 없고,
+    설문을 마치면 지금처럼 랜딩으로 나간다.
+    답을 쓰다가 근거를 확인하러 다녀올 수 있다는 것이 이 목표의 전부다.
+  </p>
+</section>
+
+<!-- ═══════════════════════════════════ 3 -->
+<section id="s3">
+  <div class="sec-head"><span class="sec-num">§3</span><h2>바닥 다지기</h2></div>
+
+  <p class="lede">
+    목표 셋보다 <strong>먼저 한다.</strong> 흠이 남아 있는 코드 위에 새 구조를 얹으면,
+    나중에 문제가 났을 때 새로 넣은 것 탓인지 원래 있던 것 탓인지 가려낼 수 없다.
+  </p>
+
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr><th style="width:20%">할 일</th><th style="width:16%">담당</th><th>내용</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>버그 수정</td>
+          <td class="mono">전원</td>
+          <td>내 파트가 아니어도 발견하면 알린다. 고친 내용은 각자 <code>-logs</code>에 한 줄씩 남긴다 — 같은 것을 두 사람이 고치는 일을 막기 위함이다</td>
+        </tr>
+        <tr>
+          <td>주석</td>
+          <td class="mono">각자 소유 파일</td>
+          <td>무엇을 하는지가 아니라 <strong>왜 그렇게 했는지</strong>를 적는다. 코드를 읽으면 알 수 있는 것은 안 적는다</td>
+        </tr>
+        <tr>
+          <td>최적화</td>
+          <td class="mono">각자 소유 파일</td>
+          <td>측정한 것만 손댄다. 느리다고 느낀 것과 실제로 느린 것은 다르다</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <span class="note-lbl">먼저 정리할 것</span>
+    <p>
+      <code>feat/server</code>의 <code>0b453ea &ldquo;DB &lt;-&gt; BOT&rdquo;</code>(<code>knowledge.ts</code> ·
+      <code>history.ts</code> &mdash; 과거 설문 사유를 봇 프롬프트에 자동으로 넣는 코드)가
+      <strong>dev 병합에서 빠진 채로 남아 있다.</strong>
+      사람이 확인하지 않은 내용이 프롬프트에 바로 들어가는 방식이라 뺐던 것인데,
+      <strong>목표 1과 정면으로 겹친다.</strong> 목표 1을 시작하기 전에 두 사람이 먼저 맞춘다.
+    </p>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════ 4 -->
+<section id="s4">
+  <div class="sec-head"><span class="sec-num">§4</span><h2>일정</h2></div>
+
+  <div class="plan">
+    <div class="day">
+      <span class="day-d">8/20 ~ 8/22</span>
+      <span class="day-t">바닥 다지기<em>버그 · 주석 · 최적화</em></span>
+    </div>
+    <div class="day">
+      <span class="day-d">8/22</span>
+      <span class="day-t">목표별 방향 합의<em>각자 어떻게 만들지 정리해서 공유 — 문서가 아니라 대화로</em></span>
+    </div>
+    <div class="day">
+      <span class="day-d">8/23 ~ 8/28</span>
+      <span class="day-t">목표 셋 구현<em>세 갈래가 서로를 기다리지 않도록 계약이 먼저 필요하면 그때 잠근다</em></span>
+    </div>
+    <div class="day">
+      <span class="day-d">8/29</span>
+      <span class="day-t">통합 · 테스트<em>다 같이 몇 판 — 목표 1의 입력이 될 데이터이기도 하다</em></span>
+    </div>
+    <div class="day mark">
+      <span class="day-d">8/30</span>
+      <span class="day-t">마감<em>이 날 이후로는 기능 추가 없이 안정화만</em></span>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════════════════════════════ 5 -->
+<section id="s5">
+  <div class="sec-head"><span class="sec-num">§5</span><h2>이 문서가 정하지 않는 것</h2></div>
+
+  <p class="lede">
+    아래는 <strong>일부러 비워둔 자리</strong>다. 빠뜨린 것이 아니다.
+  </p>
+
+  <ul>
+    <li><strong>학습 신호의 구체적인 형태</strong> — 설문만 볼지, 관전자 봇 지적까지 볼지, 어떤 쿼리를 열지. 데이터를 실제로 꺼내 봐야 정해진다</li>
+    <li><strong>방 목록에 무엇을 띄울지</strong> — 제목 · 인원 · 진행 상태 중 어디까지 보여줄지, 인원 규칙을 방마다 다르게 둘지</li>
+    <li><strong>리플레이의 표시 방식</strong> — 로그를 통째로 펼칠지, 흐름대로 다시 감을지</li>
+    <li><strong>화면 디자인</strong> — 새로 생기는 화면의 배치는 만드는 사람이 정한다. 토큰만 지키면 된다</li>
+  </ul>
+
+  <div class="note">
+    <span class="note-lbl">잠글 것이 생기면</span>
+    <p>
+      각자 파고들다가 <strong>다른 파트가 맞춰야 하는 값</strong>이 나오면 —
+      타입이든 이벤트 이름이든 — 그때 <code>@zeteo/shared-types</code>에 올린다.
+      직접 고치지 않고 알린다. 하루에 세 사람이 같은 필드를 각자 추가한 일이 실제로 있었다.
+    </p>
+  </div>
+</section>
+
+<footer>
+  <p>Zeteo · 기술 구현 기획서 v4.0 · 2026-08-20</p>
+  <p>이전 판 — v3.0(08-10) 다섯 판의 실측 / v2.0(08-03) 구현 후 개정 / v1.0(08-03) 착수</p>
+</footer>
+
+</div>

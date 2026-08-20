@@ -98,8 +98,23 @@ function getAnthropic(): Anthropic {
  * "그 예산 안에서 최대한 밀도 있게" 쓰게 할 수 있는지가 이번에 확인할 것.
  * budget_tokens 1024는 Anthropic 프로토콜이 허용하는 최솟값이라 여기서도 지연의 하한선 역할을 한다.
  *
- * guessWord는 호출이 드물고 속도가 안 중요해서 budget_tokens 없이 effort만 준다 — 예산에
- * 안 묶이고 필요한 만큼 쓰게 둔다. 최근 확인된 ultra는 reasoning_effort 중 가장 높은 단계다.
+ * guessWord도 사고를 예산으로 묶는다. 예전에는 여기만 budget_tokens 없이 effort만 줬는데,
+ * "필요한 만큼 쓰게 둔다"는 의도와 달리 두 가지가 같이 망가져 있었다.
+ *
+ *   1. max_tokens는 본문과 사고의 합이다. 예산을 안 정해주면 무제한이 되는 게 아니라
+ *      max_tokens가 그대로 사고의 상한이 되고, 사고가 그걸 다 먹으면 본문이 0개로 온다.
+ *      max_tokens 200을 주던 동안, 실제 대화 기록을 붙인 프롬프트로 3/3 빈 응답이었다.
+ *   2. 응답이 17~100초로 널뛴다. guessWord 페이즈 제한시간은 20초(index.ts PHASE_DURATIONS)라
+ *      늦게 도착한 답은 버려진다. 토큰만 올리고 여기를 그대로 두면 단어는 나오지만
+ *      제출은 여전히 안 돼, 고치기 전과 결과가 같다.
+ *
+ * 같은 프롬프트로 잰 값 (max_tokens 4096, 설정당 3회):
+ *   ultra 무제한        17~100초    빈 응답 1회
+ *   budget 2048 + max   6.6~8.4초   3/3 정답
+ *   budget 1024 + max   7.1~10.5초  3/3 정답
+ *
+ * 2048은 제한시간 안에 들어오면서 평소 발화(1024)보다는 더 생각하는 자리다.
+ * 4096에서 사고를 2048로 묶으면 본문 몫이 2048 남아 빈 응답이 구조적으로 안 나온다.
  *
  * temperature 1.2 — 같은 상황을 여러 번 물으면 글자까지 똑같은 답이 나올 만큼 결정적이어서 올려 잡았다.
  * OpenAI 경로에는 이 손잡이가 없다(지원 파라미터에 temperature가 없다).
@@ -107,7 +122,7 @@ function getAnthropic(): Anthropic {
 async function callAnthropic(system: string, user: string, opts: Required<GenerateOptions>): Promise<string> {
   const thinking =
     opts.effort === 'max'
-      ? { type: 'enabled', reasoning_effort: 'ultra' }
+      ? { type: 'enabled', budget_tokens: 2048, reasoning_effort: 'max' }
       : { type: 'enabled', budget_tokens: 1024, reasoning_effort: 'max' };
 
   const res = await getAnthropic().messages.create({
@@ -147,6 +162,11 @@ function getOpenAI(): OpenAI {
  * 추론 토큰은 출력으로 과금되고(입력 $5/M · 출력 $30/M) 화면에는 안 보인다.
  * 다만 본문(content)과는 다른 필드로 오기 때문에, qwen에서 겪었던 "사고 과정이 채팅에 튀어나오는" 일은
  * 구조적으로 덜 일어난다. 그래도 index.ts의 looksInvalid 검사는 그대로 둔다.
+ *
+ * reasoning_effort에 무엇을 넣을 수 있는지는 모델마다 다르다. GPT-5.6은 max를 받지만
+ * Grok 4.6은 xhigh · high · medium · low 뿐이라 max를 보내면 400이 돌아온다.
+ * 그래서 최고 단계를 GPT_EFFORT_MAX로 빼둔다 — GPT_MODEL을 바꿀 때 코드를 고치지 않고
+ * 같이 맞출 수 있어야 한다. high는 양쪽 모두 받으므로 기본 단계는 그대로 둔다.
  */
 async function callOpenAI(system: string, user: string, opts: Required<GenerateOptions>): Promise<string> {
   const res = await getOpenAI().chat.completions.create({
@@ -156,7 +176,9 @@ async function callOpenAI(system: string, user: string, opts: Required<GenerateO
       { role: 'system', content: system },
       { role: 'user', content: user },
     ],
-    reasoning_effort: opts.effort === 'max' ? 'max' : 'high',
+    reasoning_effort: (opts.effort === 'max'
+      ? (process.env.GPT_EFFORT_MAX ?? 'max')
+      : 'high') as NonNullable<OpenAI.Chat.ChatCompletionCreateParams['reasoning_effort']>,
   });
 
   return res.choices[0]?.message?.content ?? '';

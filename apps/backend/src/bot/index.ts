@@ -6,7 +6,7 @@ import {
   guessWordPrompt,
   systemPrompt,
 } from './prompts';
-import { generate } from './llm';
+import { generate, type GenerateOptions } from './llm';
 
 /**
  * 아직 투표하지 않았을 때 입을 열 확률. 나머지는 그 자리에서 투표한다.
@@ -67,10 +67,26 @@ const DROP_LEADING_LABEL_CHANCE = 0.7;
  * 이 값은 "발언이 화면에 뜨기까지의 총 시간" 목표다. 모델이 쓴 시간을 여기서 빼기 때문에,
  * 목표가 모델 응답 시간(5~6초)보다 작으면 지연이 늘 0이 되어 아무 효과가 없다.
  * 1판 실측에서 봇이 5~6초 간격으로 말해 "폭주한다"는 반응이 나왔으므로 10초 안팎을 노린다.
+ *
+ * 기준값이 3000이던 동안에는 이 목표가 지켜지지 않았다. 두세 글자짜리 발언은 3.9~5.9초를
+ * 목표로 잡는데 모델이 그만큼을 이미 써버려, 빼고 나면 0이 됐다. 그런데 말투 규칙은
+ * "절반은 두세 글자로 끝내라"고 지시한다 — 짧게 말하라고 시켜놓고 짧은 말에는 지연이
+ * 안 걸리는 구조였다. 가장 짧은 발언도 목표가 모델 응답 시간을 넘도록 기준값을 올린다.
  */
 function humanDelay(text: string): number {
-  return Math.round(3000 + text.length * 300 + Math.random() * 2000);
+  return Math.round(7000 + text.length * 300 + Math.random() * 2000);
 }
+
+
+/**
+ * guessWord 한 번에 허용하는 토큰.
+ *
+ * Anthropic 프로토콜에서 max_tokens는 본문과 사고의 합이다. 여기는 effort를 가장 높게
+ * 켜는 자리인데 200을 주고 있어서, 200을 사고에 전부 쓰고 본문이 0개로 돌아왔다.
+ * 예외가 아니라 정상 응답이라 에러 로그도 안 남아, 매번 주제명을 답으로 내는 것이
+ * 오래 보이지 않았다. 답은 단어 하나지만 그 앞에 사고가 들어가므로 넉넉히 잡는다.
+ */
+const GUESS_WORD_MAX_TOKENS = 4096;
 
 /** 침묵을 고른 뒤 서버가 다시 물어보기까지의 간격. 이 값이 0이면 서버가 즉시 되물어 루프가 폭주한다. */
 function silentDelay(): number {
@@ -203,9 +219,13 @@ function maybeDropLeadingLabel(ctx: BotContext, text: string, target: string | n
 }
 
 /**
- * API가 죽었을 때 대신 내보낼 말. 제시어를 흘리지 않으면서 사람이 실제로 칠 법한 문장이라야 한다.
- * 침묵으로 대체하지 않는 이유는, 묘사 단계에서 silent가 자기 턴을 통째로 넘겨버려
- * 혼자 아무 말 없이 지나간 참가자가 되기 때문이다.
+ * 묘사 턴에서 쓸 만한 발언을 못 만들었을 때 대신 내보낼 말.
+ * 제시어를 흘리지 않으면서 사람이 실제로 칠 법한 문장이라야 한다.
+ *
+ * 넷뿐이라 자주 쓰이면 같은 말이 되풀이되는 것이 눈에 띈다. 실제로 "가끔 똑같은 말을
+ * 반복한다"는 반응이 나왔고, 원인은 생성 실패 세 갈래가 전부 여기로 모이던 것이었다.
+ * 지금은 이리로 오는 경로가 묘사 턴 하나뿐이다 — 침묵할 수 있는 자리에서는 침묵을 고른다.
+ * isEcho는 이 반복을 못 잡는다. 넷 중 다른 걸 뽑으면 다른 말로 보이기 때문이다.
  */
 const FALLBACK_LINES = ['음 뭐라 해야 하지', '아 이거 설명하기 좀 그런데', '잠깐만', '음… 애매하네'];
 
@@ -266,18 +286,37 @@ function shouldWaitForOthers(ctx: BotContext): boolean {
  * 빼지 않으면 모델 응답 시간에 지연이 그대로 더해져 사람보다 느려지고,
  * 반대로 추론을 끄면 즉답이 되어 티가 난다.
  *
+ * 쓸 만한 말을 못 만들면 text가 null이다. 그때 무엇을 내보낼지는 부르는 쪽이 정한다.
+ * 토론에선 침묵할 수 있지만 묘사에선 침묵이 턴을 통째로 넘겨버리므로 선택지가 다르다.
+ * 예전에는 여기서 고정 문구로 대신했는데 그 문구가 넷뿐이라, 실제 게임 중에 같은 말이
+ * 반복돼 나오는 것으로 드러났다.
+ *
+ * 옵션을 그대로 넘겨받는 이유는, 이걸 못 받던 동안 옵션이 필요한 guessWord가 이 함수를
+ * 통째로 우회해 제시어 유출 검사조차 안 받고 있었기 때문이다.
+ *
  * 여기서 예외를 삼키지 않으면 서버가 void로 띄워둔 호출에서 unhandled rejection이 나
  * 프로세스가 내려갈 수 있다. 봇 하나 때문에 방 전체가 죽어선 안 된다.
  */
-async function speak(ctx: BotContext, prompt: string): Promise<{ text: string; delayMs: number }> {
+async function speak(
+  ctx: BotContext,
+  prompt: string,
+  opts?: GenerateOptions,
+): Promise<{ text: string | null; delayMs: number }> {
   const started = Date.now();
+  // 모델이 목표 시간을 이미 다 썼으면 더 안 기다린다. 그 경우 총 소요 시간은 이미 사람만큼
+  // 길어서 더 붙일 이유가 없고, 묘사 턴은 20초에 끊기므로 남은 여유를 깎으면 턴을 통째로 잃는다.
+  const wait = (t: string): number => Math.max(0, humanDelay(t) - (Date.now() - started));
 
-  let text = await generateOrEmpty(ctx, prompt);
+  let text = await generateOrEmpty(ctx, prompt, opts);
 
   // 프롬프트로 금지해도 모델이 제시어를 그대로 말하거나, 답 대신 사고 과정을 뱉는 일이
   // 실제로 벌어졌다. 둘 다 그대로 내보내면 그 판이 끝나므로 규칙에만 맡기지 않고
   // 생성 결과를 직접 확인한다. 한 번 더 시켜보고 그래도 걸리면 버린다.
+  //
+  // 빈 응답도 여기서 걸러 로그를 남긴다. 토큰 한도가 모자라 사고에 전부 쓰고 본문이
+  // 0개로 돌아오는 일이 실제로 있었는데, 예외가 아니라 정상 응답이라 아무 흔적도 안 남았다.
   const rejected = (t: string): string | null => {
+    if (t.length === 0) return '빈 응답';
     if (leaksWord(ctx, t)) return '제시어 유출';
     if (looksInvalid(t)) return '채팅 한 줄이 아님';
     return null;
@@ -286,17 +325,15 @@ async function speak(ctx: BotContext, prompt: string): Promise<{ text: string; d
   let reason = rejected(text);
   if (reason !== null) {
     console.warn(`[bot] ${reason} 감지, 재생성:`, text);
-    text = await generateOrEmpty(ctx, prompt);
+    text = await generateOrEmpty(ctx, prompt, opts);
     reason = rejected(text);
     if (reason !== null) {
-      console.warn(`[bot] 재생성도 ${reason}, 대체 문구 사용:`, text);
-      text = '';
+      console.warn(`[bot] 재생성도 ${reason} — 발언을 버린다:`, text);
+      return { text: null, delayMs: wait('') };
     }
   }
 
-  if (text.length === 0) text = fallbackLine();
-
-  return { text, delayMs: Math.max(0, humanDelay(text) - (Date.now() - started)) };
+  return { text, delayMs: wait(text) };
 }
 
 function leaksWord(ctx: BotContext, text: string): boolean {
@@ -314,9 +351,13 @@ function looksInvalid(text: string): boolean {
   return (text.match(/[A-Za-z]/g) ?? []).length > 8;
 }
 
-async function generateOrEmpty(ctx: BotContext, prompt: string): Promise<string> {
+async function generateOrEmpty(
+  ctx: BotContext,
+  prompt: string,
+  opts?: GenerateOptions,
+): Promise<string> {
   try {
-    return await generate(systemPrompt(ctx), prompt);
+    return await generate(systemPrompt(ctx), prompt, opts);
   } catch (err) {
     console.error('[bot] 발화 생성 실패:', err instanceof Error ? err.message : err);
     return '';
@@ -350,6 +391,10 @@ function isEcho(ctx: BotContext, text: string): boolean {
  */
 async function chatOrSilent(ctx: BotContext, prompt: string): Promise<BotAction> {
   const { text: raw, delayMs } = await speak(ctx, prompt);
+
+  // 쓸 만한 말을 못 만들었으면 침묵한다. 토론과 최후 변론에선 침묵이 정상 행동이라
+  // 고정 문구로 때울 이유가 없다. 오히려 같은 문구가 되풀이되는 쪽이 봇 티가 난다.
+  if (raw === null) return { t: 'silent', delayMs: silentDelay() };
 
   // 대상은 떼어내기 전에 잡아둔다. 떼고 나면 텍스트에서 알아낼 방법이 없다.
   const target = addressedPlayer(ctx, raw);
@@ -417,7 +462,9 @@ export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise
   switch (ctx.phase) {
     case 'describe': {
       const { text, delayMs } = await speak(ctx, describePrompt(ctx));
-      return { t: 'describe', text, delayMs };
+      // 대체 문구를 쓰는 자리는 여기 하나뿐이다. 묘사에서 침묵하면 자기 턴을 통째로 넘겨
+      // 혼자 아무 말 없이 지나간 참가자가 되는데, 그게 고정 문구보다 더 눈에 띈다.
+      return { t: 'describe', text: text ?? fallbackLine(), delayMs };
     }
 
     /**
@@ -480,15 +527,11 @@ export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise
       return { t: 'lifeVote', kill: ctx.accusedId !== ctx.selfId };
 
     case 'guessWord': {
-      try {
-        const word = await generate(systemPrompt(ctx), guessWordPrompt(ctx), {
-          maxTokens: 200,
-          effort: 'max',
-        });
-        if (word.length > 0) return { t: 'guessWord', word };
-      } catch (err) {
-        console.error('[bot] 제시어 추측 실패:', err instanceof Error ? err.message : err);
-      }
+      const { text } = await speak(ctx, guessWordPrompt(ctx), {
+        maxTokens: GUESS_WORD_MAX_TOKENS,
+        effort: 'max',
+      });
+      if (text !== null) return { t: 'guessWord', word: text };
       // 빈손으로 두면 서버가 응답을 못 받아 페이즈가 타이머까지 멈춰 있는다.
       // 오답이라도 내면 시간 초과와 같은 결과(시민 승)로 게임이 진행된다.
       return { t: 'guessWord', word: ctx.category };
