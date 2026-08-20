@@ -39,6 +39,10 @@ export async function buildGameStateFor(room: RoomInternalState, playerId: strin
   // 그러면 방금 공개됐던 봇 정체/라이어/제시어/승패가 설문 화면에서 다시 숨겨지는
   // 회귀가 생기므로, "결과가 이미 공개된 상태"를 result·survey 둘 다로 정의한다.
   const isPostGame = room.phase === 'result' || room.phase === 'survey';
+  // room.phase는 방 전체가 공유하는 값이지만, index.ts의 case 'ready'는 'result' 단계에서
+  // 개인별로 surveyedIds에만 추가하고 room.phase 자체는 안 건드린다("이 사람만 개인적으로
+  // survey로 이동"). 그래서 이 사람 전용 화면 phase는 room.phase와 따로 계산해야 한다 —
+  // 다른 사람이 아직 result를 보고 있어도 이 사람은 이미 survey를 봐야 하기 때문이다.
   const myPhase = room.phase === 'result' && room.surveyedIds.has(playerId) ? 'survey' : room.phase;
   const publicPlayers: PublicPlayer[] = room.players.map((p) => ({
     id: room.phase === 'lobby' ? (room.lobbyTokens.get(p.id) ?? p.id) : p.id,
