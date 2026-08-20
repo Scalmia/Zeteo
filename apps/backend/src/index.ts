@@ -298,7 +298,7 @@ function isStaleBotAction(
 
 // 봇 차례 처리 (테스트용 decideBotAction 호출)
 async function maybeTriggerBot(room: RoomInternalState) {
-  const bot = room.players.find((p) => p.isBot && p.isAlive);
+  const bot = room.players.find((p) => p.isBot);
   if (!bot) return;
 
   if (room.phase === 'describe') {
