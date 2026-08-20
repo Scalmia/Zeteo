@@ -2,8 +2,11 @@ import { useCallback, useEffect, useState } from 'react';
 import { socket, sendAction, onServerEvent } from '../net/socket';
 import type { ClientEvent, GameState } from '@zeteo/shared-types';
 
+// 화면(App.tsx)이 소켓을 직접 만지지 않아도 되게 감싸주는 훅.
+// state는 검증 없이 서버가 보낸 그대로 저장한다 — 필드 누락 방어는
+// 이 값을 실제로 쓰는 App.tsx의 renderScreen()에서 한다.
 export function useGameState() {
-  const [state, setState] = useState<GameState | null>(null);
+  const [state, setState] = useState<GameState | null>(null); // null = 아직 방에 안 들어감(랜딩 화면)
   const [connected, setConnected] = useState(socket.connected);
   const [error, setError] = useState<string | null>(null);
 
@@ -13,6 +16,8 @@ export function useGameState() {
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
 
+    // 서버 → 클라이언트 이벤트 구독. 'state'는 변화가 있을 때마다 전체 GameState를
+    // 통째로 다시 보내온다(증분 아님) — 그래서 그냥 덮어쓰기만 하면 된다.
     const off = onServerEvent((e) => {
       if (e.t === 'state') {
         setState(e.state);
@@ -22,6 +27,7 @@ export function useGameState() {
       }
     });
 
+    // socket.ts에서 autoConnect: false로 만들어져 있어서 여기서 명시적으로 연결.
     socket.connect();
 
     return () => {
@@ -32,6 +38,7 @@ export function useGameState() {
     };
   }, []);
 
+  // 화면이 사용자 행동(투표, 채팅 등)을 서버로 올려보낼 때 쓰는 유일한 통로.
   const onEvent = useCallback((e: ClientEvent) => sendAction(e), []);
 
   // 설문 제출 등 게임이 완전히 끝난 뒤 랜딩 화면으로 되돌아갈 때 사용.

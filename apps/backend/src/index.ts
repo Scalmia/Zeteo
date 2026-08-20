@@ -16,6 +16,7 @@ import {
   getRoom,
   joinRoom,
   markReady,
+  unmarkReady,
   isEveryoneReady,
   assignRoles,
   assignLabels,
@@ -183,6 +184,21 @@ async function sendFinalReportToDiscord(room: RoomInternalState) {
   if (!room.dbGameId) return;
   const surveyRows = await fetchSurveyResponsesForGame(room.dbGameId);
   void sendLogToDiscord(room, buildTranscriptMarkdown(room, surveyRows));
+}
+
+// "봇 뺀 사람 전원이 끝났는가"(제출했거나 제출 없이 나갔거나)를 판단하는 지점이 두 곳이다 —
+// case 'survey'(누군가 제출할 때)와 disconnect(제출 없이 나갈 때). 마지막 한 명이 제출 없이
+// 나가는 경우는 그 뒤로 아무도 case 'survey'를 다시 안 타서, disconnect 쪽에서도 이 판정을
+// 다시 해줘야 방이 좀비로 안 남는다. 두 경로가 같은 로직을 쓰게 여기 하나로 모은다.
+async function finalizeSurveyIfDone(room: RoomInternalState) {
+  const humans = room.players.filter((p) => !p.isBot);
+  const allDone = humans.every(
+    (p) => room.submittedSurveyIds.has(p.id) || room.abandonedSurveyIds.has(p.id),
+  );
+  if (!allDone) return;
+  // room.players 명단이 아직 온전할 때(먼저 낸 사람도 안 지워진 상태) 리포트부터 만든다.
+  await sendFinalReportToDiscord(room);
+  deleteRoom(room.roomId);
 }
 
 // stateMachine으로 다음 phase 계산 → 필요한 부수효과 처리 → 다음 타이머 설정 → 브로드캐스트
@@ -394,7 +410,11 @@ async function maybeTriggerBot(room: RoomInternalState) {
     return;
   }
 
-  if (isVotingComplete(room)) {
+  // debate는 의도적으로 제외한다 — 사람 쪽 case 'vote'도 마지막 한 표가 들어와도 조기
+  // 종료하지 않고 타이머가 다 될 때까지 토론을 이어가게 만들어져 있다. 여기서 봇 케이스만
+  // 예외 없이 조기종료시키면, 마지막 표를 봇이 던졌는지 사람이 던졌는지에 따라 같은
+  // 상황(전원 투표 완료)이 다르게 처리되는 비대칭이 생긴다.
+  if (room.phase !== 'debate' && isVotingComplete(room)) {
     clearPhaseTimer(room.roomId);
     advancePhase(room);
     return;
@@ -403,6 +423,9 @@ async function maybeTriggerBot(room: RoomInternalState) {
   void maybeTriggerBot(room);
 }
 
+// 이름은 broadcast지만 방 전체에 같은 값 하나를 뿌리지 않는다 — buildGameStateFor가
+// playerId별로 다른 GameState를 만든다(라이어에겐 word를 숨기고, myVote/myId도
+// 사람마다 다르다). 그래서 소켓 하나하나를 돌며 각자에게 맞는 state를 따로 계산해 보낸다.
 async function broadcastRoom(roomId: string) {
   const room = getRoom(roomId);
   if (!room) return;
@@ -477,15 +500,20 @@ io.on('connection', (socket) => {
             break;           
           }
 
-          markReady(room, meta.playerId);
+          if (room.readyIds.has(meta.playerId)) {
+            unmarkReady(room, meta.playerId);
+          } else {
+            markReady(room, meta.playerId);
+          }
 
           if (room.phase === 'lobby' && isEveryoneReady(room)) {
             assignRoles(room);
             assignLabels(room);
             // roleReveal 시작 시점에 describe 발언 순서(turnOrder)를 미리 정해두고,
-            // 참가자 목록도 바로 그 순서에 맞춰 정렬한다. describe 화면까지 갈 필요 없이
-            // roleReveal부터 이미 같은 순서로 보이게 하기 위함. (기존 shufflePlayers는
-            // 이 정렬이 사실상 같은 역할을 하므로 대체됨)
+            // 참가자 목록(room.players)도 아래 sort로 바로 그 순서에 맞춰 재배열한다 —
+            // describe 화면까지 갈 필요 없이 roleReveal부터 이미 익명화된 순서로 보이게
+            // 하기 위함이다. VotePanel/BotVote 등도 room.players 순서를 그대로 쓰므로,
+            // 여기서 안 섞으면 로비 때 입장 순서(=봇이 항상 먼저 join)가 그대로 노출된다.
             const ids = room.players.map((p) => p.id);
             for (let i = ids.length - 1; i > 0; i--) {
               const j = Math.floor(Math.random() * (i + 1));
@@ -516,6 +544,9 @@ io.on('connection', (socket) => {
           const room = getRoom(meta.roomId);
           if (!room) throw new Error('room not found');
           if (room.phase !== 'debate') throw new Error('지금은 투표 단계가 아닙니다');
+          if (action.targetId && !room.players.some((p) => p.id === action.targetId)) {
+            throw new Error('존재하지 않는 대상입니다');
+          }
 
           room.votes[meta.playerId] = action.targetId;
 
@@ -553,6 +584,9 @@ io.on('connection', (socket) => {
             return;
           }
           if (!room.lifeVoteDecided && isLifeVoteDecided(room)) {
+            // 결과가 수학적으로 확정된 순간 바로 넘기면 화면이 갑자기 전환돼서 "어?" 하고
+            // 당황하게 된다. 3초를 줘서 지금 투표 현황이 어떻게 됐길래 넘어가는지 파악할
+            // 시간을 준다.
             room.lifeVoteDecided = true;
             setPhaseTimer(room, 3000, () => advancePhase(room));
             break;
@@ -605,15 +639,7 @@ io.on('connection', (socket) => {
           socketMeta.delete(socket.id);
           socket.leave(meta.roomId);
 
-          // 봇은 설문을 제출하지 않아서 room.players가 물리적으로 0명이 되는 일이 없다.
-          // "봇을 뺀 사람 전원이 설문까지 제출했는가"로 게임이 완전히 끝났는지 판정한다.
-          const humans = room.players.filter((p) => !p.isBot);
-          const allDone = humans.every((p) => room.submittedSurveyIds.has(p.id));
-          if (allDone) {
-            // room.players 명단이 아직 온전할 때(먼저 낸 사람도 안 지워진 상태) 리포트부터 만든다.
-            await sendFinalReportToDiscord(room);
-            deleteRoom(meta.roomId);
-          }
+          await finalizeSurveyIfDone(room);
           return; // 게임 상태에 영향 없으니 broadcast 불필요
           }
           default:
@@ -644,10 +670,14 @@ io.on('connection', (socket) => {
       return;
     }
 
-   if (room.surveyedIds.has(meta.playerId)) {
-      // 설문 화면까지 왔다가 제출 전에 나간 경우 — 명단만 정리한다.
-      // 최종 리포트 전송은 case 'survey'에서 전원 제출이 확인됐을 때만 한다.
-      removePlayerFromLobby(meta.roomId, meta.playerId);
+   if (room.surveyedIds.has(meta.playerId) && !room.submittedSurveyIds.has(meta.playerId)) {
+      // 설문 화면까지 왔다가 제출 전에 나간 경우. room.players에서는 안 지운다 —
+      // 최종 리포트가 이 사람의 과거 발언을 이름으로 못 찾으면 raw id로 깨져 나온다.
+      // 대신 abandonedSurveyIds에 기록하고, 이 사람이 마지막 한 명이었을 수도 있으니
+      // finalizeSurveyIfDone으로 다시 판정한다 — 여기서 안 하면, case 'survey'는
+      // 이미 나간 사람에 대해선 다시 안 불리므로 아무도 이 방을 못 끝낸다.
+      room.abandonedSurveyIds.add(meta.playerId);
+      void finalizeSurveyIfDone(room);
     }
     // 그 외(게임 진행 중)엔 기획서 원칙대로 그대로 둠 — 중도 탈락 없음
   });

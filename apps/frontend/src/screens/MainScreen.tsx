@@ -60,10 +60,17 @@ export function MainScreen({
   // 바뀔 때만 자동으로 열고/닫는다. isDebate가 그대로인 동안은(같은 토론이 계속되는
   // 중이든, 다른 비-토론 페이즈끼리 넘어가는 중이든) 사용자가 직접 누른 상태를
   // 존중해 이 effect가 되돌리지 않는다.
-  const [voteOpen, setVoteOpen] = useState(isDebate);
+  //
+  // 8/20: "묘사단계 시작할 때도 (묘사순서 보여주는) 투표 패널이 열린 채로 시작"
+  // 요청으로 자동으로 열리는 페이즈에 describe를 추가함 — shouldAutoOpenVote가
+  // false→true로 바뀌는 시점(비-토론·비-묘사 페이즈에서 describe 또는 debate로
+  // 들어오는 순간)에만 열리고, describe↔debate 사이를 오갈 때처럼 그 값이 그대로면
+  // 위와 같은 이유로 사용자가 직접 닫은 상태를 되돌리지 않는다.
+  const shouldAutoOpenVote = isDebate || isDescribe;
+  const [voteOpen, setVoteOpen] = useState(shouldAutoOpenVote);
   useEffect(() => {
-    setVoteOpen(isDebate);
-  }, [isDebate]);
+    setVoteOpen(shouldAutoOpenVote);
+  }, [shouldAutoOpenVote]);
 
   // 8/14: 채팅 입력창에 포커스가 가 있는 동안엔 투표 패널(모바일 하단 시트)을 강제로
   // 접는다 — 요청: "투표창이 열려있으니까 채팅 화면을 많이 가린다". voteOpen 자체를

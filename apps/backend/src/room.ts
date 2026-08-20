@@ -1,6 +1,7 @@
 import { InternalPlayer, Phase, Message, Role } from '@zeteo/shared-types';
 import { logMessage } from './db/log';
 import { randomUUID } from 'crypto';
+import { clearPhaseTimer } from './timer';
 
 export interface RoomInternalState {
   roomId: string;
@@ -28,6 +29,11 @@ export interface RoomInternalState {
   lobbyTokens: Map<string, string>;
   surveyedIds: Set<string>;
   submittedSurveyIds: Set<string>;
+  // 설문 화면까지 왔다가 제출 없이 나간 사람. room.players에서는 안 지운다 —
+  // 최종 리포트가 describePlayer로 그 사람의 과거 발언을 이름+라벨로 풀려면
+  // 끝까지 room.players에 남아있어야 한다. 대신 이 Set으로 "포기"를 따로 기록해서
+  // allDone 판정(case 'survey')이 이 사람 때문에 영원히 안 끝나는 걸 막는다.
+  abandonedSurveyIds: Set<string>;
 }
 
 const rooms = new Map<string, RoomInternalState>();
@@ -59,6 +65,7 @@ export function createRoom(roomId: string): RoomInternalState {
     lobbyTokens: new Map(),
     surveyedIds: new Set(),
     submittedSurveyIds: new Set(),
+    abandonedSurveyIds: new Set(),
   };
   rooms.set(roomId, room);
   return room;
@@ -89,6 +96,8 @@ let idCounter = 0;
 
 const LABEL_POOL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
 
+// 라벨을 참가 순서(A, B, C...)가 아니라 남은 알파벳 중 무작위로 뽑는다. 순서대로
+// 주면 라벨만 보고도 누가 먼저 들어왔는지(=누가 자동 참가 봇인지) 역산할 수 있어서다.
 function assignLabel(room: RoomInternalState): string {
   const used = new Set(room.players.map((p) => p.label));
   const available = LABEL_POOL.filter((l) => !used.has(l));
@@ -108,8 +117,12 @@ export function joinRoom(roomId: string, name: string, isBot = false): InternalP
     label: '',
   };
   room.players.push(player);
-  room.lobbyTokens.set(player.id, randomUUID()); // ← 추가
-  shufflePlayers(room);
+  // player.id는 원래 클라이언트에 노출할 값이 아니다 — name(로비)/label(게임 중)이
+  // 화면 표시를 맡고, id는 순전히 서버 내부에서 이 사람을 가리키는 키다(name은 중복
+  // 가능하고, label은 로비 단계엔 아직 배정 전이라 둘 다 키로 못 쓴다). 그런데
+  // view.ts가 로비 단계 GameState의 id/myId엔 id를 그대로 흘려보내고 있어서, 대신
+  // 참가마다 무작위 토큰을 하나씩 발급해 로비 동안만 그 자리를 채운다.
+  room.lobbyTokens.set(player.id, randomUUID());
   return player;
 }
 
@@ -126,20 +139,19 @@ export function assignLabels(room: RoomInternalState) {
   });
 }
 
-// A-1: 봇이 항상 입장 순서(=배열 0번)에 고정되던 문제 수정.
-// view.ts의 publicPlayers가 room.players 순서를 그대로 따라가므로, 이 배열을
-// 섞으면 클라이언트에 보이는 목록 순서도 같이 섞인다. joinRoom에서 매 입장마다
-// 호출되어, 대기실 단계부터 순서가 입장 순서와 무관해지도록 한다.
-export function shufflePlayers(room: RoomInternalState) {
-  for (let i = room.players.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [room.players[i], room.players[j]] = [room.players[j]!, room.players[i]!];
-  }
-}
+// add/delete로 나뉜 건 index.ts의 case 'ready'가 같은 액션을 토글로 쓰기 때문이다
+// (재클릭하면 준비 해제) — 하나로 합쳐 불리언 인자로 받으면 호출부에서 매번
+// room.readyIds.has(...)로 현재 상태를 먼저 물어야 해서 오히려 더 번거로워진다.
 export function markReady(room: RoomInternalState, playerId: string) {
   room.readyIds.add(playerId);
 }
 
+export function unmarkReady(room: RoomInternalState, playerId: string) {
+  room.readyIds.delete(playerId);
+}
+
+// players.length > 0 체크가 없으면, 인원이 0명인 방에서도 every()가 빈 배열에
+// 대해 항상 true를 반환해 "전원 준비완료"로 오판한다.
 export function isEveryoneReady(room: RoomInternalState): boolean {
   return room.players.length > 0 && room.players.every((p) => room.readyIds.has(p.id));
 }
@@ -150,6 +162,7 @@ export function removePlayerFromLobby(roomId: string, playerId: string): boolean
   room.players = room.players.filter((p) => p.id !== playerId);
   room.readyIds.delete(playerId);
   if (room.players.length === 0) {
+    clearPhaseTimer(roomId);
     rooms.delete(roomId); // 아무도 안 남으면 방 자체도 정리
     return true; // 방이 실제로 정리됐음 — 최종 로그 전송 트리거용
   }
@@ -157,5 +170,6 @@ export function removePlayerFromLobby(roomId: string, playerId: string): boolean
 }
 /** 인원 전체가 확실히 끝났다고 확정된 순간(설문 전원 제출)에만 호출 — 방을 통째로 정리한다. */
 export function deleteRoom(roomId: string) {
+  clearPhaseTimer(roomId);
   rooms.delete(roomId);
 }
