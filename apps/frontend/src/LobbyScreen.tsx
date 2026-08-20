@@ -1,6 +1,7 @@
 import type { LobbyPlayer, LobbyScreenState } from "./types";
 import Avatar from "./components/Avatar";
 import Button from "./components/Button";
+import FullscreenButton from "./components/FullscreenButton";
 import "./styles/tokens.css";
 
 interface LobbyScreenProps extends LobbyScreenState {
@@ -24,6 +25,7 @@ export default function LobbyScreen({ roomId, players, myId, myReady, onToggleRe
         padding: "var(--space-4)"
       }}
     >
+      <FullscreenButton />
       <div
         style={{
           width: "100%",

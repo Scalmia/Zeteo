@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Button from "./components/Button";
+import FullscreenButton from "./components/FullscreenButton";
 import "./styles/tokens.css";
 
 interface LandingScreenProps {
@@ -23,6 +24,7 @@ export default function LandingScreen({ onJoin }: LandingScreenProps) {
         padding: "var(--space-4)"
       }}
     >
+      <FullscreenButton />
       <div
         style={{
           width: "100%",
