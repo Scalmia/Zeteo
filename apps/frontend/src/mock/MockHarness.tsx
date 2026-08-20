@@ -69,6 +69,28 @@ export function MockHarness() {
   return renderMock(state, onEvent);
 }
 
+// result·survey가 공통으로 쓰는 계산 — App.tsx(원본)의 winnerLabel/buildResultPlayers를
+// 그대로 옮겼다(위 파일 헤더 주석 참고 — D가 바꾸면 여기도 타입 에러로 걸린다).
+function winnerLabel(state: GameState): string {
+  return state.liarGameResult === 'liarWin' ? '라이어 승리' : state.liarGameResult === 'citizenWin' ? '시민 승리' : '';
+}
+
+function buildResultPlayers(state: GameState) {
+  const labelOf = (id: string) => state.players.find((p) => p.id === id)?.label ?? id;
+  return state.players.map((p) => ({
+    id: p.id,
+    label: p.label,
+    name: state.revealedNames?.[p.id] ?? null,
+    tag:
+      p.id === state.revealedBotId
+        ? ('봇' as const)
+        : p.id === state.revealedLiarId
+          ? ('라이어' as const)
+          : ('시민' as const),
+    votedFor: state.botVoteResults?.[p.id] ? labelOf(state.botVoteResults[p.id]!) : null,
+  }));
+}
+
 function renderMock(state: GameState, onEvent: (e: ClientEvent) => void) {
   switch (state.phase) {
     case 'lobby': {
@@ -85,35 +107,15 @@ function renderMock(state: GameState, onEvent: (e: ClientEvent) => void) {
     }
 
     case 'result': {
-      const winner =
-        state.liarGameResult === 'liarWin'
-          ? '라이어 승리'
-          : state.liarGameResult === 'citizenWin'
-            ? '시민 승리'
-            : '';
-      const labelOf = (id: string) => state.players.find((p) => p.id === id)?.label ?? id;
-      const resultPlayers = state.players.map((p) => ({
-        id: p.id,
-        label: p.label,
-        name: state.revealedNames?.[p.id] ?? null,
-        tag:
-          p.id === state.revealedBotId
-            ? ('봇' as const)
-            : p.id === state.revealedLiarId
-              ? ('라이어' as const)
-              : ('시민' as const),
-        votedFor: state.botVoteResults?.[p.id] ? labelOf(state.botVoteResults[p.id]!) : null,
-      }));
-
       return (
         <ResultScreen
-          winner={winner}
+          winner={winnerLabel(state)}
           totalVoters={state.botVoteCounts.total}
           botVoteCorrectCount={state.botVoteCorrectCount}
           category={state.category}
           word={state.word}
           guessWord={state.guessWord}
-          players={resultPlayers}
+          players={buildResultPlayers(state)}
           onNext={() => onEvent({ t: 'ready' })}
         />
       );
@@ -125,6 +127,19 @@ function renderMock(state: GameState, onEvent: (e: ClientEvent) => void) {
           reasons={state.reasons}
           checkedReasonIds={[]}
           freeText=""
+          messages={state.messages}
+          chatPlayers={state.players}
+          myId={state.myId}
+          category={state.category}
+          word={state.word}
+          nicknames={state.revealedNames}
+          winner={winnerLabel(state)}
+          totalVoters={state.botVoteCounts.total}
+          botVoteCorrectCount={state.botVoteCorrectCount}
+          guessWord={state.guessWord}
+          resultPlayers={buildResultPlayers(state)}
+          myBotVoteTargetId={state.botVoteResults?.[state.myId] ?? null}
+          revealedBotId={state.revealedBotId}
           onSubmit={(reasonIds, freeText) => onEvent({ t: 'survey', reasonIds, freeText })}
         />
       );

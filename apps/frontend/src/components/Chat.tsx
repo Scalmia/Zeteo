@@ -19,6 +19,15 @@ interface LogProps {
    *  영역 위에만 뜨도록 여기로 내려받아 zt-chat-log 안에 얹는다(설계 결정: 투표
    *  패널·입력창은 팝업이 떠 있어도 계속 보여야 한다). null이면 팝업 없음. */
   modal?: ReactNode;
+  /** 8/20: 설문(리플레이) 화면 전용 opt-in — 켜면 메시지마다 발언자 이름 줄을
+   *  보여준다. 8/13 17차 결정(라이브 게임 중엔 발신자 이름 텍스트를 뺀다)은 기본값
+   *  false로 그대로 유지되므로 MainScreen 등 기존 호출부는 영향이 없다. */
+  showSpeakerLabel?: boolean;
+  /** playerId → 랜딩에서 입력한 닉네임. showSpeakerLabel이 true일 때만 쓰인다.
+   *  8/20 2차 수정: 닉네임이 있으면 닉네임만 보여준다(참가자 라벨 접두어는 뺌 —
+   *  아바타 아이콘으로 이미 구분 가능해 중복이라는 지적). 닉네임이 없을 때만 라벨로
+   *  대체한다. */
+  nicknames?: Record<string, string> | null;
 }
 
 /** 메시지 한 줄. React.memo로 감싸서 — 투표·봇 발화·페이즈 전환 등 채팅과 무관한
@@ -35,22 +44,39 @@ const ChatMessageRow = memo(function ChatMessageRow({
   speakerId,
   isMine,
   name,
+  nickname,
+  showSpeakerLabel,
 }: {
   text: string;
   speakerId: string;
   isMine: boolean;
   name: string;
+  nickname?: string;
+  showSpeakerLabel?: boolean;
 }) {
   const rowClass = speakerId === 'system' ? 'zt-msg is-system' : isMine ? 'zt-msg is-mine' : 'zt-msg';
   return (
     <div className={rowClass}>
       {speakerId !== 'system' && <Avatar label={name} variant={isMine ? 'mine' : 'default'} />}
-      <span className="zt-msg-text">{text}</span>
+      {/* 8/20: span→div. showSpeakerLabel일 때 이 버블 안에 이름 줄(zt-msg-name, block)이
+       *  하나 더 들어가는데, 인라인 span 안에 block 자식을 두면 렌더링이 불안정하다 —
+       *  클래스 기반 CSS(.zt-msg-text)는 태그가 바뀌어도 그대로 적용되고, .zt-msg가
+       *  display:flex라 flex 자식은 원래 태그가 span이든 div든 동일하게 배치되므로
+       *  기존 레이아웃(showSpeakerLabel=false)엔 영향이 없다. */}
+      <div className="zt-msg-text">
+        {/* 8/20 2차 수정: 라벨(참가자 X) 접두어는 뺐다 — 아바타 아이콘으로 이미
+         *  구분되니 중복이라는 지적. 닉네임이 없으면(랜딩 닉네임 미공개 등) 라벨로
+         *  대체 표시한다. */}
+        {showSpeakerLabel && speakerId !== 'system' && (
+          <span className="zt-msg-name">{nickname ?? name}</span>
+        )}
+        {text}
+      </div>
     </div>
   );
 });
 
-export function ChatLog({ messages, players, myId, modal }: LogProps) {
+export function ChatLog({ messages, players, myId, modal, showSpeakerLabel = false, nicknames = null }: LogProps) {
   const logRef = useRef<HTMLDivElement>(null);
   // 사용자가 "바닥 근처"에 있었는지를 스크롤 이벤트로 실시간 추적한다. 메시지가
   // 늘어난 뒤(effect 시점)에 계산하면 DOM엔 이미 새 글이 들어가 있어 항상 바닥으로
@@ -119,6 +145,8 @@ export function ChatLog({ messages, players, myId, modal }: LogProps) {
               speakerId={m.speakerId}
               isMine={isMine}
               name={nameOf(m.speakerId)}
+              nickname={nicknames?.[m.speakerId]}
+              showSpeakerLabel={showSpeakerLabel}
             />
           );
         })}
