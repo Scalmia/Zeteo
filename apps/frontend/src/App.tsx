@@ -44,6 +44,23 @@ function MissingData({ label }: { label: string }) {
   );
 }
 
+// result·survey 화면이 공통으로 쓰는 계산 — 8/20 설문 화면이 리플레이(기획서 v4.0)를
+// 통합하며 result의 승패/정체공개 로직을 그대로 다시 써야 해서 여기로 뽑았다.
+function winnerLabel(state: GameState): string {
+  return state.liarGameResult === "liarWin" ? "라이어 승리" : state.liarGameResult === "citizenWin" ? "시민 승리" : "";
+}
+
+function buildResultPlayers(state: GameState) {
+  const labelOf = (id: string) => state.players.find((pl) => pl.id === id)?.label ?? id;
+  return state.players.map((p) => ({
+    id: p.id,
+    label: p.label,
+    name: state.revealedNames?.[p.id] ?? null,
+    tag: p.id === state.revealedBotId ? ("봇" as const) : p.id === state.revealedLiarId ? ("라이어" as const) : ("시민" as const),
+    votedFor: state.botVoteResults?.[p.id] ? labelOf(state.botVoteResults[p.id]!) : null
+  }));
+}
+
 function renderScreen(state: GameState | null, onEvent: (e: ClientEvent) => void, onLeave: () => void) {
   if (!state) {
     return (
@@ -78,41 +95,48 @@ function renderScreen(state: GameState | null, onEvent: (e: ClientEvent) => void
     if (!state.players || !state.botVoteCounts) {
       return <MissingData label="결과" />;
     }
-    const winner =
-      state.liarGameResult === "liarWin"
-        ? "라이어 승리"
-        : state.liarGameResult === "citizenWin"
-          ? "시민 승리"
-          : "";
-    const labelOf = (id: string) => state.players.find((pl) => pl.id === id)?.label ?? id;
-    const resultPlayers = state.players.map((p) => ({
-      id: p.id,
-      label: p.label,
-      name: state.revealedNames?.[p.id] ?? null,
-      tag: p.id === state.revealedBotId ? ("봇" as const) : p.id === state.revealedLiarId ? ("라이어" as const) : ("시민" as const),
-      votedFor: state.botVoteResults?.[p.id] ? labelOf(state.botVoteResults[p.id]!) : null
-    }));
 
     return (
       <ResultScreen
-        winner={winner}
+        winner={winnerLabel(state)}
         totalVoters={state.botVoteCounts.total}
         botVoteCorrectCount={state.botVoteCorrectCount}
         category={state.category}
         word={state.word}
         guessWord={state.guessWord}
-        players={resultPlayers}
+        players={buildResultPlayers(state)}
         onNext={() => onEvent({ t: "ready" })}
       />
     );
   }
 
   if (state.phase === "survey") {
+    // 8/20 리플레이 통합(기획서 v4.0) — 설문 화면이 플레이 화면과 같은 레이아웃(채팅
+    // 로그+결과 요약 패널)을 쓰면서, result 화면과 같은 필드(messages·players·revealed*)가
+    // 더 필요해졌다. backend/src/view.ts가 survey도 result와 같은 "게임이 끝난 뒤"로
+    // 취급해 이 필드들을 채워 보내므로(isPostGame) 여기서 그대로 꺼내 쓰면 된다.
+    if (!state.players || !state.messages || !state.botVoteCounts) {
+      return <MissingData label="설문" />;
+    }
+
     return (
       <SurveyScreen
         reasons={state.reasons}
         checkedReasonIds={[]}
         freeText=""
+        messages={state.messages}
+        chatPlayers={state.players}
+        myId={state.myId}
+        category={state.category}
+        word={state.word}
+        nicknames={state.revealedNames}
+        winner={winnerLabel(state)}
+        totalVoters={state.botVoteCounts.total}
+        botVoteCorrectCount={state.botVoteCorrectCount}
+        guessWord={state.guessWord}
+        resultPlayers={buildResultPlayers(state)}
+        myBotVoteTargetId={state.botVoteResults?.[state.myId] ?? null}
+        revealedBotId={state.revealedBotId}
         onSubmit={(checkedReasonIds, freeText) => {
           onEvent({ t: "survey", reasonIds: checkedReasonIds, freeText });
           onLeave();

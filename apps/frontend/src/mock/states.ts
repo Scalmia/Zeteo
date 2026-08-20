@@ -281,15 +281,36 @@ export const MOCK_STATES: Record<string, GameState> = {
 
   // ── S7-a 설문 (파트 D · SurveyScreen) ────────────────
   /** reasons 는 서버 view.ts 의 SURVEY_REASONS placeholder 와 같은 값이다.
-   *  실제 문안은 설문 기획이 확정되면 서버 쪽에서 바뀐다(D2·D3와 같은 미정 항목). */
+   *  실제 문안은 설문 기획이 확정되면 서버 쪽에서 바뀐다(D2·D3와 같은 미정 항목).
+   *
+   *  8/20 리플레이 통합: backend/src/view.ts가 survey도 result와 같은 "게임이 끝난
+   *  뒤"로 취급해(isPostGame) revealed*·botVoteResults·guessWord 등을 채워 보낸다 —
+   *  이 mock도 result 항목과 같은 postgame 값을 채워야 화면이 텅 비지 않고 실제처럼
+   *  보인다(정체 공개 목록·봇 지목 현황바·설문 팝업이 전부 이 값들을 쓴다). */
   survey: {
     ...base,
     phase: 'survey',
     messages: finalDefenseLog,
+    accused: 'p2',
+    revealedRole: 'liar',
+    liarGameResult: 'citizenWin',
+    guessWord: '사자',
+    botVoteCounts: { voted: 4, total: 4 },
+    botVoteCorrectCount: 3,
+    revealedBotId: 'p5',
+    revealedLiarId: 'p2',
+    revealedNames: {
+      p1: '봇담당',
+      p2: '레이아웃담당',
+      p3: '화면담당',
+      p4: '서버담당',
+      p5: '최서연',
+    },
+    botVoteResults: { p1: 'p5', p2: 'p5', p3: 'p5', p4: 'p1' },
     reasons: [
       { id: 1, label: '말이 어색했다' },
-      { id: 2, label: '반응이 느렸다' },
-      { id: 3, label: '다른 사람들과 다른 정보를 아는 것 같았다' },
+      { id: 2, label: '발언 시점이 이상했다' },
+      { id: 3, label: '맥락에 맞지 않았다' },
       { id: 4, label: '그냥 감이었다' },
     ],
   },
