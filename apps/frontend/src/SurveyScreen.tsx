@@ -32,7 +32,6 @@ export default function SurveyScreen({
         padding: "var(--space-4)"
       }}
     >
-      <FullscreenButton />
       <div style={{ width: "100%", maxWidth: 520, display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
         <div
           style={{
@@ -44,9 +43,11 @@ export default function SurveyScreen({
             minHeight: 0,
             display: "flex",
             flexDirection: "column",
-            overflow: "hidden"
+            overflow: "hidden",
+            position: "relative"
           }}
         >
+          <FullscreenButton />
           <h4 style={{ marginBottom: "var(--space-2)", flex: "none" }}>왜 봇이라고 생각했나요?</h4>
           <div className="text-muted" style={{ fontSize: "var(--text-label)", fontWeight: 600, marginBottom: "var(--space-4)", flex: "none" }}>
             적중자 대상 · 해당하는 이유 선택 (복수)

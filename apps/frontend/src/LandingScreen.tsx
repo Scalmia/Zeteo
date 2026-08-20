@@ -24,7 +24,6 @@ export default function LandingScreen({ onJoin }: LandingScreenProps) {
         padding: "var(--space-4)"
       }}
     >
-      <FullscreenButton />
       <div
         style={{
           width: "100%",
@@ -36,9 +35,11 @@ export default function LandingScreen({ onJoin }: LandingScreenProps) {
           border: "1px solid var(--color-line)",
           borderRadius: "var(--radius)",
           background: "var(--color-surface)",
-          padding: "var(--space-4)"
+          padding: "var(--space-4)",
+          position: "relative"
         }}
       >
+        <FullscreenButton />
         <div style={{ textAlign: "center", marginBottom: "var(--space-4)" }}>
           <img src="/zeteo-logo.png" alt="Zeteo" style={{ width: 400, maxWidth: "100%", marginBottom: "var(--space-2)" }} />
           <h2>라이어 게임</h2>

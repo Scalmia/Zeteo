@@ -25,7 +25,6 @@ export default function LobbyScreen({ roomId, players, myId, myReady, onToggleRe
         padding: "var(--space-4)"
       }}
     >
-      <FullscreenButton />
       <div
         style={{
           width: "100%",
@@ -33,9 +32,11 @@ export default function LobbyScreen({ roomId, players, myId, myReady, onToggleRe
           border: "1px solid var(--color-line)",
           borderRadius: "var(--radius)",
           background: "var(--color-surface)",
-          padding: "var(--space-4)"
+          padding: "var(--space-4)",
+          position: "relative"
         }}
       >
+        <FullscreenButton />
         <div style={{ textAlign: "center", marginBottom: "var(--space-4)" }}>
           <p className="text-muted" style={{ fontSize: "var(--text-caption)", fontWeight: 600, marginBottom: "var(--space-2)" }}>대기실</p>
           <div className="tag tag-outline" style={{ display: "inline-block" }}>방번호 {roomId}</div>

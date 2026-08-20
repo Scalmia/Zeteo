@@ -41,7 +41,6 @@ export default function ResultScreen({
         lineHeight: 1.3
       }}
     >
-      <FullscreenButton />
       <div style={{ width: "100%", maxWidth: 520, maxHeight: "100%", overflow: "hidden", display: "flex", flexDirection: "column", gap: "var(--space-2)" }}>
         <div
           style={{
@@ -50,9 +49,11 @@ export default function ResultScreen({
             borderRadius: "var(--radius)",
             background: "var(--color-surface)",
             padding: "var(--space-2)",
-            flex: "none"
+            flex: "none",
+            position: "relative"
           }}
         >
+          <FullscreenButton />
           <div
             className="text-muted"
             style={{ fontSize: "var(--text-caption)", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "var(--space-2)" }}
