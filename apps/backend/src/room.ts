@@ -1,7 +1,3 @@
-// [cleanflow 발표용 "before" 예시] 원본: Zeteo apps/backend/src/room.ts
-// 로직(함수 본문)은 원본과 동일하고, 발표용으로 "함수 순서"와 "주석"만 의도적으로 흐트러뜨렸습니다.
-// → 이 파일을 before로, 정리된 버전을 after로 놓고 비교하면 됩니다.
-
 import { InternalPlayer, Phase, Message, Role } from '@zeteo/shared-types';
 import { logMessage } from './db/log';
 import { randomUUID } from 'crypto';
