@@ -9,17 +9,30 @@ import { decideBotAction, forgetRoom } from './index';
  *   npm run replay -w backend -- stance 10   횟수 지정
  *   npm run replay -w backend -- all 5       전체를 5회씩
  *
- * playground.ts와 목적이 반대다. 저쪽은 라벨도 사람 대사도 매번 무작위로 뽑아
- * "봇이 얼마나 다양하게 말하는가"를 본다. 여기는 2026-08-20 실측 4판에서 문제가
+ * playground.ts와 목적이 반대라 파일을 나눴다. 저쪽은 라벨도 사람 대사도 매번 무작위로
+ * 뽑아 "봇이 얼마나 다양하게 말하는가"를 본다. 여기는 2026-08-20 실측 4판에서 문제가
  * 터진 지점을 라벨까지 그대로 복원해 고정한다. 고치기 전과 후를 같은 자리에서 견주려면
  * 상황이 매번 같아야 하기 때문이다.
  *
  * 사례를 그때그때 손으로 짜던 동안에는 한 번 재는 데 표본 5~6회가 한계였고, 그 숫자로는
  * "고쳐졌다"를 말할 수 없었다. 여기 넣어두면 같은 자리를 몇 번이든 다시 잴 수 있다.
  *
- * 판정(judge)은 기계가 확실히 셀 수 있는 것만 본다. 라벨을 불렀는지, 특정 낱말이 들어갔는지,
- * 침묵했는지 같은 것들이다. 눈치가 있는지 없는지는 사람이 봐야 하므로 발언을 전부 찍어준다.
+ * 판정은 기계가 확실히 셀 수 있는 것만 본다. 라벨을 불렀는지, 특정 낱말이 들어갔는지,
+ * 침묵했는지. 눈치가 있는지 없는지는 셀 수 없으므로 발언을 전부 찍어 사람이 읽게 둔다.
  */
+
+/**
+ * 침묵을 무엇으로 볼지는 사례마다 다르다. 이걸 구분하지 않으면 측정이 조용히 망가진다.
+ *
+ * 첫 판본은 침묵을 전부 통과로 셌다. finalDefense는 입을 열 확률이 0.35라 열에 여섯은
+ * 침묵인데, cleared·tic이 "문제 0/3"으로 찍혀 나왔다. 잘한 게 아니라 한 마디도 안 한 것이었다.
+ * 고친 뒤에 이 숫자를 보면 고쳐진 줄 알게 된다.
+ *
+ *   good  침묵이 정답인 자리 (대화가 끝났을 때)
+ *   bad   침묵 자체가 실패인 자리 (몰리는 중, 직접 질문을 받았을 때)
+ *   skip  내용을 봐야 하는 자리. 표본으로 안 세고 다시 뽑는다
+ */
+type SilenceMeaning = 'good' | 'bad' | 'skip';
 
 type Verdict = { bad: boolean; note: string };
 
@@ -28,8 +41,10 @@ interface Case {
   problem: string; // 인간 행동 기준 목록에서 몇 번인지
   source: string; // 어느 판의 어느 시점인지
   expect: string; // 무엇이 나오면 잘한 것인지
+  silence: SilenceMeaning;
   build(): BotContext;
-  judge(action: BotAction): Verdict;
+  /** 발언이 있을 때만 불린다. 침묵 처리는 silence가 맡는다. */
+  judge(text: string): Verdict;
 }
 
 // ── 상황을 만드는 도구 ────────────────────────────────────────────────────
@@ -89,9 +104,6 @@ const hasAny = (text: string, words: string[]): string[] => words.filter((w) => 
 /** 마음을 바꿀 때 사람이 붙이는 말. 이게 있으면 갈아타도 부자연스럽지 않다. */
 const REASON = ['바꿨', '바뀌', '아까', '근데', '생각해보니', '다시 보니', '듣고', '철회', '보다'];
 
-const textOf = (a: BotAction): string | null =>
-  a.t === 'chat' || a.t === 'describe' ? a.text : null;
-
 // ── 사례 ─────────────────────────────────────────────────────────────────
 
 const CASES: Case[] = [
@@ -100,6 +112,7 @@ const CASES: Case[] = [
     problem: '1. 한 번 정한 용의자를 유지한다',
     source: '0820 6:11:43 — Q 지목 직후. 동점으로 재투표가 걸려 표가 비었다',
     expect: 'Q를 유지하거나, 옮기더라도 이유를 한마디 붙인다',
+    silence: 'skip',
     build: () =>
       ctxOf({
         labels: ['N', 'Y', 'A', 'Q'],
@@ -127,9 +140,7 @@ const CASES: Case[] = [
           m('Y', '누군데', 'debate'),
         ],
       }),
-    judge: (a) => {
-      const t = textOf(a);
-      if (t === null) return { bad: false, note: `발언 안 함(${a.t})` };
+    judge: (t) => {
       const moved = ['Y', 'A'].filter((L) => calls(t, L));
       if (moved.length === 0 || calls(t, 'Q')) return { bad: false, note: '유지' };
       return REASON.some((r) => t.includes(r))
@@ -143,6 +154,7 @@ const CASES: Case[] = [
     problem: '2. 몰리면 자기를 방어한다',
     source: '0820 6:12:14 — 봇에게 표가 몰리는 중. 바로 뒤에 "N 이 놈이네"가 나온다',
     expect: '자기를 변호하거나 되받아친다. 이 자리에서 남을 새로 공격하면 안 된다',
+    silence: 'bad', // 몰아붙이는데 아무 말도 안 하는 것이 실측에서 지적된 행동이다
     build: () =>
       ctxOf({
         labels: ['N', 'Y', 'A', 'Q'],
@@ -165,9 +177,7 @@ const CASES: Case[] = [
           m('Y', 'N 해명해봐', 'debate'),
         ],
       }),
-    judge: (a) => {
-      const t = textOf(a);
-      if (t === null) return { bad: true, note: `몰리는 중에 침묵(${a.t})` };
+    judge: (t) => {
       const attacks = ['Y', 'A', 'Q'].filter((L) => calls(t, L));
       const defends = /나|내|난|아니|억울|왜|그냥/.test(t);
       if (attacks.length > 0 && !defends) return { bad: true, note: `${attacks.join()} 공격만 함` };
@@ -180,6 +190,7 @@ const CASES: Case[] = [
     problem: '3. 끝난 의심은 다시 안 꺼낸다',
     source: '0280 6:36:45 — X가 두 번에 걸쳐 D의 혐의를 벗겨줬다',
     expect: 'D를 다시 추궁하지 않는다',
+    silence: 'skip',
     build: () =>
       ctxOf({
         labels: ['K', 'X', 'H', 'D'],
@@ -206,9 +217,7 @@ const CASES: Case[] = [
           m('H', '걍 아닌거 같음은 뭐야', 'finalDefense'),
         ],
       }),
-    judge: (a) => {
-      const t = textOf(a);
-      if (t === null) return { bad: false, note: `발언 안 함(${a.t})` };
+    judge: (t) => {
       const pressesD = calls(t, 'D') || /본인은|너는|왜 그렇게|설명해/.test(t);
       return pressesD
         ? { bad: true, note: '혐의 벗은 D를 다시 추궁' }
@@ -221,6 +230,7 @@ const CASES: Case[] = [
     problem: '4. 질문을 받으면 답한다',
     source: '0028 6:46:54 — F가 봇에게 직접 물었다. 실제 답은 "아 뭔가 찝찝하긴 한데"였다',
     expect: '질문에 관계있는 말을 한다',
+    silence: 'bad', // 직접 물었는데 입을 다무는 것도 답을 안 한 것이다
     build: () =>
       ctxOf({
         labels: ['B', 'F', 'A', 'G'],
@@ -243,13 +253,11 @@ const CASES: Case[] = [
           m('F', 'B가 뭘 줬는데?', 'finalDefense'),
         ],
       }),
-    judge: (a) => {
-      const t = textOf(a);
-      if (t === null) return { bad: true, note: `직접 질문에 침묵(${a.t})` };
-      // 질문은 "B가 무엇을 줬는가"다. 자기 발언이나 G의 주장에 닿아야 답이 된다.
-      const onTopic = /줬|준 거|내가|난 |말한|묘사|아니|무슨|뭘/.test(t);
-      return onTopic ? { bad: false, note: '질문에 닿음' } : { bad: true, note: '딴소리' };
-    },
+    // 질문은 "B가 무엇을 줬는가"다. 자기 발언이나 G의 주장에 닿아야 답이 된다.
+    judge: (t) =>
+      /줬|준 거|내가|난 |말한|묘사|아니|무슨|뭘/.test(t)
+        ? { bad: false, note: '질문에 닿음' }
+        : { bad: true, note: '딴소리' },
   },
 
   {
@@ -257,6 +265,7 @@ const CASES: Case[] = [
     problem: '5. 아는 티를 안 낸다 (라이어)',
     source: '0028 6:44:21 — 봇은 라이어인데 앞의 "줄"+"악마의숫자"로 기타를 알아냈다',
     expect: '기타에만 해당하는 말을 쓰지 않는다. 실제로는 "피크로 튕기는거"라고 했다',
+    silence: 'skip', // 묘사 턴에는 침묵이 없지만 형식을 맞춰 둔다
     build: () =>
       ctxOf({
         labels: ['B', 'F', 'A', 'G'],
@@ -267,9 +276,7 @@ const CASES: Case[] = [
         phase: 'describe',
         transcript: [m('F', '줄', 'describe'), m('G', '악마의숫자', 'describe')],
       }),
-    judge: (a) => {
-      const t = textOf(a);
-      if (t === null) return { bad: false, note: `발언 안 함(${a.t})` };
+    judge: (t) => {
       const tell = hasAny(t, [
         '피크',
         '프렛',
@@ -292,6 +299,7 @@ const CASES: Case[] = [
     problem: '5. 아는 티를 안 낸다 (라이어, 해명 상황)',
     source: '0820 6:13:51 — 몰린 봇이 "스페어 처리"라고 해명했다. 바로 "찾앗다 봇"이 나왔다',
     expect: '볼링에만 있는 말을 쓰지 않고 해명한다',
+    silence: 'bad', // 최후 변론에 선 사람이 아무 말도 안 하면 그대로 죽는다
     build: () =>
       ctxOf({
         labels: ['N', 'Y', 'A', 'Q'],
@@ -313,9 +321,7 @@ const CASES: Case[] = [
           m('Q', 'N 아니면 Y 인데', 'finalDefense'),
         ],
       }),
-    judge: (a) => {
-      const t = textOf(a);
-      if (t === null) return { bad: true, note: `몰린 상태에서 침묵(${a.t})` };
+    judge: (t) => {
       const tell = hasAny(t, ['스페어', '스트라이크', '핀', '레인', '거터', '스플릿', '볼링']);
       return tell.length > 0
         ? { bad: true, note: `볼링 특정 용어: ${tell.join()}` }
@@ -328,6 +334,7 @@ const CASES: Case[] = [
     problem: '6. 대화가 끝나면 멈춘다',
     source: '0028 6:47:19 — F가 "아오 망했네" "수습이 안된다"로 판을 접었다',
     expect: '침묵. 여기서 말을 얹으면 대화를 억지로 이어가는 것이다',
+    silence: 'good', // 여기만 침묵이 정답이다
     build: () =>
       ctxOf({
         labels: ['B', 'F', 'A', 'G'],
@@ -353,8 +360,7 @@ const CASES: Case[] = [
           m('F', 'A 잡아라', 'finalDefense'),
         ],
       }),
-    judge: (a) =>
-      a.t === 'silent' ? { bad: false, note: '멈춤' } : { bad: true, note: '끝난 대화에 말을 얹음' },
+    judge: () => ({ bad: true, note: '끝난 대화에 말을 얹음' }),
   },
 
   {
@@ -362,6 +368,7 @@ const CASES: Case[] = [
     problem: '7·8. 같은 말투를 반복하지 않는다 / 평가문보다 반응',
     source: '봇 발언 39개 중 8개(20%)가 ~긴 함 · 걸림 · 너무 셋 중 하나였다',
     expect: '이미 "찜찜하긴 함"을 썼으니 같은 꼴을 또 쓰지 않는다',
+    silence: 'skip',
     build: () =>
       ctxOf({
         labels: ['B', 'F', 'A', 'G'],
@@ -383,9 +390,7 @@ const CASES: Case[] = [
           m('G', '아니 B가 너무 대놓고 줬어', 'finalDefense'),
         ],
       }),
-    judge: (a) => {
-      const t = textOf(a);
-      if (t === null) return { bad: false, note: `발언 안 함(${a.t})` };
+    judge: (t) => {
       const tic = hasAny(t, ['긴 함', '긴 했', '긴 한데', '걸림', '찜찜', '찝찝']);
       return tic.length > 0
         ? { bad: true, note: `같은 말버릇: ${tic.join()}` }
@@ -396,6 +401,15 @@ const CASES: Case[] = [
 
 // ── 실행 ─────────────────────────────────────────────────────────────────
 
+const textOf = (a: BotAction): string | null =>
+  a.t === 'chat' || a.t === 'describe' ? a.text : null;
+
+/**
+ * 표본 n개를 채운다. silence가 skip인 사례에서 침묵이 나오면 표본으로 안 세고 다시 뽑는다.
+ *
+ * 다시 뽑는 횟수에 상한을 두는 이유는, 조건이 맞지 않아 봇이 계속 침묵하는 사례를 만들었을 때
+ * 무한히 호출하며 돈만 쓰게 되기 때문이다. 상한에 걸리면 몇 개를 못 채웠는지 같이 찍는다.
+ */
 async function runCase(c: Case, n: number): Promise<void> {
   console.log(`\n${'─'.repeat(72)}`);
   console.log(`[${c.id}]  ${c.problem}`);
@@ -403,17 +417,41 @@ async function runCase(c: Case, n: number): Promise<void> {
   console.log(`  기대  ${c.expect}`);
   console.log('─'.repeat(72));
 
+  const maxDraws = n * 4;
+  let drawn = 0;
+  let counted = 0;
   let bad = 0;
-  for (let i = 1; i <= n; i++) {
+  let skipped = 0;
+
+  while (counted < n && drawn < maxDraws) {
     const ctx = c.build();
     forgetRoom(ctx); // 앞 표본이 남긴 기억을 지운다. 안 지우면 표본끼리 샌다
     const action = await decideBotAction(ctx);
-    const v = c.judge(action);
+    drawn++;
+
+    const text = textOf(action);
+    if (text === null) {
+      if (c.silence === 'skip') {
+        skipped++;
+        continue; // 표본으로 안 센다
+      }
+      counted++;
+      const isBad = c.silence === 'bad';
+      if (isBad) bad++;
+      const label = isBad ? '침묵 — 여기선 실패' : '멈춤';
+      console.log(`  ${String(counted).padStart(2)}. ${isBad ? '🔴' : '⬜'} ${label.padEnd(20)} (${action.t})`);
+      continue;
+    }
+
+    counted++;
+    const v = c.judge(text);
     if (v.bad) bad++;
-    const shown = textOf(action) ?? `(${action.t})`;
-    console.log(`  ${String(i).padStart(2)}. ${v.bad ? '🔴' : '⬜'} ${v.note.padEnd(20)} ${shown}`);
+    console.log(`  ${String(counted).padStart(2)}. ${v.bad ? '🔴' : '⬜'} ${v.note.padEnd(20)} ${text}`);
   }
-  console.log(`  ── 문제 ${bad}/${n}`);
+
+  const short = counted < n ? `  ⚠ ${n}개를 채우지 못함 (호출 ${drawn}회 상한)` : '';
+  const skipNote = skipped > 0 ? ` · 침묵으로 버린 표본 ${skipped}개` : '';
+  console.log(`  ── 문제 ${bad}/${counted}${skipNote}${short}`);
 }
 
 async function main(): Promise<void> {
