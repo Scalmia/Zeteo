@@ -191,6 +191,25 @@ function recallTarget(ctx: BotContext, myLastText: string): string | null {
   return addressedPlayer(ctx, myLastText);
 }
 
+/**
+ * 입으로 지목해 둔 상대의 라벨. 표(ctx.myVote)와 다른 것을 본다.
+ *
+ * 서버는 동점이 나면 room.votes를 비우고 재투표를 돌린다. 표를 기준으로 삼으면 그 순간
+ * 봇이 방금 누구를 지목했는지 잊어버린다. 입으로 한 말은 서버가 안 지우므로 이쪽이 남는다.
+ *
+ * isAlive 필터는 지금 흐름에서 아무것도 거르지 않는다. 처형이 확정되면 곧바로 reveal로
+ * 넘어가 게임이 끝나고(stateMachine.ts), 토론으로 돌아오는 유일한 경로인 "살린다"에서는
+ * 아무도 죽지 않기 때문이다. vote.ts가 같은 사실을 이미 적어두고 있다.
+ * 그래도 두는 이유는 "죽은 사람 쪽으로 기울어 있지 않는다"가 이 함수의 계약이기 때문이지,
+ * 지금 그런 상황이 생겨서가 아니다.
+ */
+function declaredSuspectLabel(ctx: BotContext): string | null {
+  const entry = lastTargets.get(roomKey(ctx));
+  if (entry === undefined) return null;
+  const p = ctx.players.find((pl) => pl.id === entry.targetId);
+  return p !== undefined && p.isAlive ? p.label : null;
+}
+
 /** 끊어 보낸 뒷말이 나가면 내 마지막 발언이 그 뒷말로 바뀐다. 겨냥 기록도 따라 옮긴다. */
 function carryTarget(ctx: BotContext, tail: string): void {
   const entry = lastTargets.get(roomKey(ctx));
@@ -421,6 +440,10 @@ async function chatOrSilent(ctx: BotContext, prompt: string): Promise<BotAction>
 /**
  * 최다 득표자에게 투표(밴드왜건). 자기 자신과 사망자는 후보에서 제외하고,
  * 아무도 표가 없으면 무작위, 동점이면 그중 무작위.
+ *
+ * 사망자 제외는 계약이지 실제로 걸리는 경우가 아니다 — 토론 중에는 늘 전원이 살아있다.
+ * 이 주석이 없던 동안 "토론에 죽은 사람이 있을 수 있다"고 읽고 그대로 따라 쓴 적이 있다.
+ * 근거는 vote.ts의 같은 설명을 볼 것.
  */
 function bandwagonTarget(ctx: BotContext): string | null {
   const others = ctx.players.filter((p) => p.id !== ctx.selfId && p.isAlive);
@@ -505,7 +528,7 @@ export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise
 
       if (ctx.myVote === null) {
         if (Math.random() < CHAT_BEFORE_VOTE_CHANCE) {
-          return chatOrSilent(ctx, debatePrompt(ctx));
+          return chatOrSilent(ctx, debatePrompt(ctx, declaredSuspectLabel(ctx)));
         }
         return { t: 'vote', targetId: bandwagonTarget(ctx) };
       }
@@ -520,7 +543,7 @@ export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise
         return { t: 'silent', delayMs: silentDelay() };
       }
 
-      return chatOrSilent(ctx, debatePrompt(ctx));
+      return chatOrSilent(ctx, debatePrompt(ctx, declaredSuspectLabel(ctx)));
     }
 
     case 'lifeVote':

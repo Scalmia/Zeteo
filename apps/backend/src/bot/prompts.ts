@@ -133,15 +133,44 @@ const DEBATE_MOVES = [
   '자기 발언을 해명하세요. 제시어를 좁혀주는 새 정보는 보태지 말고, 이미 나온 말 안에서 풀거나 왜 더 말할 수 없는지를 이유로 대세요.',
 ];
 
-export function debatePrompt(ctx: BotContext): string {
+/**
+ * 지금 누구 쪽에 서 있는지 알려준다.
+ *
+ * 예전에는 ctx.myVote가 있을 때만 "말을 바꾸지 마세요"를 붙였다. 그런데 서버는 동점이 나면
+ * room.votes를 통째로 비우고 재투표를 돌린다(stateMachine.ts). 그 순간 myVote가 null이 되면서
+ * 이 문장이 프롬프트에서 통째로 사라지고, 봇은 방금 자기가 누구를 지목했는지 모르는 상태가 된다.
+ *
+ * 1판 실측(0820): 재투표 12초 뒤 "Q가 제일 걸림" → 49초 뒤 "A가 제일 걸림"으로 갈아탔고,
+ * 그 사이에 "난 그대로 갈게"와 "고민중"이 같이 나왔다. 설문에 "상황을 이해못함",
+ * "눈치가 없고 멍청함"으로 적혔다.
+ *
+ * 그래서 기준을 표가 아니라 입으로 한 말에 둔다. 표는 서버가 지우지만 한 말은 안 지워진다.
+ * declared는 index.ts가 lastTargets에서 꺼내 넘겨준다 — 모델이 이미 고른 대상을 주워 쓰는 것이라
+ * 판단 로직이 늘지 않는다.
+ *
+ * 문구도 바꿨다. "바꾸지 마세요"는 사람의 행동이 아니다. 사람도 마음을 바꾸고, 다만 바꿀 때
+ * 이유를 댄다. 금지해두면 "난 그대로 갈게" 같은 선언만 늘고 정작 바꿀 때는 그냥 바꾼다.
+ * 금지가 아니라 값을 붙인다.
+ *
+ * "다시 선언할 필요 없다"가 같이 들어가는 이유는, 첫 판본에서 이 문장이 앵무새를 만들었기 때문이다.
+ * 재현 실험 5회에서 "Q라니까" "Q지 아까 말했잖아" "그대로 Q"가 잇달아 나왔다.
+ * 입장을 유지하는 것과 입장을 반복해 말하는 것은 다른데, 그 구분이 없으면 모델은
+ * 아래의 "짧은 반응 한마디로 끝내세요"를 지키면서 그 반응을 입장 재선언으로 채운다.
+ * 바로 아래 "이름은 꼭 필요할 때만 부르세요"와도 정면으로 부딪혔다.
+ */
+function stanceRule(ctx: BotContext, declared: string | null): string {
+  const standing = ctx.myVote ? labelOf(ctx.players, ctx.myVote) : declared;
+  if (standing === null) return '';
+  return `\n\n당신은 지금 ${standing} 쪽으로 기울어 있습니다. 이미 그렇게 말해뒀으니 다시 선언하지는 마세요. 다른 사람으로 옮길 거면 왜 바뀌었는지 한마디 붙이세요. 이유 없이 옮기면 부자연스럽습니다.`;
+}
+
+export function debatePrompt(ctx: BotContext, declared: string | null = null): string {
   const votes = Object.entries(ctx.voteCounts)
     .filter(([, n]) => n > 0)
     .map(([id, n]) => `${labelOf(ctx.players, id)} ${n}표`)
     .join(', ');
 
-  const myVote = ctx.myVote
-    ? `\n\n당신은 이미 ${labelOf(ctx.players, ctx.myVote)}에게 투표했습니다. 말을 바꾸지 마세요.`
-    : '';
+  const myVote = stanceRule(ctx, declared);
 
   // 토론이 막 시작돼 아무도 입을 열지 않은 상태. 여기서 바로 남을 몰아붙이면
   // 매판 가장 먼저 공격을 시작하는 사람이 되어 그 자체로 패턴이 된다.
