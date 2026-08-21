@@ -297,7 +297,11 @@ const CASES: Case[] = [
      * 답이 아니다. 그 둘만 세고 나머지는 사람이 읽는다.
      */
     judge: (t) => {
-      const filler = /찝찝|찜찜|글쎄|음…|모르겠/.test(t) && !/줬|대놓고|피크|내|나/.test(t);
+      // 실제 실패는 "아 뭔가 찝찝하긴 한데"였는데, 목록을 그 꼴로만 좁혔더니 GPT에서 나온
+      // "그러게" "애매하네" "좀 더 봐야겠다"를 전부 놓쳤다. 같은 종류의 회피다.
+      const filler =
+        /찝찝|찜찜|글쎄|음…|모르겠|그러게|애매|봐야겠|수상한데/.test(t) &&
+        !/줬|대놓고|피크|내|나/.test(t);
       const dodges = /(본인|자기)\s*(힌트|묘사|설명)/.test(t);
       if (filler) return { bad: true, note: '질문 무시한 혼잣말' };
       if (dodges) return { bad: true, note: '상대 힌트로 화제 돌림' };

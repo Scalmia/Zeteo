@@ -240,15 +240,30 @@ const FINAL_DEFENSE_MOVES = [
  * 최후 변론은 토론과 상황이 다르다. 지목된 사람이 정해져 있고 그 사람의 생사만 다룬다.
  * 토론 프롬프트를 그대로 쓰면 봇이 피고인을 모른 채 엉뚱한 사람을 심문한다(1판 실측).
  */
-export function finalDefensePrompt(ctx: BotContext): string {
+export function finalDefensePrompt(ctx: BotContext, askedMe = false): string {
   const accused = ctx.accusedId === null ? null : labelOf(ctx.players, ctx.accusedId);
   const isMe = ctx.accusedId === ctx.selfId;
 
   const who = accused ?? '지목된 사람';
 
-  const stance = isMe
-    ? `지목된 사람은 당신입니다. 여기서 밀리면 끝입니다. 억울함을 짧게 호소하거나 자기 묘사를 해명하세요.`
-    : `지목된 사람은 ${who}입니다. 지금은 ${who} 한 사람만 다루는 시간이니 다른 사람을 새로 추궁하지 마세요.
+  /**
+   * 나에게 직접 물어온 경우에는 무브를 주지 않는다.
+   *
+   * 실측(0028 6:46:54) F가 "B가 뭘 줬는데?"라고 물었는데 봇은 딴소리를 했다. 발화 확률 때문에
+   * 입을 다무는 줄 알고 그것부터 고쳤더니, 이번에는 말을 하면서도 답을 안 했다.
+   * 프롬프트를 찍어 보니 원인이 분명했다 — "G 한 사람만 다루세요" + 무작위로 뽑힌
+   * "판단을 미루는 티를 내세요"가 나가고 있었다. 봇은 지시를 어긴 게 아니라 지킨 것이다.
+   *
+   * GPT-5.6에서 이 문제가 더 크게 나왔다. 8번 중 8번이 "그러게" "애매하네" "좀 더 봐야겠다"였고,
+   * 같은 자리에서 qwen은 "내가 뭘" "그럼 내거 뭐라고"처럼 답을 했다. 지시를 충실히 따르는
+   * 모델일수록 안 맞는 지시에 더 크게 휘둘린다. 그래서 이 자리에서는 상황만 알려주고
+   * 무엇을 할지는 모델이 정하게 둔다.
+   */
+  const stance = askedMe
+    ? `지목된 사람은 ${who}입니다. 그런데 방금 누군가 당신에게 직접 물었습니다. 그 말에 먼저 답하세요.`
+    : isMe
+      ? `지목된 사람은 당신입니다. 여기서 밀리면 끝입니다. 억울함을 짧게 호소하거나 자기 묘사를 해명하세요.`
+      : `지목된 사람은 ${who}입니다. 지금은 ${who} 한 사람만 다루는 시간이니 다른 사람을 새로 추궁하지 마세요.
 
 아래 중 하나만 고르세요.
 ${FINAL_DEFENSE_MOVES[Math.floor(Math.random() * FINAL_DEFENSE_MOVES.length)]!.replace(/\{누구\}/g, who)}`;

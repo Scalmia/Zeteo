@@ -556,7 +556,7 @@ export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise
       if (!calledOnMe(ctx) && (shouldWaitForOthers(ctx) || Math.random() >= chance)) {
         return { t: 'silent', delayMs: silentDelay() };
       }
-      return chatOrSilent(ctx, finalDefensePrompt(ctx));
+      return chatOrSilent(ctx, finalDefensePrompt(ctx, calledOnMe(ctx)));
     }
 
     /** 서버는 토론 제한시간이 끝날 때까지 이 함수를 반복 호출한다. 매번 하나만 고른다. */
