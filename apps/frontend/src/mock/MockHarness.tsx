@@ -81,7 +81,7 @@ export function MockHarness() {
     return (
       <>
         <Ambience />
-        <LandingScreen onJoin={(name, roomId) => console.log('[mock] join', { name, roomId })} />
+        <LandingScreen onNext={(name) => console.log('[mock] next', { name })} />
       </>
     );
   }
@@ -131,6 +131,10 @@ function renderMock(state: GameState, onEvent: (e: ClientEvent) => void) {
           myId={state.myId}
           myReady={me?.isReady ?? false}
           onToggleReady={() => onEvent({ t: 'ready' })}
+          onBack={() => console.log('[mock] back to room list')}
+          isHost
+          readyCount={state.players.filter((p) => p.isReady).length}
+          onStartGame={() => console.log('[mock] start game')}
         />
       );
     }

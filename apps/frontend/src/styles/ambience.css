@@ -1,10 +1,10 @@
 /* 파트 D 소유 — 박진
  *
- * Blood Moon 장식 레이어(달빛·피 방울). Ambience.tsx가 마운트하는
+ * Blood Moon 장식 레이어(피 방울). Ambience.tsx가 마운트하는
  * 마크업을 스타일링한다. 클릭을 막지 않도록 전부 pointer-events:none.
  * prefers-reduced-motion 사용자는 애니메이션을 끈다.
  *
- * ⚠️ .moonlight/.blood-drops는 z-index:-1(2026-08-21 수정, 이전엔 0이었음) —
+ * ⚠️ .blood-drops는 z-index:-1(2026-08-21 수정, 이전엔 0이었음) —
  * App.tsx가 이 요소들을 화면 콘텐츠보다 먼저 마운트하지만, position:fixed인
  * 포지션 요소는 CSS 스태킹 규칙상 같은 스태킹 컨텍스트의 "포지션 없는" 일반
  * 블록 콘텐츠보다 항상 나중에(위에) 칠해진다 — DOM 순서와 무관. 랜딩·대기실·
@@ -15,30 +15,16 @@
  * 깔린다.
  */
 
-.moonlight {
-  position: fixed;
-  top: -30%;
-  right: 5%;
-  width: 500px;
-  height: 500px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 40%, transparent 70%);
-  pointer-events: none;
-  z-index: -1;
-  animation: zt-moon-pulse 8s ease-in-out infinite;
-}
-@keyframes zt-moon-pulse {
-  0%, 100% { opacity: 0.7; transform: scale(1); }
-  50% { opacity: 0.9; transform: scale(1.15); }
-}
-
 .blood-drops {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: 150px;
+  height: 300px; /* 낙하 거리 2배 (기존 150px) */
   pointer-events: none;
+  /* z-index:-1(2026-08-21, feat/game-ui 팀 수정 반영) — position:fixed 요소는
+   * z-index:0/auto여도 스태킹 규칙상 일반(비-포지션) 배경 콘텐츠보다 항상 위에
+   * 그려진다. 음수로 낮춰야 다른 화면 배경 위로 비치지 않는다. */
   z-index: -1;
   overflow: hidden;
 }
@@ -51,17 +37,25 @@
   animation: zt-blood-fall 3s linear infinite;
   filter: drop-shadow(0 0 2px var(--color-accent));
 }
-.blood-drop:nth-child(1) { left: 10%; animation-delay: 0s; }
-.blood-drop:nth-child(2) { left: 25%; animation-delay: 0.5s; }
-.blood-drop:nth-child(3) { left: 40%; animation-delay: 1s; }
-.blood-drop:nth-child(4) { left: 60%; animation-delay: 1.5s; }
-.blood-drop:nth-child(5) { left: 75%; animation-delay: 2s; }
-.blood-drop:nth-child(6) { left: 90%; animation-delay: 2.5s; }
+/* 6줄 → 12줄, 간격을 좁혀 화면이 더 꽉 차 보이게. delay·duration을 줄마다 다르게 줘서
+ * 좌→우로 규칙적으로 쓸어가는 느낌 대신 불규칙하게 떨어지는 것처럼 보이게 한다. */
+.blood-drop:nth-child(1) { left: 5%; animation-delay: 0s; animation-duration: 2.6s; }
+.blood-drop:nth-child(2) { left: 13%; animation-delay: 1.4s; animation-duration: 3.4s; }
+.blood-drop:nth-child(3) { left: 21%; animation-delay: 0.3s; animation-duration: 3.9s; }
+.blood-drop:nth-child(4) { left: 29%; animation-delay: 2.1s; animation-duration: 2.8s; }
+.blood-drop:nth-child(5) { left: 37%; animation-delay: 0.9s; animation-duration: 3.2s; }
+.blood-drop:nth-child(6) { left: 45%; animation-delay: 1.8s; animation-duration: 2.4s; }
+.blood-drop:nth-child(7) { left: 55%; animation-delay: 0.5s; animation-duration: 3.6s; }
+.blood-drop:nth-child(8) { left: 63%; animation-delay: 2.5s; animation-duration: 3s; }
+.blood-drop:nth-child(9) { left: 71%; animation-delay: 1.1s; animation-duration: 2.7s; }
+.blood-drop:nth-child(10) { left: 79%; animation-delay: 0.1s; animation-duration: 4s; }
+.blood-drop:nth-child(11) { left: 87%; animation-delay: 1.7s; animation-duration: 3.1s; }
+.blood-drop:nth-child(12) { left: 95%; animation-delay: 2.9s; animation-duration: 2.5s; }
 @keyframes zt-blood-fall {
   0% { height: 0; top: 0; opacity: 0; }
   10% { opacity: 0.45; }
   90% { opacity: 0.45; }
-  100% { height: 100px; top: 150px; opacity: 0; }
+  100% { height: 200px; top: 300px; opacity: 0; } /* 낙하 거리 2배 (기존 100px/150px) */
 }
 
 .zt-particle {

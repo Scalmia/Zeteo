@@ -4,20 +4,18 @@ import FullscreenButton from "./components/FullscreenButton";
 import "./styles/tokens.css";
 
 interface LandingScreenProps {
-  onJoin: (name: string, roomId: string) => void;
+  onNext: (name: string) => void;
 }
 
-export default function LandingScreen({ onJoin }: LandingScreenProps) {
+export default function LandingScreen({ onNext }: LandingScreenProps) {
   const [name, setName] = useState("");
-  const [roomId, setRoomId] = useState("");
 
-  const canJoin = name.trim().length > 0 && roomId.trim().length > 0;
+  const canNext = name.trim().length > 0;
 
   return (
     <div
       style={{
         minHeight: "100vh",
-        background: "var(--color-bg)",
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
@@ -56,19 +54,8 @@ export default function LandingScreen({ onJoin }: LandingScreenProps) {
           />
         </div>
 
-        <div className="field" style={{ marginBottom: "var(--space-4)" }}>
-          <label style={{ fontSize: "var(--text-label)", fontWeight: 600 }}>방번호</label>
-          <input
-            className="input"
-            style={{ fontSize: 21 }}
-            value={roomId}
-            onChange={(e) => setRoomId(e.target.value)}
-            placeholder="방번호를 입력해주세요"
-          />
-        </div>
-
-        <Button block disabled={!canJoin} style={{ fontSize: "var(--text-button)" }} onClick={() => canJoin && onJoin(name.trim(), roomId.trim())}>
-          입장하기
+        <Button block disabled={!canNext} style={{ fontSize: "var(--text-button)" }} onClick={() => canNext && onNext(name.trim())}>
+          시작
         </Button>
       </div>
     </div>
