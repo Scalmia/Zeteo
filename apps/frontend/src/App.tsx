@@ -1,12 +1,15 @@
+import { useState } from "react";
 import ResultScreen from "./ResultScreen";
 import SurveyScreen from "./SurveyScreen";
 import LandingScreen from "./LandingScreen";
+import RoomListScreen from "./RoomListScreen";
 import LobbyScreen from "./LobbyScreen";
 import { GameScreen } from "./screens/GameScreen";
 import { useGameState } from "./hooks/useGameState";
 import { Ambience } from "./components/Ambience";
 import { ParticleTrail } from "./components/ParticleTrail";
 import type { ClientEvent, GameState } from "@zeteo/shared-types";
+import type { ResultPlayer } from "./types";
 
 /**
  * 파트 D 소유 — 박진
@@ -52,20 +55,47 @@ function winnerLabel(state: GameState): string {
 
 function buildResultPlayers(state: GameState) {
   const labelOf = (id: string) => state.players.find((pl) => pl.id === id)?.label ?? id;
-  return state.players.map((p) => ({
-    id: p.id,
-    label: p.label,
-    name: state.revealedNames?.[p.id] ?? null,
-    tag: p.id === state.revealedBotId ? ("봇" as const) : p.id === state.revealedLiarId ? ("라이어" as const) : ("시민" as const),
-    votedFor: state.botVoteResults?.[p.id] ? labelOf(state.botVoteResults[p.id]!) : null
-  }));
+  return state.players.map((p) => {
+    // 봇과 라이어가 같은 사람일 수 있다(assignRoles가 봇 포함 전원 중에서 라이어를
+    // 뽑음, 제외 로직 없음) — 예전엔 3항 연산자로 봇 우선 단일 태그만 냈는데, 그러면
+    // 봇=라이어 겹침일 때 "라이어" 태그가 절대 안 뜬다(2026-08-21 발견·수정).
+    const tags: ResultPlayer["tags"] = [];
+    if (p.id === state.revealedBotId) tags.push("봇");
+    if (p.id === state.revealedLiarId) tags.push("라이어");
+    if (tags.length === 0) tags.push("시민");
+    return {
+      id: p.id,
+      label: p.label,
+      name: state.revealedNames?.[p.id] ?? null,
+      tags,
+      votedFor: state.botVoteResults?.[p.id] ? labelOf(state.botVoteResults[p.id]!) : null
+    };
+  });
 }
 
-function renderScreen(state: GameState | null, onEvent: (e: ClientEvent) => void, onLeave: () => void) {
+function renderScreen(
+  state: GameState | null,
+  onEvent: (e: ClientEvent) => void,
+  onLeave: () => void,
+  nickname: string | null,
+  setNickname: (name: string | null) => void,
+  isHost: boolean,
+  setIsHost: (isHost: boolean) => void
+) {
   if (!state) {
+    // 닉네임을 아직 안 정했으면 랜딩, 정했으면 방 목록 — 둘 다 서버에 방을 안 만든
+    // 상태(GameState 없음)라 이 로컬 상태로만 구분한다.
+    if (nickname === null) {
+      return <LandingScreen onNext={(name) => setNickname(name)} />;
+    }
     return (
-      <LandingScreen
-        onJoin={(name, roomId) => onEvent({ t: "join", roomId, name })}
+      <RoomListScreen
+        nickname={nickname}
+        onBack={() => setNickname(null)}
+        onJoinRoom={(roomId, host) => {
+          setIsHost(host);
+          onEvent({ t: "join", roomId, name: nickname });
+        }}
       />
     );
   }
@@ -80,6 +110,13 @@ function renderScreen(state: GameState | null, onEvent: (e: ClientEvent) => void
         myId={state.myId}
         myReady={me?.isReady ?? false}
         onToggleReady={() => onEvent({ t: "ready" })}
+        onBack={onLeave}
+        isHost={isHost}
+        readyCount={state.players.filter((p) => p.isReady).length}
+        onStartGame={() => {
+          // TODO(backend): 방장 전용 게임시작 이벤트가 서버에 생기면 여기서 보낸다.
+          // 그 전까진 기존대로 전원 준비완료 시 서버가 자동으로 다음 단계로 넘긴다.
+        }}
       />
     );
   }
@@ -150,6 +187,8 @@ function renderScreen(state: GameState | null, onEvent: (e: ClientEvent) => void
 
 export function App() {
   const { state, onEvent, connected, error, leaveToLanding } = useGameState();
+  const [nickname, setNickname] = useState<string | null>(null);
+  const [isHost, setIsHost] = useState(false);
 
   return (
     <div>
@@ -165,7 +204,7 @@ export function App() {
           {error}
         </div>
       )}
-      {renderScreen(state, onEvent, leaveToLanding)}
+      {renderScreen(state, onEvent, leaveToLanding, nickname, setNickname, isHost, setIsHost)}
     </div>
   );
 }
