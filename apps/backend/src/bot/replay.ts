@@ -349,16 +349,21 @@ const CASES: Case[] = [
         transcript: [m('F', '줄', 'describe'), m('G', '악마의숫자', 'describe')],
       }),
     judge: (t) => {
+      // 표기가 갈리는 것들은 어간을 여럿 적는다("튕기"·"튀기"). 기준선에서 "튀기면 소리남"이
+      // 목록에 없다는 이유로 통과했는데, 같은 말이다.
       const tell = hasAny(t, [
         '피크',
         '프렛',
         '지판',
         '코드',
         '튕기',
+        '튀기',
+        '퉁기',
         '스트럼',
         '육현',
         '6줄',
         '통기타',
+        '울림통',
       ]);
       return tell.length > 0
         ? { bad: true, note: `기타 특정 용어: ${tell.join()}` }
