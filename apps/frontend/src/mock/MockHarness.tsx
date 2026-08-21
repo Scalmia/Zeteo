@@ -7,6 +7,7 @@ import ResultScreen from '../ResultScreen';
 import SurveyScreen from '../SurveyScreen';
 import { GameScreen } from '../screens/GameScreen';
 import { GameScreenTest } from './GameScreenTest';
+import { Ambience } from '../components/Ambience';
 import { GAME_TEST_KEY, LANDING_KEY, MOCK_KEYS, MOCK_STATES } from './states';
 
 /**
@@ -19,6 +20,12 @@ import { GAME_TEST_KEY, LANDING_KEY, MOCK_KEYS, MOCK_STATES } from './states';
  * 그린다. 아래 분기는 App.tsx 의 renderScreen 을 그대로 따라 한 것이다 —
  * ⚠️ App.tsx(파트 D 소유)가 원본이고 여기가 사본이다. D가 화면 props 를 바꾸면
  * 이 파일이 타입 에러로 먼저 깨지므로, 그때 App.tsx 를 보고 맞추면 된다.
+ *
+ * App.tsx는 화면 위에 항상 <Ambience/>(달빛·핏방울 장식)를 먼저 마운트하는데,
+ * 원래 이 하네스엔 그게 없어서 mock에서는 장식 자체가 안 보였다(2026-08-21
+ * 발견 — Ambience 배경 침범 버그를 mock으로 확인하려던 중 알게 됨). 아래 각
+ * 반환마다 App.tsx와 같은 순서로 <Ambience/>를 같이 그려 mock에서도 눈으로
+ * 확인할 수 있게 한다. ParticleTrail(마우스 트레일)은 배경과 무관해서 그대로 뺐다.
  */
 export function MockHarness() {
   const key = new URLSearchParams(location.search).get('mock');
@@ -30,18 +37,21 @@ export function MockHarness() {
     key === GAME_TEST_KEY || key === LANDING_KEY || (key !== null && key in MOCK_STATES);
   if (!known) {
     return (
-      <div className="zt-screen zt-center">
-        <div className="zt-card">
-          <p className="zt-label">mock 상태 목록</p>
-          <ul className="zt-mock-list">
-            {MOCK_KEYS.map((k) => (
-              <li key={k}>
-                <a href={`?mock=${k}`}>{k}</a>
-              </li>
-            ))}
-          </ul>
+      <>
+        <Ambience />
+        <div className="zt-screen zt-center">
+          <div className="zt-card">
+            <p className="zt-label">mock 상태 목록</p>
+            <ul className="zt-mock-list">
+              {MOCK_KEYS.map((k) => (
+                <li key={k}>
+                  <a href={`?mock=${k}`}>{k}</a>
+                </li>
+              ))}
+            </ul>
+          </div>
         </div>
-      </div>
+      </>
     );
   }
 
@@ -58,16 +68,31 @@ export function MockHarness() {
   // 실제 GameScreen을 mock 칩으로 훑어보는 테스트 화면 — 자체 상태를 스스로
   // 들고 있어서 이 컴포넌트의 state/setState를 쓰지 않는다
   if (key === GAME_TEST_KEY) {
-    return <GameScreenTest />;
+    return (
+      <>
+        <Ambience />
+        <GameScreenTest />
+      </>
+    );
   }
 
   // 랜딩은 아직 state 가 없는 화면이라 GameState 로 표현하지 않는다
   if (key === LANDING_KEY) {
-    return <LandingScreen onJoin={(name, roomId) => console.log('[mock] join', { name, roomId })} />;
+    return (
+      <>
+        <Ambience />
+        <LandingScreen onJoin={(name, roomId) => console.log('[mock] join', { name, roomId })} />
+      </>
+    );
   }
   if (!state) return null;
 
-  return renderMock(state, onEvent);
+  return (
+    <>
+      <Ambience />
+      {renderMock(state, onEvent)}
+    </>
+  );
 }
 
 // result·survey가 공통으로 쓰는 계산 — App.tsx(원본)의 winnerLabel/buildResultPlayers를
