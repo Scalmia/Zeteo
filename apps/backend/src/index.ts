@@ -196,6 +196,11 @@ async function finalizeSurveyIfDone(room: RoomInternalState) {
     (p) => room.submittedSurveyIds.has(p.id) || room.abandonedSurveyIds.has(p.id),
   );
   if (!allDone) return;
+  // 마지막 인원의 제출(case 'survey')과 접속 종료(disconnect)가 거의 동시에 일어나면
+  // 이 함수가 두 경로에서 레이스로 겹쳐 불릴 수 있다. 여기서 await 전에 동기적으로
+  // 플래그를 세워 두 번째 호출을 막는다 — 안 그러면 디스코드 웹훅이 두 번 나간다.
+  if (room.finalized) return;
+  room.finalized = true;
   // room.players 명단이 아직 온전할 때(먼저 낸 사람도 안 지워진 상태) 리포트부터 만든다.
   await sendFinalReportToDiscord(room);
   deleteRoom(room.roomId);
