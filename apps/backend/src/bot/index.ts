@@ -192,6 +192,19 @@ function recallTarget(ctx: BotContext, myLastText: string): string | null {
 }
 
 /**
+ * 이 방에 대해 기억해 둔 것을 지운다.
+ *
+ * pendingTails·lastTargets는 판이 끝나도 안 지워져서 프로세스가 사는 동안 계속 쌓인다.
+ * 방 하나에 항목 둘이라 실사용에서 문제될 크기는 아니지만, 같은 상황을 되풀이해 잴 때는
+ * 앞 표본이 뒤 표본으로 새는 통로가 된다 — 끊어 보낸 뒷말이 다음 표본에서 튀어나오거나,
+ * 앞 표본이 지목한 상대가 다음 표본의 입장으로 잡힌다.
+ */
+export function forgetRoom(ctx: BotContext): void {
+  pendingTails.delete(roomKey(ctx));
+  lastTargets.delete(roomKey(ctx));
+}
+
+/**
  * 입으로 지목해 둔 상대의 라벨. 표(ctx.myVote)와 다른 것을 본다.
  *
  * 서버는 동점이 나면 room.votes를 비우고 재투표를 돌린다. 표를 기준으로 삼으면 그 순간
