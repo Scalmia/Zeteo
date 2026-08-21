@@ -1,24 +1,24 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { RoomSummary } from "@zeteo/shared-types";
 import Button from "./components/Button";
 import FullscreenButton from "./components/FullscreenButton";
 import { MAX_PLAYERS } from "./roomConfig";
 import "./styles/tokens.css";
 import "./styles/roomList.css";
 
-type RoomStatus = "open" | "full" | "playing";
-
-interface RoomSummary {
-  roomId: string;
-  title: string;
-  hostName: string;
-  count: number;
-  status: RoomStatus;
-}
+// ★ RoomStatus·RoomSummary 를 여기서 선언하지 않고 shared-types 에서 가져온다
+// (방 목록 서버 연결) — 목록을 서버가 내려주므로 모양이 어긋나면 안 된다.
+type RoomStatus = RoomSummary["status"];
 
 interface RoomListScreenProps {
-  nickname: string;
+  // ★ nickname 을 받지 않는다 (방 목록 서버 연결) — 방장 이름은 서버가 목록에 담아
+  // 내려주고, join 에 실어보낼 닉네임은 App.tsx 가 쥐고 있어서 이 화면엔 쓸 데가 없다.
   onBack: () => void;
-  onJoinRoom: (roomId: string, isHost: boolean) => void;
+  /** title 은 방을 새로 만들 때만 — 기존 방에 들어갈 땐 생략한다. */
+  onJoinRoom: (roomId: string, title?: string) => void;
+  // ★ 추가 (방 목록 서버 연결) — 목록의 출처는 서버다. 이 화면은 받아서 그리기만 한다.
+  rooms: RoomSummary[];
+  onRefresh: () => void;
 }
 
 const TITLE_MAX_LENGTH = 20;
@@ -34,15 +34,13 @@ const STATUS_TAG: Record<RoomStatus, { label: string; className: string }> = {
  *  정원 진행바·방번호 직접입력 토글은 시안 그대로 옮기고, 방 만들기 버튼만 새로 추가했다
  *  (시안엔 없던 기능).
  *
- *  ⚠️ 지금은 서버에 방 목록 조회 API(listRooms)가 없어서, 이 화면이 만든 방 목록을
- *  로컬 상태로만 들고 있다 — 새로고침하거나 다른 사람 브라우저에서는 안 보인다.
- *  같은 이유로 status·count도 실시간 갱신이 안 되고 생성 시점 값(open, 1명)에 고정된다.
- *  방 클릭/생성 시 보내는 join 이벤트는 서버에 이미 있는 것(roomId 없으면 자동 생성)이라
- *  실제 대기실까지는 정상 동작한다. 방 목록을 여러 클라이언트가 공유하려면 서버에
- *  listRooms/createRoom 이벤트와 방장·정원·상태 필드가 먼저 필요하다(합의된 방향:
- *  apps/backend/src/room.ts, index.ts, view.ts, packages/shared-types 쪽 작업). */
-export default function RoomListScreen({ nickname, onBack, onJoinRoom }: RoomListScreenProps) {
-  const [rooms, setRooms] = useState<RoomSummary[]>([]);
+ *  ★ 목록을 서버(listRooms)에 연결했다 — 예전엔 이 화면이 만든 방만 로컬 상태로 들고
+ *  있어서 다른 사람 브라우저에는 안 보였다. 이제 rooms 는 props 로 받고, 이 화면은
+ *  요청(onRefresh)과 렌더만 한다. status·count 도 서버가 계산해 내려준다.
+ *
+ *  ⚠️ 다만 목록은 자동으로 갱신되지 않는다 — 서버가 방 변화를 밀어주는(push) 구조가
+ *  아니라 요청할 때만 오므로, 진입 시 한 번과 새로고침 버튼을 누를 때만 최신이다. */
+export default function RoomListScreen({ onBack, onJoinRoom, rooms, onRefresh }: RoomListScreenProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState("");
   const [filter, setFilter] = useState<"all" | "joinable">("all");
@@ -50,18 +48,26 @@ export default function RoomListScreen({ nickname, onBack, onJoinRoom }: RoomLis
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualRoomId, setManualRoomId] = useState("");
 
-  const refresh = () => {
-    // TODO(backend): 서버에 listRooms 이벤트가 생기면 여기서 요청하고 응답으로 rooms를 채운다.
-  };
+  // ★ 화면에 들어오면 한 번 목록을 받아온다 (방 목록 서버 연결).
+  // onRefresh 는 App.tsx 가 매 렌더 새로 만드는 함수라 의존성에 넣으면 매번 다시 도므로
+  // 진입 시 1회만 돌린다 — 이후 갱신은 사용자가 새로고침 버튼으로 한다.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => onRefresh(), []);
 
   const createRoom = () => {
     const trimmed = title.trim();
     if (!trimmed) return;
-    const roomId = String(rooms.length + 1); // 방 만든 순서대로 순번 — 서버 발급 전까지 임시
-    setRooms((prev) => [...prev, { roomId, title: trimmed, hostName: nickname, count: 1, status: "open" }]);
+    // 방번호는 아직 서버가 발급하지 않아 클라이언트가 정한다. 목록에 이미 있는 번호를
+    // 고르면 남이 만든 방에 그대로 합류해버리므로(서버 join 은 방이 있으면 들어간다),
+    // 목록에 없는 번호를 뽑는다. 서버가 발급하게 되면 이 로직은 통째로 사라진다.
+    const taken = new Set(rooms.map((r) => r.roomId));
+    let roomId = "";
+    do {
+      roomId = String(Math.floor(1000 + Math.random() * 9000));
+    } while (taken.has(roomId));
     setShowCreate(false);
     setTitle("");
-    onJoinRoom(roomId, true);
+    onJoinRoom(roomId, trimmed); // 제목을 같이 보내야 서버가 방 제목으로 저장한다
   };
 
   const filteredRooms = rooms
@@ -131,7 +137,7 @@ export default function RoomListScreen({ nickname, onBack, onJoinRoom }: RoomLis
         <div className="zt-sort-row">
           <span>
             총 {filteredRooms.length}개 방
-            <button type="button" className="zt-refresh-icon" onClick={refresh} aria-label="새로고침" title="새로고침">
+            <button type="button" className="zt-refresh-icon" onClick={onRefresh} aria-label="새로고침" title="새로고침">
               ↻
             </button>
           </span>
@@ -158,7 +164,7 @@ export default function RoomListScreen({ nickname, onBack, onJoinRoom }: RoomLis
                 type="button"
                 className="zt-room-row"
                 disabled={room.status !== "open"}
-                onClick={() => onJoinRoom(room.roomId, false)}
+                onClick={() => onJoinRoom(room.roomId)}
               >
                 <div className="zt-top-line">
                   <span className="zt-rid">
@@ -195,7 +201,7 @@ export default function RoomListScreen({ nickname, onBack, onJoinRoom }: RoomLis
               onChange={(e) => setManualRoomId(e.target.value)}
               placeholder="방번호 입력"
             />
-            <Button disabled={!manualRoomId.trim()} onClick={() => onJoinRoom(manualRoomId.trim(), false)}>
+            <Button disabled={!manualRoomId.trim()} onClick={() => onJoinRoom(manualRoomId.trim())}>
               입장
             </Button>
           </div>
