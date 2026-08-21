@@ -164,7 +164,25 @@ function stanceRule(ctx: BotContext, declared: string | null): string {
   return `\n\n당신은 지금 ${standing} 쪽으로 기울어 있습니다. 이미 그렇게 말해뒀으니 다시 선언하지는 마세요. 다른 사람으로 옮길 거면 왜 바뀌었는지 한마디 붙이세요. 이유 없이 옮기면 부자연스럽습니다.`;
 }
 
-export function debatePrompt(ctx: BotContext, declared: string | null = null): string {
+/**
+ * 몰렸을 때만 고르는 것들. DEBATE_MOVES에 섞어두지 않고 따로 두는 이유는, 일곱 개 중 방어에
+ * 해당하는 것이 둘뿐이라 몰린 자리에서도 5/7 확률로 남을 파고들었기 때문이다. 이 자리에서
+ * 할 일은 하나뿐이므로 후보를 그것만 남긴다.
+ *
+ * 그래도 셋을 두는 것은, 한 문장으로 고정하면 몰릴 때마다 똑같은 말이 나오기 때문이다.
+ * 앞서 입장 문구를 한 줄로 박았을 때 "Q라니까"가 되풀이된 적이 있다.
+ */
+const DEFEND_MOVES = [
+  '지금 표가 당신에게 몰려 있습니다. 남을 새로 지목하지 말고, 자기 묘사가 왜 그랬는지 짧게 해명하세요.',
+  '지금 몰린 것은 당신입니다. 억울하면 억울하다고 하되, 근거를 길게 대지 말고 한마디로 받아치세요.',
+  '당신을 의심하는 사람에게 되물으세요. 화제를 딴 사람에게 돌리지 말고 그 의심 자체를 다루세요.',
+];
+
+export function debatePrompt(
+  ctx: BotContext,
+  declared: string | null = null,
+  pressured = false,
+): string {
   const votes = Object.entries(ctx.voteCounts)
     .filter(([, n]) => n > 0)
     .map(([id, n]) => `${labelOf(ctx.players, id)} ${n}표`)
@@ -177,9 +195,12 @@ export function debatePrompt(ctx: BotContext, declared: string | null = null): s
   const isFirstToSpeak =
     ctx.transcript.filter((m) => m.phase === 'debate' && m.speakerId !== 'system').length === 0;
 
-  const move = isFirstToSpeak
-    ? '아직 아무도 말을 꺼내지 않았습니다. 남을 지목하지 말고, 가볍게 운을 떼거나 짧게 되묻기만 하세요.'
-    : DEBATE_MOVES[Math.floor(Math.random() * DEBATE_MOVES.length)]!;
+  // 몰린 상황이 먼저다. 그 자리에서는 무엇을 할지 고를 여지가 없다.
+  const move = pressured
+    ? DEFEND_MOVES[Math.floor(Math.random() * DEFEND_MOVES.length)]!
+    : isFirstToSpeak
+      ? '아직 아무도 말을 꺼내지 않았습니다. 남을 지목하지 말고, 가볍게 운을 떼거나 짧게 되묻기만 하세요.'
+      : DEBATE_MOVES[Math.floor(Math.random() * DEBATE_MOVES.length)]!;
 
   return `지금까지의 대화입니다.
 ${formatTranscript(ctx)}${votes ? `\n\n현재 득표: ${votes}` : ''}${myVote}

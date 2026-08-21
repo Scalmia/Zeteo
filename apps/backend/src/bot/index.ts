@@ -192,6 +192,40 @@ function recallTarget(ctx: BotContext, myLastText: string): string | null {
 }
 
 /**
+ * 지금 화살이 나를 향해 있는지 본다. 표와 말, 두 갈래로 나눠 본다.
+ *
+ * 사람은 자기가 몰리는 걸 알면 하던 일을 멈추고 자기 얘기를 한다. 봇에게는 그 개념이 없어서
+ * 표가 자기한테 쏠린 순간에도 남을 파고들었다(0820 6:12:24, "A가 제일 걸림"). 바로 다음 줄이
+ * "니 찍었는데?" → "N 이 놈이네"였다. 설문에 "몰리고 있는데 변호는 안하고 남 공격만 함"으로 적혔다.
+ *
+ * 두 신호를 따로 두는 이유는 서로 다른 자리에서 켜지기 때문이다. 표는 토론에서 쌓이고,
+ * 이름을 부르는 것은 최후 변론처럼 표가 없는 자리에서도 일어난다. 0028에서 "B가 뭘 줬는데?"라고
+ * 직접 물었을 때 봇이 딴소리를 한 것은 두 번째 신호가 없어서였다.
+ */
+function underFire(ctx: BotContext): boolean {
+  const mine = ctx.voteCounts[ctx.selfId] ?? 0;
+  if (mine === 0) return false;
+  // 동점도 몰린 것으로 센다. 동점이면 재투표라 위험이 사라진 게 아니다.
+  return mine >= Math.max(...Object.values(ctx.voteCounts));
+}
+
+/** 내가 마지막으로 말한 뒤로 남이 내 이름을 불렀는가. */
+function calledOnMe(ctx: BotContext): boolean {
+  const myLabel = ctx.players.find((p) => p.id === ctx.selfId)?.label;
+  if (myLabel === undefined) return false;
+
+  const inPhase = ctx.transcript.filter((m) => m.phase === ctx.phase);
+  const since = inPhase.slice(inPhase.map((m) => m.speakerId).lastIndexOf(ctx.selfId) + 1);
+  const named = new RegExp(`(^|[^A-Za-z])${myLabel}([^A-Za-z]|$)`);
+  return since.some((m) => m.speakerId !== ctx.selfId && m.speakerId !== 'system' && named.test(m.text));
+}
+
+/** 표든 말이든 나를 향해 있으면 참이다. 이때는 발화 확률을 건너뛴다. */
+function pressured(ctx: BotContext): boolean {
+  return underFire(ctx) || calledOnMe(ctx);
+}
+
+/**
  * 이 방에 대해 기억해 둔 것을 지운다.
  *
  * pendingTails·lastTargets는 판이 끝나도 안 지워져서 프로세스가 사는 동안 계속 쌓인다.
@@ -517,7 +551,9 @@ export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise
 
       const amAccused = ctx.accusedId === ctx.selfId;
       const chance = amAccused ? CHAT_AS_ACCUSED_CHANCE : CHAT_IN_FINAL_DEFENSE_CHANCE;
-      if (shouldWaitForOthers(ctx) || Math.random() >= chance) {
+      // 내 이름을 부르며 물었으면 확률을 건너뛴다. 사람은 자기를 부르는 질문에 답한다.
+      // 실측(0028 6:46:54) "B가 뭘 줬는데?"에 봇은 딴소리를 했고, 재현에서는 5번 중 4번 침묵했다.
+      if (!calledOnMe(ctx) && (shouldWaitForOthers(ctx) || Math.random() >= chance)) {
         return { t: 'silent', delayMs: silentDelay() };
       }
       return chatOrSilent(ctx, finalDefensePrompt(ctx));
@@ -529,6 +565,17 @@ export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise
       if (tail !== null) {
         carryTarget(ctx, tail);
         return { t: 'chat', text: tail, delayMs: tailDelay() };
+      }
+
+      /**
+       * 나를 향해 있으면 기다리지도, 확률을 굴리지도 않는다.
+       *
+       * 실측(0820)에서 봇은 표가 자기한테 몰린 채로 세 번 침묵했다. 투표를 마친 뒤 발화 확률이
+       * 0.4로 떨어지는데, 그 확률이 몰렸는지 여부를 안 보기 때문이다. 몰린 사람이 입을 다무는 것은
+       * 사람의 행동이 아니라서, 여기서는 확률 자체를 건너뛴다.
+       */
+      if (pressured(ctx)) {
+        return chatOrSilent(ctx, debatePrompt(ctx, declaredSuspectLabel(ctx), true));
       }
 
       if (shouldWaitForOthers(ctx)) {
