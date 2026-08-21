@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ClientEvent, GameState } from '@zeteo/shared-types';
+import type { ResultPlayer } from '../types';
 import LandingScreen from '../LandingScreen';
 import LobbyScreen from '../LobbyScreen';
 import ResultScreen from '../ResultScreen';
@@ -77,18 +78,21 @@ function winnerLabel(state: GameState): string {
 
 function buildResultPlayers(state: GameState) {
   const labelOf = (id: string) => state.players.find((p) => p.id === id)?.label ?? id;
-  return state.players.map((p) => ({
-    id: p.id,
-    label: p.label,
-    name: state.revealedNames?.[p.id] ?? null,
-    tag:
-      p.id === state.revealedBotId
-        ? ('봇' as const)
-        : p.id === state.revealedLiarId
-          ? ('라이어' as const)
-          : ('시민' as const),
-    votedFor: state.botVoteResults?.[p.id] ? labelOf(state.botVoteResults[p.id]!) : null,
-  }));
+  return state.players.map((p) => {
+    // 봇과 라이어가 같은 사람일 수 있다 — App.tsx(원본)와 동일 로직(2026-08-21 수정,
+    // 위 파일 헤더 주석 참고).
+    const tags: ResultPlayer['tags'] = [];
+    if (p.id === state.revealedBotId) tags.push('봇');
+    if (p.id === state.revealedLiarId) tags.push('라이어');
+    if (tags.length === 0) tags.push('시민');
+    return {
+      id: p.id,
+      label: p.label,
+      name: state.revealedNames?.[p.id] ?? null,
+      tags,
+      votedFor: state.botVoteResults?.[p.id] ? labelOf(state.botVoteResults[p.id]!) : null,
+    };
+  });
 }
 
 function renderMock(state: GameState, onEvent: (e: ClientEvent) => void) {

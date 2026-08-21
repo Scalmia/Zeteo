@@ -7,7 +7,7 @@ interface ResultScreenProps extends ResultScreenState {
   onNext: () => void;
 }
 
-const TAG_CLASS: Record<ResultPlayer["tag"], string> = {
+const TAG_CLASS: Record<ResultPlayer["tags"][number], string> = {
   봇: "tag-accent",
   라이어: "tag-outline",
   시민: "tag-neutral"
@@ -136,7 +136,20 @@ export default function ResultScreen({
                     → {player.votedFor} 지목
                   </span>
                 )}
-                <span className={`tag ${TAG_CLASS[player.tag]}`} style={{ fontSize: "var(--text-label)", fontWeight: 600, marginLeft: "auto" }}>{player.tag}</span>
+                {/* 봇+라이어 겹침이면 뱃지가 2개 — 폭이 부족하면 뱃지째로 다음 줄로
+                    내린다(flexWrap). 개별 뱃지엔 whiteSpace:nowrap·flexShrink:0을 줘서
+                    글자가 세로로 쪼개지며 찌그러지는 걸 막는다(2026-08-21 수정). */}
+                <span style={{ display: "flex", gap: 4, marginLeft: "auto", flexWrap: "wrap", justifyContent: "flex-end" }}>
+                  {player.tags.map((t) => (
+                    <span
+                      key={t}
+                      className={`tag ${TAG_CLASS[t]}`}
+                      style={{ fontSize: "var(--text-label)", fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </span>
               </div>
             ))}
           </div>
