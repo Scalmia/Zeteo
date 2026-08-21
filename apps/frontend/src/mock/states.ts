@@ -114,6 +114,10 @@ const base: GameState = {
   revealedNames: null,
   botVoteResults: null,
   reasons: [],
+
+  // ★ 추가 (방 목록 기능) — 대기실 게임시작 버튼 노출 기준. mock 은 true 로 둬서
+  // 그 버튼까지 눈으로 볼 수 있게 한다 (MockHarness 도 isHost 를 true 로 넘긴다).
+  isHost: true,
 };
 
 export const MOCK_STATES: Record<string, GameState> = {

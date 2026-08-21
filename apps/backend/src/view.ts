@@ -98,5 +98,9 @@ export async function buildGameStateFor(room: RoomInternalState, playerId: strin
 
     // 설문 선택지는 survey 화면에서만 필요하다 (result·survey 공통이 아니라 survey 단독).
     reasons: myPhase === 'survey' ? await fetchSurveyReasons() : [],
+
+    // ★ 추가 (방 목록 기능) — 대기실 게임시작 버튼 노출 기준. 봇 정보와 달리 숨길
+    // 이유가 없어서 phase 조건 없이 항상 실제 값을 보낸다.
+    isHost: playerId === room.hostId,
   };
 }

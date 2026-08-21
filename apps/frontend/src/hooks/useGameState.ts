@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { socket, sendAction, onServerEvent } from '../net/socket';
-import type { ClientEvent, GameState } from '@zeteo/shared-types';
+import type { ClientEvent, GameState, RoomSummary } from '@zeteo/shared-types';
 
 // 화면(App.tsx)이 소켓을 직접 만지지 않아도 되게 감싸주는 훅.
 // state는 검증 없이 서버가 보낸 그대로 저장한다 — 필드 누락 방어는
@@ -9,6 +9,9 @@ export function useGameState() {
   const [state, setState] = useState<GameState | null>(null); // null = 아직 방에 안 들어감(랜딩 화면)
   const [connected, setConnected] = useState(socket.connected);
   const [error, setError] = useState<string | null>(null);
+  // ★ 추가 (방 목록 기능) — 방 목록은 아직 방에 안 들어간 상태에서 받는 값이라
+  // GameState 안에 못 넣는다(그건 방 참가자에게만 오는 것). 그래서 따로 들고 있는다.
+  const [rooms, setRooms] = useState<RoomSummary[]>([]);
 
   useEffect(() => {
     const handleConnect = () => setConnected(true);
@@ -24,6 +27,8 @@ export function useGameState() {
         setError(null);
       } else if (e.t === 'error') {
         setError(e.reason);
+      } else if (e.t === 'roomList') {
+        setRooms(e.rooms); // ★ 추가 (방 목록 기능) — listRooms 요청에 대한 응답
       }
     });
 
@@ -51,5 +56,5 @@ export function useGameState() {
     socket.connect();
   }, []);
 
-  return { state, onEvent, connected, error, leaveToLanding };
+  return { state, rooms, onEvent, connected, error, leaveToLanding };
 }

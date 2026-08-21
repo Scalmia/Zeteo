@@ -8,7 +8,7 @@ import { GameScreen } from "./screens/GameScreen";
 import { useGameState } from "./hooks/useGameState";
 import { Ambience } from "./components/Ambience";
 import { ParticleTrail } from "./components/ParticleTrail";
-import type { ClientEvent, GameState } from "@zeteo/shared-types";
+import type { ClientEvent, GameState, RoomSummary } from "@zeteo/shared-types";
 import type { ResultPlayer } from "./types";
 
 /**
@@ -79,8 +79,8 @@ function renderScreen(
   onLeave: () => void,
   nickname: string | null,
   setNickname: (name: string | null) => void,
-  isHost: boolean,
-  setIsHost: (isHost: boolean) => void
+  // ★ 방 목록을 서버에서 받아 넘긴다 (방 목록 서버 연결)
+  rooms: RoomSummary[]
 ) {
   if (!state) {
     // 닉네임을 아직 안 정했으면 랜딩, 정했으면 방 목록 — 둘 다 서버에 방을 안 만든
@@ -90,12 +90,13 @@ function renderScreen(
     }
     return (
       <RoomListScreen
-        nickname={nickname}
+        rooms={rooms}
+        onRefresh={() => onEvent({ t: "listRooms" })}
         onBack={() => setNickname(null)}
-        onJoinRoom={(roomId, host) => {
-          setIsHost(host);
-          onEvent({ t: "join", roomId, name: nickname });
-        }}
+        // title 은 방을 새로 만들 때만 넘어온다 — 서버가 그때만 방 제목으로 쓴다.
+        onJoinRoom={(roomId, title) =>
+          onEvent(title === undefined ? { t: "join", roomId, name: nickname } : { t: "join", roomId, name: nickname, title })
+        }
       />
     );
   }
@@ -111,12 +112,11 @@ function renderScreen(
         myReady={me?.isReady ?? false}
         onToggleReady={() => onEvent({ t: "ready" })}
         onBack={onLeave}
-        isHost={isHost}
+        // ★ 서버가 내려주는 값을 쓴다 (방 목록 서버 연결) — 예전엔 "방을 만들며 들어왔다"는
+        // 걸 App 이 로컬 상태로 기억했는데, 그 값은 새로고침하면 날아간다.
+        isHost={state.isHost}
         readyCount={state.players.filter((p) => p.isReady).length}
-        onStartGame={() => {
-          // TODO(backend): 방장 전용 게임시작 이벤트가 서버에 생기면 여기서 보낸다.
-          // 그 전까진 기존대로 전원 준비완료 시 서버가 자동으로 다음 단계로 넘긴다.
-        }}
+        onStartGame={() => onEvent({ t: "startGame" })}
       />
     );
   }
@@ -186,9 +186,10 @@ function renderScreen(
 }
 
 export function App() {
-  const { state, onEvent, connected, error, leaveToLanding } = useGameState();
+  // rooms 는 ★ 추가 (방 목록 서버 연결) — 아직 방에 안 들어간 상태에서 받는 값이라
+  // GameState 와 별도로 온다.
+  const { state, rooms, onEvent, connected, error, leaveToLanding } = useGameState();
   const [nickname, setNickname] = useState<string | null>(null);
-  const [isHost, setIsHost] = useState(false);
 
   return (
     <div>
@@ -204,7 +205,7 @@ export function App() {
           {error}
         </div>
       )}
-      {renderScreen(state, onEvent, leaveToLanding, nickname, setNickname, isHost, setIsHost)}
+      {renderScreen(state, onEvent, leaveToLanding, nickname, setNickname, rooms)}
     </div>
   );
 }
