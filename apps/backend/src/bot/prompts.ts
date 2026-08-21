@@ -240,7 +240,7 @@ const FINAL_DEFENSE_MOVES = [
  * 최후 변론은 토론과 상황이 다르다. 지목된 사람이 정해져 있고 그 사람의 생사만 다룬다.
  * 토론 프롬프트를 그대로 쓰면 봇이 피고인을 모른 채 엉뚱한 사람을 심문한다(1판 실측).
  */
-export function finalDefensePrompt(ctx: BotContext, askedMe = false): string {
+export function finalDefensePrompt(ctx: BotContext, askedMe = false, cleared = false): string {
   const accused = ctx.accusedId === null ? null : labelOf(ctx.players, ctx.accusedId);
   const isMe = ctx.accusedId === ctx.selfId;
 
@@ -261,7 +261,9 @@ export function finalDefensePrompt(ctx: BotContext, askedMe = false): string {
    */
   const stance = askedMe
     ? `지목된 사람은 ${who}입니다. 그런데 방금 누군가 당신에게 직접 물었습니다. 그 말에 먼저 답하세요.`
-    : isMe
+    : cleared
+      ? `지목된 사람은 ${who}입니다. 그런데 다른 사람들이 ${who}는 아닌 것 같다는 쪽으로 기울었습니다. 그 흐름을 보고 판단하세요.`
+      : isMe
       ? `지목된 사람은 당신입니다. 여기서 밀리면 끝입니다. 억울함을 짧게 호소하거나 자기 묘사를 해명하세요.`
       : `지목된 사람은 ${who}입니다. 지금은 ${who} 한 사람만 다루는 시간이니 다른 사람을 새로 추궁하지 마세요.
 

@@ -226,6 +226,39 @@ function pressured(ctx: BotContext): boolean {
 }
 
 /**
+ * 남들이 피고인을 감싸주고 있는가.
+ *
+ * 실측(0280)에서 X가 "오케이 D는 아닌듯", "근데 D는 걍 아닌것 같음"으로 두 번 혐의를 벗겨줬는데
+ * 봇은 그 뒤에도 D를 추궁했다. 설문에 "맥락을 잘 이해하지 못하고 의심 끝낸 사람을 또 의심함"으로 적혔다.
+ *
+ * 봇이 대화를 못 읽어서가 아니다. 그 말들은 transcript에 그대로 들어가 있다. 프롬프트가 덮어쓰고
+ * 있었다 — "지금은 D 한 사람만 다루는 시간이니 다른 사람을 새로 추궁하지 마세요"에 더해,
+ * 무브 다섯 중 셋이 D를 캐물으라는 것이라 8회 중 4회가 "D에게 하나만 더 물어보세요"로 뽑혔다.
+ *
+ * 낱말로 찾는 방식이라 놓치는 표현이 있을 수 있다. 놓치면 예전과 같아질 뿐이고,
+ * 잘못 켜지면 추궁을 한 번 덜 하는 쪽이라 어느 쪽으로 틀려도 손해가 크지 않다.
+ */
+function accusedDefendedByOthers(ctx: BotContext): boolean {
+  if (ctx.accusedId === null || ctx.accusedId === ctx.selfId) return false;
+  const label = ctx.players.find((p) => p.id === ctx.accusedId)?.label;
+  if (label === undefined) return false;
+
+  const named = new RegExp(`(^|[^A-Za-z])${label}([^A-Za-z]|$)`);
+  const clears = /아닌|아님|아냐|아닐|넘겨|맞는 ?말|풀어|살리/;
+
+  return ctx.transcript
+    .filter((m) => m.phase === ctx.phase)
+    .some(
+      (m) =>
+        m.speakerId !== ctx.selfId &&
+        m.speakerId !== ctx.accusedId &&
+        m.speakerId !== 'system' &&
+        named.test(m.text) &&
+        clears.test(m.text),
+    );
+}
+
+/**
  * 이 방에 대해 기억해 둔 것을 지운다.
  *
  * pendingTails·lastTargets는 판이 끝나도 안 지워져서 프로세스가 사는 동안 계속 쌓인다.
@@ -556,7 +589,10 @@ export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise
       if (!calledOnMe(ctx) && (shouldWaitForOthers(ctx) || Math.random() >= chance)) {
         return { t: 'silent', delayMs: silentDelay() };
       }
-      return chatOrSilent(ctx, finalDefensePrompt(ctx, calledOnMe(ctx)));
+      return chatOrSilent(
+        ctx,
+        finalDefensePrompt(ctx, calledOnMe(ctx), accusedDefendedByOthers(ctx)),
+      );
     }
 
     /** 서버는 토론 제한시간이 끝날 때까지 이 함수를 반복 호출한다. 매번 하나만 고른다. */

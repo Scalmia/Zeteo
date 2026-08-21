@@ -101,6 +101,24 @@ const calls = (text: string, label: string): boolean =>
 
 const hasAny = (text: string, words: string[]): string[] => words.filter((w) => text.includes(w));
 
+/**
+ * 이 발언이 누구를 겨냥하는가.
+ *
+ * 라벨만 찾으면 안 된다는 것을 세 사례에서 연달아 확인했다. 이름을 안 부르고 상대가 한 말을
+ * 되받는 방식이 그만큼 흔하다.
+ *   "무겁다는 게 뭔 뜻임?"        A의 묘사를 캐묻는 것인데 A를 안 부른다
+ *   "실내는 어딘데"              D의 묘사를 캐묻는 것인데 D를 안 부른다
+ * 세 번 다 라벨만 보다가 "겨냥 아님"으로 통과시켰다. 네 번째를 막으려고 한군데로 모은다.
+ *
+ * words에는 그 사람이 실제로 한 말에서 딴 조각을 넣는다. 활용형이 갈리므로
+ * 어간 조각을 여러 개 적는다("무거움"·"무겁다는").
+ */
+function aimsAt(text: string, who: Record<string, string[]>): string[] {
+  return Object.entries(who)
+    .filter(([label, words]) => calls(text, label) || words.some((w) => text.includes(w)))
+    .map(([label]) => label);
+}
+
 /** 마음을 바꿀 때 사람이 붙이는 말. 이게 있으면 갈아타도 부자연스럽지 않다. */
 const REASON = ['바꿨', '바뀌', '아까', '근데', '생각해보니', '다시 보니', '듣고', '철회', '보다'];
 
@@ -197,11 +215,7 @@ const CASES: Case[] = [
      * 그래서 각자의 묘사에 쓰인 낱말도 그 사람을 겨냥한 것으로 센다.
      */
     judge: (t) => {
-      // 활용형이 갈리므로 어간 조각을 둘 다 적는다("무거움"·"무겁다는").
-      const OTHERS = { Y: ['운'], A: ['무거', '무겁'], Q: ['점수계산', '점수'] } as const;
-      const aimed = Object.entries(OTHERS)
-        .filter(([L, words]) => calls(t, L) || words.some((w) => t.includes(w)))
-        .map(([L]) => L);
+      const aimed = aimsAt(t, { Y: ['운'], A: ['무거', '무겁'], Q: ['점수계산', '점수'] });
 
       // 나에 관한 얘기인지 본다. 자기 묘사를 해명하는 것도, 나를 향한 의심 자체를 다루는 것도
       // 자기 얘기다. 실제 출력에는 "모멘텀" "역전" 처럼 원문에 없던 말로 자기 묘사를 가리키는
@@ -249,9 +263,18 @@ const CASES: Case[] = [
           m('H', '걍 아닌거 같음은 뭐야', 'finalDefense'),
         ],
       }),
+    /**
+     * D를 다시 캐묻는지 본다. 라벨만 보던 첫 판본은 12회 전부를 "다시 안 꺼냄"으로 통과시켰는데,
+     * 실제로는 "실내는 어딘데" "찾아봐야 알면 그게 은근임?"처럼 D의 묘사를 그대로 되받고 있었다.
+     * 그래서 D가 실제로 쓴 말("은근 할데 많음", "찾아보면", "실내도 있고 야외도 있고")을 같이 본다.
+     */
     judge: (t) => {
-      const pressesD = calls(t, 'D') || /본인은|너는|왜 그렇게|설명해/.test(t);
-      return pressesD
+      // 혐의를 벗겨주는 데 동의하는 말은 D를 언급할 수밖에 없다("아 맞어 D는 아님").
+      // 그걸 추궁으로 세면 올바른 행동이 실패로 찍힌다. 반대로 "ㄴㄴ D는 맞음"은 다시 의심하는 것이다.
+      if (/아님|아니|아닌/.test(t)) return { bad: false, note: '혐의 벗는 데 동의' };
+
+      const aimed = aimsAt(t, { D: ['은근', '할데', '찾아보', '찾아봐', '실내', '야외'] });
+      return aimed.length > 0 || /본인은|왜 그렇게|설명해/.test(t)
         ? { bad: true, note: '혐의 벗은 D를 다시 추궁' }
         : { bad: false, note: '다시 안 꺼냄' };
     },
