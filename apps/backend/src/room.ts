@@ -3,6 +3,8 @@ import { logMessage } from './db/log';
 import { randomUUID } from 'crypto';
 import { clearPhaseTimer } from './timer';
 
+// ── 1. 방이 기억하는 것 ──────────────────────────────────────────────
+
 export interface RoomInternalState {
   roomId: string;
   phase: Phase;
@@ -34,40 +36,10 @@ export interface RoomInternalState {
 }
 
 const rooms = new Map<string, RoomInternalState>();
+
+// ── 2. 방이 생기고 사람이 모인다 ─────────────────────────────────────
+
 let idCounter = 0;
-
-export function joinRoom(roomId: string, name: string, isBot = false): InternalPlayer {
-  const room = getRoom(roomId);
-  if (!room) throw new Error(`room ${roomId} not found`);
-  const player: InternalPlayer = {
-    id: `p${++idCounter}`,
-    name,
-    isAlive: true,
-    isBot,
-    role: 'citizen',
-    label: '',
-  };
-  room.players.push(player);
-  // 토큰 저장
-  room.lobbyTokens.set(player.id, randomUUID());
-  return player;
-}
-
-const LABEL_POOL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-
-// 라벨 뽑기
-function assignLabel(room: RoomInternalState): string {
-  const used = new Set(room.players.map((p) => p.label));
-  const available = LABEL_POOL.filter((l) => !used.has(l));
-  if (available.length === 0) throw new Error('label pool exhausted');
-  return available[Math.floor(Math.random() * available.length)]!;
-}
-
-// 방 삭제
-export function deleteRoom(roomId: string) {
-  clearPhaseTimer(roomId);
-  rooms.delete(roomId);
-}
 
 export function createRoom(roomId: string): RoomInternalState {
   const room: RoomInternalState = {
@@ -107,6 +79,27 @@ export function getRoom(roomId: string): RoomInternalState | undefined {
   return rooms.get(roomId);
 }
 
+export function joinRoom(roomId: string, name: string, isBot = false): InternalPlayer {
+  const room = getRoom(roomId);
+  if (!room) throw new Error(`room ${roomId} not found`);
+  const player: InternalPlayer = {
+    id: `p${++idCounter}`,
+    name,
+    isAlive: true,
+    isBot,
+    role: 'citizen',
+    label: '',
+  };
+  room.players.push(player);
+  // 토큰 저장
+  room.lobbyTokens.set(player.id, randomUUID());
+  return player;
+}
+
+export function markReady(room: RoomInternalState, playerId: string) {
+  room.readyIds.add(playerId);
+}
+
 export function unmarkReady(room: RoomInternalState, playerId: string) {
   room.readyIds.delete(playerId);
 }
@@ -115,6 +108,34 @@ export function unmarkReady(room: RoomInternalState, playerId: string) {
 export function isEveryoneReady(room: RoomInternalState): boolean {
   return room.players.length > 0 && room.players.every((p) => room.readyIds.has(p.id));
 }
+
+// ── 3. 판이 시작된다 ─────────────────────────────────────────────────
+
+export function assignRoles(room: RoomInternalState) {
+  const shuffled = [...room.players].sort(() => Math.random() - 0.5);
+  const liar = shuffled[0];
+  if (!liar) return;
+  room.players.forEach((p) => (p.role = 'citizen'));
+  liar.role = 'liar';
+}
+
+const LABEL_POOL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
+// 라벨 뽑기
+function assignLabel(room: RoomInternalState): string {
+  const used = new Set(room.players.map((p) => p.label));
+  const available = LABEL_POOL.filter((l) => !used.has(l));
+  if (available.length === 0) throw new Error('label pool exhausted');
+  return available[Math.floor(Math.random() * available.length)]!;
+}
+
+export function assignLabels(room: RoomInternalState) {
+  room.players.forEach((p) => {
+    p.label = assignLabel(room);
+  });
+}
+
+// ── 4. 판이 도는 동안 ────────────────────────────────────────────────
 
 let systemMsgCounter = 0;
 // 메시지 추가
@@ -129,23 +150,7 @@ export function pushSystemMessage(room: RoomInternalState, text: string) {
   void logMessage(room, null, 'system', null, text);
 }
 
-export function markReady(room: RoomInternalState, playerId: string) {
-  room.readyIds.add(playerId);
-}
-
-export function assignRoles(room: RoomInternalState) {
-  const shuffled = [...room.players].sort(() => Math.random() - 0.5);
-  const liar = shuffled[0];
-  if (!liar) return;
-  room.players.forEach((p) => (p.role = 'citizen'));
-  liar.role = 'liar';
-}
-
-export function assignLabels(room: RoomInternalState) {
-  room.players.forEach((p) => {
-    p.label = assignLabel(room);
-  });
-}
+// ── 5. 방이 정리된다 ─────────────────────────────────────────────────
 
 export function removePlayerFromLobby(roomId: string, playerId: string): boolean {
   const room = getRoom(roomId);
@@ -158,4 +163,10 @@ export function removePlayerFromLobby(roomId: string, playerId: string): boolean
     return true;
   }
   return false;
+}
+
+// 방 삭제
+export function deleteRoom(roomId: string) {
+  clearPhaseTimer(roomId);
+  rooms.delete(roomId);
 }
