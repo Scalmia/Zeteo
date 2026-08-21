@@ -34,6 +34,9 @@ export interface RoomInternalState {
   // 끝까지 room.players에 남아있어야 한다. 대신 이 Set으로 "포기"를 따로 기록해서
   // allDone 판정(case 'survey')이 이 사람 때문에 영원히 안 끝나는 걸 막는다.
   abandonedSurveyIds: Set<string>;
+  // finalizeSurveyIfDone이 두 경로(case 'survey', disconnect)에서 레이스로 동시에
+  // 불릴 수 있어서, 최종 리포트 전송(디스코드 웹훅)이 중복 발송되지 않게 막는 가드.
+  finalized: boolean;
 }
 
 const rooms = new Map<string, RoomInternalState>();
@@ -66,6 +69,7 @@ export function createRoom(roomId: string): RoomInternalState {
     surveyedIds: new Set(),
     submittedSurveyIds: new Set(),
     abandonedSurveyIds: new Set(),
+    finalized: false,
   };
   rooms.set(roomId, room);
   return room;
