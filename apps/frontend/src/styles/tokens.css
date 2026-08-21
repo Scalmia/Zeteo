@@ -14,6 +14,7 @@
   --color-muted: #b98d8f;
   --color-accent: #ff2733;
   --color-danger: #ff5449;
+  --color-ok: #35c46a; /* 방목록 "대기중/참여가능" 상태 표시용 — 기존 11개 토큰엔 없던 성공색이라 추가 */
 
   --space-2: 8px;
   --space-4: 16px;
@@ -120,5 +121,6 @@ textarea.input { min-height: 90px; resize: vertical; }
 .tag-neutral { background: color-mix(in srgb, var(--color-text) 12%, transparent); color: var(--color-text); }
 .tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
 .tag-danger { background: color-mix(in srgb, var(--color-danger) 20%, transparent); color: var(--color-danger); }
+.tag-ok { background: color-mix(in srgb, var(--color-ok) 18%, transparent); color: var(--color-ok); }
 
 .card-title { font-family: var(--font-body); font-weight: 600; font-size: 17px; line-height: 1.2; }

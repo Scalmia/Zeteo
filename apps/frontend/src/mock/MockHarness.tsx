@@ -62,7 +62,7 @@ export function MockHarness() {
 
   // 랜딩은 아직 state 가 없는 화면이라 GameState 로 표현하지 않는다
   if (key === LANDING_KEY) {
-    return <LandingScreen onJoin={(name, roomId) => console.log('[mock] join', { name, roomId })} />;
+    return <LandingScreen onNext={(name) => console.log('[mock] next', { name })} />;
   }
   if (!state) return null;
 
@@ -102,6 +102,10 @@ function renderMock(state: GameState, onEvent: (e: ClientEvent) => void) {
           myId={state.myId}
           myReady={me?.isReady ?? false}
           onToggleReady={() => onEvent({ t: 'ready' })}
+          onBack={() => console.log('[mock] back to room list')}
+          isHost
+          readyCount={state.players.filter((p) => p.isReady).length}
+          onStartGame={() => console.log('[mock] start game')}
         />
       );
     }

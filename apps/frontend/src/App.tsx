@@ -1,6 +1,8 @@
+import { useState } from "react";
 import ResultScreen from "./ResultScreen";
 import SurveyScreen from "./SurveyScreen";
 import LandingScreen from "./LandingScreen";
+import RoomListScreen from "./RoomListScreen";
 import LobbyScreen from "./LobbyScreen";
 import { GameScreen } from "./screens/GameScreen";
 import { useGameState } from "./hooks/useGameState";
@@ -61,11 +63,29 @@ function buildResultPlayers(state: GameState) {
   }));
 }
 
-function renderScreen(state: GameState | null, onEvent: (e: ClientEvent) => void, onLeave: () => void) {
+function renderScreen(
+  state: GameState | null,
+  onEvent: (e: ClientEvent) => void,
+  onLeave: () => void,
+  nickname: string | null,
+  setNickname: (name: string | null) => void,
+  isHost: boolean,
+  setIsHost: (isHost: boolean) => void
+) {
   if (!state) {
+    // 닉네임을 아직 안 정했으면 랜딩, 정했으면 방 목록 — 둘 다 서버에 방을 안 만든
+    // 상태(GameState 없음)라 이 로컬 상태로만 구분한다.
+    if (nickname === null) {
+      return <LandingScreen onNext={(name) => setNickname(name)} />;
+    }
     return (
-      <LandingScreen
-        onJoin={(name, roomId) => onEvent({ t: "join", roomId, name })}
+      <RoomListScreen
+        nickname={nickname}
+        onBack={() => setNickname(null)}
+        onJoinRoom={(roomId, host) => {
+          setIsHost(host);
+          onEvent({ t: "join", roomId, name: nickname });
+        }}
       />
     );
   }
@@ -80,6 +100,13 @@ function renderScreen(state: GameState | null, onEvent: (e: ClientEvent) => void
         myId={state.myId}
         myReady={me?.isReady ?? false}
         onToggleReady={() => onEvent({ t: "ready" })}
+        onBack={onLeave}
+        isHost={isHost}
+        readyCount={state.players.filter((p) => p.isReady).length}
+        onStartGame={() => {
+          // TODO(backend): 방장 전용 게임시작 이벤트가 서버에 생기면 여기서 보낸다.
+          // 그 전까진 기존대로 전원 준비완료 시 서버가 자동으로 다음 단계로 넘긴다.
+        }}
       />
     );
   }
@@ -150,6 +177,8 @@ function renderScreen(state: GameState | null, onEvent: (e: ClientEvent) => void
 
 export function App() {
   const { state, onEvent, connected, error, leaveToLanding } = useGameState();
+  const [nickname, setNickname] = useState<string | null>(null);
+  const [isHost, setIsHost] = useState(false);
 
   return (
     <div>
@@ -165,7 +194,7 @@ export function App() {
           {error}
         </div>
       )}
-      {renderScreen(state, onEvent, leaveToLanding)}
+      {renderScreen(state, onEvent, leaveToLanding, nickname, setNickname, isHost, setIsHost)}
     </div>
   );
 }
