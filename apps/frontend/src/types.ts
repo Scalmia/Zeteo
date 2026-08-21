@@ -11,7 +11,10 @@ export interface ResultPlayer {
   id: PlayerId;
   label: string;
   name: string | null;
-  tag: "시민" | "라이어" | "봇";
+  // 봇과 라이어가 같은 사람일 수 있어(assignRoles가 봇 포함 전원 중에서 라이어를
+  // 뽑음, 제외 로직 없음) 단일 값이 아니라 배열이다 — 비어있지 않고, 봇/라이어가
+  // 아니면 ["시민"] 하나만 들어간다(2026-08-21, 겹침 뱃지 버그 수정).
+  tags: Array<"시민" | "라이어" | "봇">;
   votedFor: string | null; // 이 사람이 봇지목 투표에서 찍은 대상의 label
 }
 
