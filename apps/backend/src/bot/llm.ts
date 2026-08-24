@@ -43,6 +43,37 @@ export function provider(): Provider {
   return process.env.BOT_PROVIDER === 'openai' ? 'openai' : 'anthropic';
 }
 
+/**
+ * 지금 값이 어디서 왔는지. provider()와 같은 순서로 훑는다.
+ *
+ * 어디서 왔는지가 중요한 이유는 재배포·재시작 때 살아남는지가 갈리기 때문이다.
+ *   memory   이 프로세스가 사는 동안만. 서버가 내려가면 사라진다
+ *   file     .bot-provider 에 남았다. 컨테이너가 그 파일을 유지하면 살아남는다
+ *   env      BOT_PROVIDER 로 박혀 있다. 항상 이 값으로 시작한다
+ *   default  아무것도 없어 anthropic 으로 떨어진 것
+ *
+ * 배포 환경은 파일을 못 쓸 때가 있어 memory 로 잡히는 경우가 많다. 그때는 화면에
+ * openai 라고 떠 있어도 서버가 한 번 재시작하면 조용히 anthropic 으로 돌아간다.
+ * 그 상태를 눈으로 볼 수 없어서 이 함수를 만들었다.
+ */
+export type ProviderSource = 'memory' | 'file' | 'env' | 'default';
+
+export function providerSource(): ProviderSource {
+  if (override !== null) return 'memory';
+  try {
+    const fromFile = fs.readFileSync(PROVIDER_FILE, 'utf8').trim();
+    if (fromFile === 'anthropic' || fromFile === 'openai') return 'file';
+  } catch {
+    // 파일이 없는 것은 정상이다.
+  }
+  return process.env.BOT_PROVIDER ? 'env' : 'default';
+}
+
+/** 지금 프로바이더가 실제로 부르는 모델 이름. 어느 쪽을 쓰는지에 따라 환경변수가 다르다. */
+export function currentModel(): string {
+  return (provider() === 'openai' ? process.env.GPT_MODEL : process.env.BOT_MODEL) ?? '(안 정해짐)';
+}
+
 /** 바꾸고, 파일에도 남길 수 있으면 남긴다. 파일에 못 남겨도 이 프로세스가 사는 동안은 유지된다. */
 export function setProvider(next: Provider): { persisted: boolean } {
   override = next;
