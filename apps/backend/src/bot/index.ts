@@ -18,6 +18,21 @@ import { generate, type GenerateOptions } from './llm';
 const CHAT_BEFORE_VOTE_CHANCE = 0.7;
 /** 투표를 마친 뒤 다시 호출됐을 때 입을 열 확률. 나머지는 침묵. */
 const CHAT_AFTER_VOTE_CHANCE = 0.4;
+/**
+ * 나를 향해 있을 때 입을 열 확률. 평소보다 높지만 1이 아니다.
+ *
+ * 앞선 판본은 이 자리에서 확률을 통째로 건너뛰었고, 그 결과가 2852판이다 —
+ * 봇 86회 대 사람 둘 합쳐 52회, 발언 간격 중앙값 4초. "말이 뒤지게 많음"이라는 설문이 남았다.
+ * 몰렸다고 사람이 쉬지 않고 떠드는 것은 아니다. 더 자주 말할 뿐이다.
+ */
+const CHAT_WHEN_PRESSURED_CHANCE = 0.7;
+/**
+ * 몰린 상태에서 연달아 몇 번까지 이 확률을 쓸지.
+ *
+ * 몰렸다는 상태는 표가 옮겨가기 전까지 계속 참이라, 한도가 없으면 한 판 내내 켜져 있는다.
+ * 사람은 두어 번 항변하고 나면 잦아든다. 같은 단계에서 이만큼 말하고 나면 평소 확률로 돌아간다.
+ */
+const PRESSURED_REPLY_LIMIT = 3;
 /** 남의 최후 변론을 지켜볼 때 입을 열 확률. 여긴 투표가 없어 이 값이 유일한 제동이다. */
 const CHAT_IN_FINAL_DEFENSE_CHANCE = 0.35;
 /**
@@ -76,6 +91,29 @@ const DROP_LEADING_LABEL_CHANCE = 0.7;
 function humanDelay(text: string): number {
   return Math.round(7000 + text.length * 300 + Math.random() * 2000);
 }
+
+/**
+ * 모델이 목표 시간을 다 써버렸을 때도 이만큼은 기다린다.
+ *
+ * 이 하한선을 한 번 넣었다가 "묘사 턴 20초의 여유를 깎는다"는 이유로 뺐다. 그때는 맞았다 —
+ * 확률 게이트가 살아 있어 연달아 말하는 일 자체가 드물었기 때문이다. 게이트를 건너뛰게
+ * 만든 뒤로는 0초 간격이 실제로 나왔다(2852판, 같은 초에 두 개가 찍힌 자리 세 번).
+ * 게이트를 되돌리면서 이것도 같이 되살린다. 대신 턴이 끊기는 자리에서는 budgetMs로 눌러
+ * 묘사를 놓치지 않게 한다.
+ */
+const MIN_WAIT_MS = 2500;
+
+/**
+ * 묘사 턴에 쓸 수 있는 총 시간.
+ *
+ * 서버는 묘사 턴을 20초에 끊는다(index.ts DESCRIBE_TURN_DURATION). 그 안에 못 내면 턴을
+ * 통째로 잃고, 묘사를 안 한 사람이 되어 그 판 내내 의심을 받는다. 2852판이 그렇게 시작했다 —
+ * 봇이 묘사를 못 했고 토론 첫 줄이 "U 왜 말 안함?"이었으며, 그 뒤로 봇에게 표가 몰렸다.
+ *
+ * 생성이 한 번 더 돌면(빈 응답·유출 감지 시 재생성) 12~14초짜리가 두 번이라 20초를 넘긴다.
+ * 그래서 시간이 모자라면 재생성을 포기하고 있는 것으로 낸다. 어설픈 묘사가 묘사 없는 것보다 낫다.
+ */
+const DESCRIBE_BUDGET_MS = 15000;
 
 
 /**
@@ -220,9 +258,34 @@ function calledOnMe(ctx: BotContext): boolean {
   return since.some((m) => m.speakerId !== ctx.selfId && m.speakerId !== 'system' && named.test(m.text));
 }
 
-/** 표든 말이든 나를 향해 있으면 참이다. 이때는 발화 확률을 건너뛴다. */
+/**
+ * 몰린 상태에서 이 단계에 이미 몇 번 항변했는지 센다.
+ *
+ * underFire는 표가 옮겨가기 전까지 계속 참이라 스스로 꺼지지 않는다(calledOnMe는 내가 말하면
+ * 저절로 꺼진다). 한도를 안 두면 한 판 내내 높은 확률이 걸린 채로 있게 된다.
+ * 단계가 바뀌면 처음부터 다시 센다 — 토론에서 항변한 것과 최후 변론에서 항변하는 것은 다른 자리다.
+ */
+const pressureReplies = new Map<string, { phase: BotContext['phase']; count: number }>();
+
+function pressureLeft(ctx: BotContext): boolean {
+  const seen = pressureReplies.get(roomKey(ctx));
+  if (seen === undefined || seen.phase !== ctx.phase) return true;
+  return seen.count < PRESSURED_REPLY_LIMIT;
+}
+
+function notePressureReply(ctx: BotContext): void {
+  const seen = pressureReplies.get(roomKey(ctx));
+  pressureReplies.set(
+    roomKey(ctx),
+    seen === undefined || seen.phase !== ctx.phase
+      ? { phase: ctx.phase, count: 1 }
+      : { phase: seen.phase, count: seen.count + 1 },
+  );
+}
+
+/** 표든 말이든 나를 향해 있고, 아직 항변 한도가 남았으면 참이다. */
 function pressured(ctx: BotContext): boolean {
-  return underFire(ctx) || calledOnMe(ctx);
+  return (underFire(ctx) || calledOnMe(ctx)) && pressureLeft(ctx);
 }
 
 /**
@@ -269,6 +332,7 @@ function accusedDefendedByOthers(ctx: BotContext): boolean {
 export function forgetRoom(ctx: BotContext): void {
   pendingTails.delete(roomKey(ctx));
   lastTargets.delete(roomKey(ctx));
+  pressureReplies.delete(roomKey(ctx));
 }
 
 /**
@@ -399,12 +463,27 @@ function shouldWaitForOthers(ctx: BotContext): boolean {
 async function speak(
   ctx: BotContext,
   prompt: string,
-  opts?: GenerateOptions,
+  opts?: GenerateOptions & { budgetMs?: number },
 ): Promise<{ text: string | null; delayMs: number }> {
   const started = Date.now();
-  // 모델이 목표 시간을 이미 다 썼으면 더 안 기다린다. 그 경우 총 소요 시간은 이미 사람만큼
-  // 길어서 더 붙일 이유가 없고, 묘사 턴은 20초에 끊기므로 남은 여유를 깎으면 턴을 통째로 잃는다.
-  const wait = (t: string): number => Math.max(0, humanDelay(t) - (Date.now() - started));
+  const elapsed = (): number => Date.now() - started;
+
+  /**
+   * 모델이 목표 시간을 다 썼어도 최소한은 기다린다.
+   *
+   * 예전에는 여기가 max(0, ...)이었다. 짧은 발언에 느린 모델이 겹치면 0이 나오는데,
+   * 그것만으로는 문제가 안 됐다. 확률 게이트가 살아 있어 다음 호출이 대개 침묵이었기 때문이다.
+   * 몰렸을 때 게이트를 건너뛰게 만들면서 0초 발화가 연달아 나왔다 — 2852판에서 같은 초에
+   * 두 개가 찍힌 자리가 세 번 있다. 게이트를 되돌리면서 이 하한선도 같이 둔다.
+   * 사람은 아무리 급해도 치는 데 시간이 걸린다.
+   *
+   * budgetMs가 있으면 그 안에서만 기다린다. 서버가 턴을 끊는 자리(묘사)에서 쓴다.
+   */
+  const wait = (t: string): number => {
+    const want = Math.max(MIN_WAIT_MS, humanDelay(t) - elapsed());
+    if (opts?.budgetMs === undefined) return want;
+    return Math.max(0, Math.min(want, opts.budgetMs - elapsed()));
+  };
 
   let text = await generateOrEmpty(ctx, prompt, opts);
 
@@ -423,6 +502,12 @@ async function speak(
 
   let reason = rejected(text);
   if (reason !== null) {
+    // 턴이 끊기는 자리에서는 시간이 모자라면 재생성을 포기한다. 한 번 더 돌리면 20초를 넘겨
+    // 턴을 통째로 잃는데, 그게 어설픈 묘사보다 나쁘다.
+    if (opts?.budgetMs !== undefined && elapsed() * 2 > opts.budgetMs) {
+      console.warn(`[bot] ${reason} 감지했지만 시간이 없어 재생성 생략:`, text);
+      return { text: null, delayMs: wait('') };
+    }
     console.warn(`[bot] ${reason} 감지, 재생성:`, text);
     text = await generateOrEmpty(ctx, prompt, opts);
     reason = rejected(text);
@@ -564,7 +649,9 @@ function clearLeader(ctx: BotContext): string | null {
 export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise<BotAction> => {
   switch (ctx.phase) {
     case 'describe': {
-      const { text, delayMs } = await speak(ctx, describePrompt(ctx));
+      const { text, delayMs } = await speak(ctx, describePrompt(ctx), {
+        budgetMs: DESCRIBE_BUDGET_MS,
+      });
       // 대체 문구를 쓰는 자리는 여기 하나뿐이다. 묘사에서 침묵하면 자기 턴을 통째로 넘겨
       // 혼자 아무 말 없이 지나간 참가자가 되는데, 그게 고정 문구보다 더 눈에 띈다.
       return { t: 'describe', text: text ?? fallbackLine(), delayMs };
@@ -603,17 +690,6 @@ export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise
         return { t: 'chat', text: tail, delayMs: tailDelay() };
       }
 
-      /**
-       * 나를 향해 있으면 기다리지도, 확률을 굴리지도 않는다.
-       *
-       * 실측(0820)에서 봇은 표가 자기한테 몰린 채로 세 번 침묵했다. 투표를 마친 뒤 발화 확률이
-       * 0.4로 떨어지는데, 그 확률이 몰렸는지 여부를 안 보기 때문이다. 몰린 사람이 입을 다무는 것은
-       * 사람의 행동이 아니라서, 여기서는 확률 자체를 건너뛴다.
-       */
-      if (pressured(ctx)) {
-        return chatOrSilent(ctx, debatePrompt(ctx, declaredSuspectLabel(ctx), true));
-      }
-
       if (shouldWaitForOthers(ctx)) {
         // 입은 다물되 표는 던질 수 있다. 이게 없으면 기다리기만 하다 기권으로 끝난다.
         if (ctx.myVote === null && Math.random() < VOTE_WHILE_WAITING_CHANCE) {
@@ -622,9 +698,24 @@ export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise
         return { t: 'silent', delayMs: silentDelay() };
       }
 
+      /**
+       * 몰렸을 때는 확률을 올리기만 한다. 건너뛰지 않는다.
+       *
+       * 앞선 판본은 이 자리에서 대기 규칙과 확률을 통째로 건너뛰었다. 그러면 몰린 동안
+       * 서버가 물어볼 때마다 무조건 말하게 되는데, 몰린 상태는 한 판 내내 유지되므로
+       * 빠져나올 길이 없다. 2852판에서 봇이 86번 말했다(사람 둘 합쳐 52번).
+       * 설문에 "말이 뒤지게 많음"으로 적혔고, 발언 간격 중앙값이 4초, 3분의 1이 2초 이내였다.
+       *
+       * 몰렸다고 사람이 쉬지 않고 떠드는 것은 아니다. 더 자주 말할 뿐이다.
+       * 그래서 확률만 올리고, 대기 규칙은 위에 그대로 둔다.
+       */
+      const underPressure = pressured(ctx);
+      const speakChance = underPressure ? CHAT_WHEN_PRESSURED_CHANCE : CHAT_AFTER_VOTE_CHANCE;
+
       if (ctx.myVote === null) {
-        if (Math.random() < CHAT_BEFORE_VOTE_CHANCE) {
-          return chatOrSilent(ctx, debatePrompt(ctx, declaredSuspectLabel(ctx)));
+        if (Math.random() < Math.max(CHAT_BEFORE_VOTE_CHANCE, speakChance)) {
+          if (underPressure) notePressureReply(ctx);
+          return chatOrSilent(ctx, debatePrompt(ctx, declaredSuspectLabel(ctx), underPressure));
         }
         return { t: 'vote', targetId: bandwagonTarget(ctx) };
       }
@@ -635,11 +726,12 @@ export const decideBotAction: DecideBotAction = async (ctx: BotContext): Promise
         return { t: 'vote', targetId: leader };
       }
 
-      if (Math.random() >= CHAT_AFTER_VOTE_CHANCE) {
+      if (Math.random() >= speakChance) {
         return { t: 'silent', delayMs: silentDelay() };
       }
 
-      return chatOrSilent(ctx, debatePrompt(ctx, declaredSuspectLabel(ctx)));
+      if (underPressure) notePressureReply(ctx);
+      return chatOrSilent(ctx, debatePrompt(ctx, declaredSuspectLabel(ctx), underPressure));
     }
 
     case 'lifeVote':
