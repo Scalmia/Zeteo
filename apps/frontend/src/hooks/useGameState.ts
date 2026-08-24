@@ -29,6 +29,10 @@ export function useGameState() {
         setError(e.reason);
       } else if (e.t === 'roomList') {
         setRooms(e.rooms); // ★ 추가 (방 목록 기능) — listRooms 요청에 대한 응답
+        // join 실패('없는 방입니다' 등)는 방에 못 들어간 것이라 state 가 영영 안 오고,
+        // 그러면 위 분기로는 error 가 안 지워져 빨간 배너가 화면에 계속 남는다. 목록이
+        // 새로 왔다는 건 사용자가 이 화면에서 다시 움직였다는 뜻이라 여기서 같이 지운다.
+        setError(null);
       }
     });
 

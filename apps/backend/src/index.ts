@@ -228,6 +228,24 @@ function advancePhase(room: RoomInternalState) {
 // 방장이 누르는 case 'startGame' 도 같은 절차를 밟아야 해서, 두 곳에 복붙하면
 // 한쪽만 고쳐지는 일이 생긴다. 옮기면서 로직은 바꾸지 않았다.
 async function beginGame(room: RoomInternalState) {
+  // 맨 먼저 phase 를 옮긴다.
+  //
+  // 아래 await 두 개(Supabase 왕복 — 제시어 조회 + 게임 기록 생성)가 도는 동안 phase 가
+  // 'lobby' 로 남아 있으면, 그 사이 들어온 join 이 "아직 대기실"로 보고 그대로 통과한다.
+  // 배정 로직은 이미 그 사람 전에 다 끝나 있으므로, 실측에서 전원 준비 150ms 뒤에 들어온
+  // 사람은 라벨이 빈 문자열이고 turnOrder 에도 없고 역할도 못 받은 5번째 참가자가 됐다
+  // (정원 4~8 도 조용히 깨진다). 묘사 차례가 영영 안 오고 DB 스냅샷에도 안 남는다.
+  //
+  // join·startGame·ready 세 경로가 이미 phase === 'lobby' 를 조건으로 쓰고 있어서 이 한
+  // 줄이 셋을 다 막는다. ready 두 개가 겹쳐 beginGame 이 두 번 도는 것도 같이 막힌다 —
+  // 이 대입은 첫 await 전에 동기적으로 끝나므로, 두 번째 호출은 isEveryoneReady 앞의
+  // phase 검사에서 걸린다.
+  //
+  // 대신 category·word 가 채워지기 전 몇백 ms 동안 roleReveal 상태가 나갈 수 있다.
+  // 상태는 늘 통째로 다시 보내므로(README 설계 원칙 2) 다음 브로드캐스트에서 저절로
+  // 메워진다 — 덜 채워진 화면이 잠깐 보이는 쪽이, 못 들어갈 사람이 들어오는 것보다 낫다.
+  room.phase = 'roleReveal';
+
   assignRoles(room);
   assignLabels(room);
   // roleReveal 시작 시점에 describe 발언 순서(turnOrder)를 미리 정해두고,
@@ -254,7 +272,6 @@ async function beginGame(room: RoomInternalState) {
     console.error(`[${room.roomId}] 게임 기록 생성 실패:`, e);
   }
 
-  room.phase = 'roleReveal';
   enterPhase(room);
 }
 
@@ -494,6 +511,11 @@ io.on('connection', (socket) => {
           let room = getRoom(action.roomId);
           const isNewRoom = !room; // ★ 추가 (방 목록 기능) — 아래 방장 지정·정원 검사에 쓴다
           if (!room) {
+            // 프론트는 "방 만들기"와 "방 입장"을 join 하나로 보내고, 구분은 title 유무뿐이다
+            // (shared-types 의 ClientEvent 주석 참고). 그걸 안 보면 방번호 직접입력에서
+            // 번호를 잘못 친 사람이 에러 대신 아무도 오지 않을 빈 방의 방장이 된다 —
+            // 실측으로 없는 번호 "1234" 입장이 "1234번 방" 생성으로 이어졌다.
+            if (action.title === undefined) throw new Error('없는 방입니다');
             room = createRoom(action.roomId, action.title);
             // 테스트용: 방 새로 만들어질 때 봇 1명 자동 참가 + 자동 ready
             const bot = joinRoom(action.roomId, 'Zeteo', true);
@@ -563,7 +585,17 @@ io.on('connection', (socket) => {
           // 방장 게임시작 버튼(case 'startGame')이 생겼지만 이 자동 시작도 남겨둔다 —
           // 프론트가 아직 startGame 을 안 보내고 있어서, 지우면 게임을 시작할 방법이
           // 사라진다. 프론트가 전환하면 그때 이 분기를 뺄지 정하면 된다.
-          if (room.phase === 'lobby' && isEveryoneReady(room)) {
+          //
+          // readyIds.size 로 최소 인원도 같이 본다. isEveryoneReady 는 "방에 있는 전원이
+          // 준비했는가"만 보는데 봇은 join 시 자동 ready 라, 사람이 혼자여도 조건이 성립한다 —
+          // 실측으로 사람 1명 + 봇 1명인 방에서 준비를 누르자 2인 게임이 그대로 시작됐다
+          // (라벨 두 개, 제시어 배정까지 정상 진행). MIN_PLAYERS 를 지키는 곳이
+          // case 'startGame' 하나뿐이라 이 경로로 들어오면 규칙이 통째로 우회됐다.
+          // 기준을 readyIds.size 로 잡은 것은 case 'startGame' 과 같은 잣대를 쓰기 위해서다.
+          //
+          // 조건에 안 맞아도 throw 하지 않는다 — 준비 토글 자체는 성공한 것이고, 던지면
+          // 아래 broadcastRoom 까지 건너뛰어 준비 표시가 남들에게 전달되지 않는다.
+          if (room.phase === 'lobby' && room.readyIds.size >= MIN_PLAYERS && isEveryoneReady(room)) {
             await beginGame(room);
           }
           break;
@@ -706,7 +738,11 @@ io.on('connection', (socket) => {
       const meta = socketMeta.get(socket.id);
       if (meta) broadcastRoom(meta.roomId);
     } catch (e) {
-      const event: ServerEvent = { t: 'error', reason: String(e) };
+      // reason 은 그대로 화면 배너에 찍힌다(App.tsx) — String(e) 를 쓰면 Error 객체가
+      // "Error: 없는 방입니다" 로 직렬화돼 접두사까지 사용자에게 보인다. 위 throw 들은
+      // 전부 사용자에게 읽히라고 쓴 한국어 문장이므로 message 만 꺼낸다.
+      // (Error 가 아닌 것이 던져지면 그때만 String 으로 떨어뜨린다)
+      const event: ServerEvent = { t: 'error', reason: e instanceof Error ? e.message : String(e) };
       socket.emit('event', event);
     }
   });
@@ -723,10 +759,7 @@ io.on('connection', (socket) => {
     if (room.phase === 'lobby') {
       removePlayerFromLobby(meta.roomId, meta.playerId);
       broadcastRoom(meta.roomId); // 남은 사람들한테 갱신된 인원 알려줌 (방이 삭제됐으면 자동으로 no-op)
-      return;
-    }
-
-   if (room.surveyedIds.has(meta.playerId) && !room.submittedSurveyIds.has(meta.playerId)) {
+    } else if (room.surveyedIds.has(meta.playerId) && !room.submittedSurveyIds.has(meta.playerId)) {
       // 설문 화면까지 왔다가 제출 전에 나간 경우. room.players에서는 안 지운다 —
       // 최종 리포트가 이 사람의 과거 발언을 이름으로 못 찾으면 raw id로 깨져 나온다.
       // 대신 abandonedSurveyIds에 기록하고, 이 사람이 마지막 한 명이었을 수도 있으니
@@ -736,6 +769,23 @@ io.on('connection', (socket) => {
       void finalizeSurveyIfDone(room);
     }
     // 그 외(게임 진행 중)엔 기획서 원칙대로 그대로 둠 — 중도 탈락 없음
+
+    // 사람 소켓이 하나도 안 남은 방은 통째로 지운다.
+    //
+    // 게임 중 이탈은 room.players 에서 지우지 않으므로(위 원칙) 전원이 나가도 방을
+    // 정리하는 경로가 없었다. deleteRoom 을 부르는 곳이 finalizeSurveyIfDone 하나뿐인데
+    // 그건 "사람 전원이 설문을 냈거나 설문 화면에서 나갔을 때"만 통과하고, 게임 도중에
+    // 끊긴 사람은 surveyedIds 에 없어서 abandonedSurveyIds 에도 안 들어간다 — 조건이
+    // 영영 안 맞는다. 실측에서 그 방은 혼자 끝까지 진행해 로그까지 쓴 뒤에도 목록에
+    // '진행중'으로 남아 있었고, 서버를 재시작할 때까지 사라지지 않았다.
+    //
+    // 남겨둬도 지킬 것이 없다 — 끊긴 사람이 돌아올 길이 없기 때문이다. 재연결하면 새
+    // 소켓이라 socketMeta 가 비어 있고, 다시 join 해도 joinRoom 이 새 플레이어를 만들며
+    // phase !== 'lobby' 라 '이미 시작한 방입니다'로 막힌다.
+    //
+    // socket.io 는 'disconnect' 를 emit 하기 전에 이 소켓을 방에서 빼므로, 아래 조회
+    // 결과에는 지금 나가는 사람이 이미 빠져 있다.
+    if (!io.sockets.adapter.rooms.get(meta.roomId)) deleteRoom(meta.roomId);
   });
 });
 
