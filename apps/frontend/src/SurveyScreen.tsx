@@ -48,7 +48,7 @@ const TAG_CLASS: Record<ResultPlayer["tags"][number], string> = {
 const stripParticipantPrefix = (label: string) => label.replace(/^참가자\s*/, "");
 
 interface SurveyScreenProps extends SurveyScreenState {
-  onSubmit: (checkedReasonIds: number[], freeText: string) => void;
+  onSubmit: (checkedReasonIds: number[], freeText: string, pickedMessageId: string | null) => void;
 }
 
 export default function SurveyScreen({
@@ -72,6 +72,14 @@ export default function SurveyScreen({
 }: SurveyScreenProps) {
   const [checked, setChecked] = useState<number[]>(initialChecked);
   const [freeText, setFreeText] = useState(initialFreeText);
+  // "가장 봇 같았던 발언 고르기" — 백엔드 저장 API(민성님 작업 중, 별도 요청됨)가 붙기
+  // 전이라 아직 onSubmit으로 안 내보낸다. 지금은 UI와 필수 선택 검증만 먼저 만들어두고,
+  // API가 준비되면 onSubmit 시그니처에 얹는다(요청: "UI 먼저 만들어두고 그쪽 끝난 뒤
+  // 붙여도 된다").
+  // 8/25 2차 수정: 안 골라도 제출할 수 있다 — 필수로 막으면 이 한 칸 때문에 이유·자유
+  // 서술까지 전부 안 들어가는 경로가 생긴다(백엔드 db/survey.ts가 봇 지목 누락을 막던
+  // 것과 같은 이유로, pickedMessageId도 optional로 받게 됐다). 안 고르면 null로 보낸다.
+  const [selectedMessageId, setSelectedMessageId] = useState<string | null>(null);
   // 우측 패널(모바일 하단 시트)의 기본 열림 상태 — MainScreen의 규칙(토론·묘사처럼
   // "지금 봐야 할 페이즈"만 자동으로 열고 나머지는 접힌 채 시작, 8/13 12차)을 그대로
   // 따른다. 설문은 그 자동열림 대상에 안 들어가니 접힌 채로 시작한다.
@@ -105,6 +113,13 @@ export default function SurveyScreen({
   // 여부는 화면에서 직접 비교한다.
   const guessedRight = guessWord !== null && word !== null && guessWord.trim() === word.trim();
 
+  const nameOf = (speakerId: string) =>
+    stripParticipantPrefix(chatPlayers.find((p) => p.id === speakerId)?.label ?? speakerId);
+  const selectedMessage = selectedMessageId ? messages.find((m) => m.id === selectedMessageId) ?? null : null;
+  const selectedMessageSpeaker = selectedMessage
+    ? nicknames?.[selectedMessage.speakerId] ?? nameOf(selectedMessage.speakerId)
+    : null;
+
   const myBotVoteLabel = myBotVoteTargetId
     ? stripParticipantPrefix(
         resultPlayers.find((p) => p.id === myBotVoteTargetId)?.label ?? myBotVoteTargetId
@@ -135,6 +150,48 @@ export default function SurveyScreen({
   // 요청대로 그대로 뒀다 — 줄인 건 여백뿐이다.
   const surveyModal = (
     <Modal title="설문" deadlineAt={null}>
+      {/* 8/25: "가장 봇 같았던 발언 고르기" — 봇을 못 맞힌 사람 것까지 포함해 전원 대상
+       *  (요청: "틀린 사람의 답이 더 쓸모 있을 수 있다"). 별도 선택지 목록을 새로 만들지
+       *  않고 이미 있는 리플레이 채팅 로그(messages)를 그대로 클릭해 고르게 한다 —
+       *  팝업의 ✕(peek)로 로그를 들여다볼 수 있는 기존 동작을 그대로 쓴다.
+       *  8/25 2차 수정: 필수 검증은 뺐다 — 안 고르면 null로 제출된다(아래 제출 버튼
+       *  참고). 백엔드 저장 API(pickedMessageId, optional)가 붙어 이제 실제로 쌓인다. */}
+      <h4 style={{ marginBottom: 4 }}>가장 봇 같았던 발언 고르기</h4>
+      <div
+        className="text-muted"
+        style={{ fontSize: "var(--text-label)", fontWeight: 600, marginBottom: "var(--space-2)" }}
+      >
+        가능하면 선택해주세요 · ✕로 채팅을 잠깐 보고 발언을 클릭해주세요
+      </div>
+      {selectedMessage ? (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            gap: 2,
+            padding: "6px var(--space-4)",
+            marginBottom: "var(--space-2)",
+            border: "1px solid var(--color-accent)",
+            borderRadius: "var(--radius)",
+            textAlign: "left"
+          }}
+        >
+          <span className="text-muted" style={{ fontSize: "var(--text-label)", fontWeight: 600 }}>
+            {selectedMessageSpeaker}
+          </span>
+          <span style={{ fontSize: "var(--text-body)", fontWeight: 600 }}>{selectedMessage.text}</span>
+        </div>
+      ) : (
+        <div
+          className="text-muted"
+          style={{ fontSize: "var(--text-body)", fontWeight: 600, marginBottom: "var(--space-2)" }}
+        >
+          아직 선택 안 함
+        </div>
+      )}
+
+      <div className="hr" style={{ marginBottom: "var(--space-2)" }} />
+
       <h4 style={{ marginBottom: 4 }}>왜 봇이라고 생각했나요?</h4>
       <div
         className="text-muted"
@@ -197,7 +254,11 @@ export default function SurveyScreen({
         />
       </div>
 
-      <Button block style={{ fontSize: "var(--text-button)" }} onClick={() => onSubmit(checked, freeText)}>
+      <Button
+        block
+        style={{ fontSize: "var(--text-button)" }}
+        onClick={() => onSubmit(checked, freeText, selectedMessageId)}
+      >
         제출
       </Button>
     </Modal>
@@ -252,6 +313,9 @@ export default function SurveyScreen({
           modal={surveyModal}
           showSpeakerLabel
           nicknames={nicknames}
+          selectable
+          selectedMessageId={selectedMessageId}
+          onSelectMessage={setSelectedMessageId}
         />
 
         <aside

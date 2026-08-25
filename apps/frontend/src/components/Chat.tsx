@@ -28,6 +28,13 @@ interface LogProps {
    *  아바타 아이콘으로 이미 구분 가능해 중복이라는 지적). 닉네임이 없을 때만 라벨로
    *  대체한다. */
   nicknames?: Record<string, string> | null;
+  /** 설문 "가장 봇 같았던 발언 고르기"(zeteo-partd) 전용 opt-in — 켜면 메시지(시스템
+   *  메시지 제외)를 클릭해 하나를 고를 수 있다. 별도 목록을 새로 만들지 않고 이미 있는
+   *  리플레이 로그를 선택 대상으로 그대로 쓴다는 설계라, MainScreen 등 기존 호출부는
+   *  prop을 안 주면(기본 false) 지금처럼 클릭 불가능한 순수 로그로 남는다. */
+  selectable?: boolean;
+  selectedMessageId?: string | null;
+  onSelectMessage?: (id: string) => void;
 }
 
 /** 메시지 한 줄. React.memo로 감싸서 — 투표·봇 발화·페이즈 전환 등 채팅과 무관한
@@ -40,23 +47,42 @@ interface LogProps {
  *     memo의 기본 얕은 비교가 매번 "참조가 다르다"고 판단해 최적화가 무효화된다.
  *     원시값(string/boolean)으로 넘겨야 값 비교가 성립해 실제로 리렌더가 스킵된다. */
 const ChatMessageRow = memo(function ChatMessageRow({
+  id,
   text,
   speakerId,
   isMine,
   name,
   nickname,
   showSpeakerLabel,
+  selectable,
+  isSelected,
+  onSelect,
 }: {
+  id: string;
   text: string;
   speakerId: string;
   isMine: boolean;
   name: string;
   nickname?: string;
   showSpeakerLabel?: boolean;
+  selectable?: boolean;
+  isSelected?: boolean;
+  // 부모(ChatLog)가 넘기는 콜백은 메시지마다 새로 안 만들고 하나를 그대로 공유한다 —
+  // 이 컴포넌트가 참조 동일성으로 리렌더를 스킵하는 memo라(위 주석 참고), row별로 감싼
+  // 콜백을 새로 만들면 매 렌더 참조가 달라져 그 최적화가 무효화된다.
+  onSelect?: (id: string) => void;
 }) {
-  const rowClass = speakerId === 'system' ? 'zt-msg is-system' : isMine ? 'zt-msg is-mine' : 'zt-msg';
+  const canSelect = !!selectable && speakerId !== 'system';
+  const rowClass = [
+    'zt-msg',
+    speakerId === 'system' ? 'is-system' : isMine ? 'is-mine' : '',
+    canSelect ? 'is-selectable' : '',
+    canSelect && isSelected ? 'is-selected' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
   return (
-    <div className={rowClass}>
+    <div className={rowClass} onClick={canSelect ? () => onSelect?.(id) : undefined}>
       {speakerId !== 'system' && <Avatar label={name} variant={isMine ? 'mine' : 'default'} />}
       {/* 8/20: span→div. showSpeakerLabel일 때 이 버블 안에 이름 줄(zt-msg-name, block)이
        *  하나 더 들어가는데, 인라인 span 안에 block 자식을 두면 렌더링이 불안정하다 —
@@ -76,7 +102,17 @@ const ChatMessageRow = memo(function ChatMessageRow({
   );
 });
 
-export function ChatLog({ messages, players, myId, modal, showSpeakerLabel = false, nicknames = null }: LogProps) {
+export function ChatLog({
+  messages,
+  players,
+  myId,
+  modal,
+  showSpeakerLabel = false,
+  nicknames = null,
+  selectable = false,
+  selectedMessageId = null,
+  onSelectMessage,
+}: LogProps) {
   const logRef = useRef<HTMLDivElement>(null);
   // 사용자가 "바닥 근처"에 있었는지를 스크롤 이벤트로 실시간 추적한다. 메시지가
   // 늘어난 뒤(effect 시점)에 계산하면 DOM엔 이미 새 글이 들어가 있어 항상 바닥으로
@@ -141,12 +177,16 @@ export function ChatLog({ messages, players, myId, modal, showSpeakerLabel = fal
           return (
             <ChatMessageRow
               key={m.id}
+              id={m.id}
               text={m.text}
               speakerId={m.speakerId}
               isMine={isMine}
               name={nameOf(m.speakerId)}
               nickname={nicknames?.[m.speakerId]}
               showSpeakerLabel={showSpeakerLabel}
+              selectable={selectable}
+              isSelected={selectable && m.id === selectedMessageId}
+              onSelect={onSelectMessage}
             />
           );
         })}
