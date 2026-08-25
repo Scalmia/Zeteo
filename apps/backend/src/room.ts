@@ -213,14 +213,17 @@ export function assignLabels(room: RoomInternalState) {
 let systemMsgCounter = 0;
 // 메시지 추가
 export function pushSystemMessage(room: RoomInternalState, text: string) {
+  // id 를 변수로 빼는 이유: 같은 값을 화면(room.messages)과 DB(logMessage) 양쪽에 넣어야
+  // 나중에 "이 발언"으로 서로를 찾을 수 있다.
+  const id = `sys${Date.now()}_${++systemMsgCounter}`;
   room.messages.push({
-    id: `sys${Date.now()}_${++systemMsgCounter}`,
+    id,
     speakerId: 'system',
     text,
     phase: room.phase,
     at: Date.now(),
   });
-  void logMessage(room, null, 'system', null, text);
+  void logMessage(room, id, null, 'system', null, text);
 }
 
 // ── 5. 방이 정리된다 ─────────────────────────────────────────────────
