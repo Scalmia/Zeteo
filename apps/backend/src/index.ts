@@ -736,7 +736,13 @@ io.on('connection', (socket) => {
           const room = getRoom(meta.roomId);
           if (!room) throw new Error('room not found');
           if (!room.surveyedIds.has(meta.playerId)) throw new Error('지금은 설문 단계가 아닙니다');
-          await submitSurveyResponse(room, meta.playerId, action.reasonIds, action.freeText);
+          await submitSurveyResponse(
+            room,
+            meta.playerId,
+            action.reasonIds,
+            action.freeText,
+            action.pickedMessageId,
+          );
           room.submittedSurveyIds.add(meta.playerId);
 
           socketMeta.delete(socket.id);
