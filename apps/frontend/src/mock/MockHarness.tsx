@@ -132,9 +132,6 @@ function renderMock(state: GameState, onEvent: (e: ClientEvent) => void) {
           myReady={me?.isReady ?? false}
           onToggleReady={() => onEvent({ t: 'ready' })}
           onBack={() => console.log('[mock] back to room list')}
-          isHost
-          readyCount={state.players.filter((p) => p.isReady).length}
-          onStartGame={() => console.log('[mock] start game')}
         />
       );
     }

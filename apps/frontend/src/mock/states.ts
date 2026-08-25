@@ -115,8 +115,9 @@ const base: GameState = {
   botVoteResults: null,
   reasons: [],
 
-  // ★ 추가 (방 목록 기능) — 대기실 게임시작 버튼 노출 기준. mock 은 true 로 둬서
-  // 그 버튼까지 눈으로 볼 수 있게 한다 (MockHarness 도 isHost 를 true 로 넘긴다).
+  // ★ 추가 (방 목록 기능) — 서버가 내려주는 방장 여부. 화면은 더 이상 쓰지 않는다
+  // (게임시작 버튼을 없애고 전원 준비완료로 시작하도록 바꿈) — GameState 필수 필드라
+  // 남겨두고, mock 은 실제 방장 시점을 재현하려고 true 로 둔다.
   isHost: true,
 };
 

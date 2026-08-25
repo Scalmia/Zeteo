@@ -80,7 +80,9 @@ function renderScreen(
   nickname: string | null,
   setNickname: (name: string | null) => void,
   // ★ 방 목록을 서버에서 받아 넘긴다 (방 목록 서버 연결)
-  rooms: RoomSummary[]
+  rooms: RoomSummary[],
+  // ★ 추가 (없는 방 안내) — 방 목록 화면만 이 값을 팝업으로 직접 띄운다.
+  error: string | null
 ) {
   if (!state) {
     // 닉네임을 아직 안 정했으면 랜딩, 정했으면 방 목록 — 둘 다 서버에 방을 안 만든
@@ -91,6 +93,7 @@ function renderScreen(
     return (
       <RoomListScreen
         rooms={rooms}
+        error={error}
         onRefresh={() => onEvent({ t: "listRooms" })}
         onBack={() => setNickname(null)}
         // title 은 방을 새로 만들 때만 넘어온다 — 서버가 그때만 방 제목으로 쓴다.
@@ -112,11 +115,6 @@ function renderScreen(
         myReady={me?.isReady ?? false}
         onToggleReady={() => onEvent({ t: "ready" })}
         onBack={onLeave}
-        // ★ 서버가 내려주는 값을 쓴다 (방 목록 서버 연결) — 예전엔 "방을 만들며 들어왔다"는
-        // 걸 App 이 로컬 상태로 기억했는데, 그 값은 새로고침하면 날아간다.
-        isHost={state.isHost}
-        readyCount={state.players.filter((p) => p.isReady).length}
-        onStartGame={() => onEvent({ t: "startGame" })}
       />
     );
   }
@@ -190,6 +188,9 @@ export function App() {
   // GameState 와 별도로 온다.
   const { state, rooms, onEvent, connected, error, leaveToLanding } = useGameState();
   const [nickname, setNickname] = useState<string | null>(null);
+  // ★ 추가 (없는 방 안내) — 방 목록 화면은 거절 사유를 자기 팝업으로 띄우므로, 그 화면
+  // 에서는 아래 빨간 배너를 접는다. 안 그러면 같은 문구가 두 군데 동시에 보인다.
+  const roomListShown = state === null && nickname !== null;
 
   return (
     <div>
@@ -200,12 +201,12 @@ export function App() {
           서버와 연결이 끊겼습니다. 재연결 시도 중…
         </div>
       )}
-      {error && (
+      {error && !roomListShown && (
         <div style={{ textAlign: "center", padding: 8, color: "var(--color-danger)" }}>
           {error}
         </div>
       )}
-      {renderScreen(state, onEvent, leaveToLanding, nickname, setNickname, rooms)}
+      {renderScreen(state, onEvent, leaveToLanding, nickname, setNickname, rooms, error)}
     </div>
   );
 }
