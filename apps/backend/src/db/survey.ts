@@ -47,6 +47,8 @@ export async function submitSurveyResponse(
   voterId: string,
   reasonIds: number[],
   freeText: string,
+  /** "가장 봇 같았던 발언"으로 고른 런타임 Message.id. 안 고를 수도 있어 optional 이다. */
+  pickedMessageId?: string,
 ) {
   if (!room.dbGameId) return;
   const voter = room.players.find((p) => p.id === voterId);
@@ -61,8 +63,8 @@ export async function submitSurveyResponse(
   // 설문 본문은 남긴다 — "지목 안 함"과 "지목했는데 틀림"은 DB 에서 구분된다
   // (전자는 guessed_bot_label IS NULL, 후자는 guessed_correctly = false).
   //
-  // ⚠️ 두 칸의 NOT NULL 을 먼저 풀어야 한다(sql/2026-08-25_bot-loop-schema.sql).
-  // 안 풀린 상태면 이 insert 가 실패하는데, 잃는 데이터는 예전과 같고 에러 로그만 더 남는다.
+  // (두 칸의 NOT NULL 은 2026-08-25 에 풀었다. 스키마 변경 절차는 루트 README 의
+  //  "DB (Supabase)" 절 참고 — 이 저장소엔 마이그레이션 파일이 없다.)
   const guessedTargetId = room.botVotes[voterId];
   const guessedTarget = room.players.find((p) => p.id === guessedTargetId);
 
@@ -81,6 +83,31 @@ export async function submitSurveyResponse(
   if (respErr || !response) {
     console.error(`[${room.roomId}] 설문 응답 기록 실패:`, respErr?.message);
     return;
+  }
+
+  // 고른 발언은 위 insert 에 같이 넣지 않고 별도 UPDATE 로 쓴다.
+  //
+  // insert 에 끼우면 이 칸 하나가 잘못될 때 설문 응답 전체가 안 남는다 — 칼럼이 아직 없는
+  // 상태로 배포되면(스키마는 Supabase 안에만 있어서 순서가 어긋날 수 있다) 모든 설문이
+  // 조용히 사라진다. 그건 이번에 고친 44% 유실과 같은 종류의 사고다.
+  // 고른 발언은 본문이 아니라 부가 정보이므로, 실패해도 응답 본문은 남게 분리한다.
+  //
+  // 검증은 DB 가 아니라 room.messages 로 한다 — 그게 이 판에 실제로 오간 발언의 원본이고,
+  // logMessage 가 실패해 DB 행이 없더라도 "고른 값" 자체는 남길 수 있다.
+  // 시스템 메시지("2라운드 시작" 등)는 누가 한 말이 아니라 고를 대상에서 뺀다.
+  // 못 찾으면 throw 하지 않고 그냥 안 쓴다 — 클라이언트 버그 하나로 설문을 잃지 않기 위해서.
+  const picked = pickedMessageId
+    ? room.messages.find((m) => m.id === pickedMessageId && m.speakerId !== 'system')
+    : undefined;
+  if (pickedMessageId && !picked) {
+    console.warn(`[${room.roomId}] 고른 발언을 찾을 수 없어 건너뜀:`, pickedMessageId);
+  }
+  if (picked) {
+    const { error: pickErr } = await supabase
+      .from('survey_responses')
+      .update({ picked_message_runtime_id: picked.id })
+      .eq('id', response.id);
+    if (pickErr) console.error(`[${room.roomId}] 고른 발언 기록 실패:`, pickErr.message);
   }
 
   if (reasonIds.length === 0) return;

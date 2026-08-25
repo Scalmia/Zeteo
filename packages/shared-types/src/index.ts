@@ -114,7 +114,10 @@ export type ClientEvent =
   | { t: 'lifeVote'; kill: boolean }
   | { t: 'guessWord'; word: string }
   | { t: 'botVote'; targetId: string }
-  | { t: 'survey'; reasonIds: number[]; freeText: string };
+  // pickedMessageId: "가장 봇 같았던 발언"으로 고른 Message.id(런타임 id 그대로).
+  // 안 고르고 낼 수 있어서 optional 이다 — 필수로 만들면 이 하나 때문에 설문 전체가
+  // 안 들어오는 길이 생긴다. 시스템 메시지는 고를 대상이 아니라 서버가 걸러낸다.
+  | { t: 'survey'; reasonIds: number[]; freeText: string; pickedMessageId?: string };
 
 // 서버 → 클라이언트
 export type ServerEvent =
