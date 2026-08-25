@@ -174,8 +174,8 @@ function renderScreen(
         resultPlayers={buildResultPlayers(state)}
         myBotVoteTargetId={state.botVoteResults?.[state.myId] ?? null}
         revealedBotId={state.revealedBotId}
-        onSubmit={(checkedReasonIds, freeText) => {
-          onEvent({ t: "survey", reasonIds: checkedReasonIds, freeText });
+        onSubmit={(checkedReasonIds, freeText, pickedMessageId) => {
+          onEvent({ t: "survey", reasonIds: checkedReasonIds, freeText, pickedMessageId: pickedMessageId ?? undefined });
           onLeave();
         }}
       />
