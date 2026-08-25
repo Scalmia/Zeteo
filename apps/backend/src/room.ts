@@ -24,6 +24,13 @@ import { clearPhaseTimer } from './timer';
 export const MIN_PLAYERS = 4; // 봇 포함. 방장이 게임시작을 누를 수 있는 최소 인원
 export const MAX_PLAYERS = 8; // 봇 포함. 방 정원 고정값 (방장이 개별 설정하지 않음)
 
+// 닉네임 최대 글자수. 위 정원 값들과 같은 규칙으로 프론트 roomConfig.ts 와 짝을 맞춘다.
+// 화면(LandingScreen 입력창 maxLength)에서도 막지만 그건 편의일 뿐이라 — 소켓으로 직접
+// 보내면 그대로 통과한다 — index.ts 의 join 핸들러가 여기서 다시 본다.
+// 이 값이 곧 결과 화면에 뜨는 이름의 상한이라, 설문화면 우측 패널(260px)처럼 폭이 좁은
+// 자리가 이 길이를 최악의 경우로 잡고 있다. 늘리면 그쪽 줄바꿈부터 확인할 것.
+export const NAME_MAX_LENGTH = 6;
+
 export interface RoomInternalState {
   roomId: string;
   // ★ 추가 (방 목록 기능) — 방 목록에 보여줄 제목. 방을 만들 때 받는다.

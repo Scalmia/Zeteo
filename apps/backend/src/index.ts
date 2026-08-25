@@ -25,6 +25,7 @@ import {
   listRoomSummaries, // ★ 추가 (방 목록 기능)
   MIN_PLAYERS, // ★ 추가 (방 목록 기능)
   MAX_PLAYERS, // ★ 추가 (방 목록 기능)
+  NAME_MAX_LENGTH,
   RoomInternalState,
 } from './room';
 import { buildGameStateFor } from './view';
@@ -509,6 +510,12 @@ io.on('connection', (socket) => {
     try {
       switch (action.t) {
         case 'join': {
+          // 방을 만들기 전에 먼저 본다. 아래 createRoom 뒤에서 던지면 아무도 들어올 수
+          // 없는 빈 방만 남는다 — 방 목록에 그대로 뜨고, 사람 소켓이 없어 disconnect 로
+          // 지워지는 경로에도 안 걸린다.
+          if (action.name.length > NAME_MAX_LENGTH) {
+            throw new Error(`닉네임은 ${NAME_MAX_LENGTH}글자 이하여야 합니다`);
+          }
           let room = getRoom(action.roomId);
           const isNewRoom = !room; // ★ 추가 (방 목록 기능) — 아래 방장 지정·정원 검사에 쓴다
           if (!room) {
