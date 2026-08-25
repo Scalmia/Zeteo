@@ -438,6 +438,16 @@
   border-top: 1px solid var(--color-line, #2a2a36);
   border-bottom: 1px solid var(--color-line, #2a2a36);
 }
+/* 설문 "가장 봇 같았던 발언 고르기"(zeteo-partd) — 리플레이 로그의 말풍선을 그대로
+ * 선택지로 쓴다. 선택 테두리는 이유 체크박스(SurveyScreen)와 같은 accent색으로
+ * 맞춰서 "이것도 설문 선택지다"가 한눈에 읽히게 한다. */
+.zt-msg.is-selectable .zt-msg-text {
+  cursor: pointer;
+}
+.zt-msg.is-selected .zt-msg-text {
+  border-color: var(--color-accent, #7c5cff);
+  box-shadow: 0 0 0 1px var(--color-accent, #7c5cff);
+}
 
 .zt-round {
   margin-right: var(--space-2, 8px);
