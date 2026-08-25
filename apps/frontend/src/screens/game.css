@@ -970,3 +970,34 @@
     font-size: 1.25rem;
   }
 }
+
+/* 커스텀 스크롤바 — 이 화면에서 스크롤되는 3곳(결과·투표 패널 .zt-side-wide,
+ * 채팅 로그 .zt-chat-log, 팝업 .zt-modal) 전부 브라우저 기본 회색 스크롤바
+ * 대신 테마 색을 쓴다(8/25 요청). 트랙은 --color-muted, 막대(썸)는
+ * --color-line — 둘 다 D의 tokens.css 색이라 값은 그쪽 소유, 여기서는
+ * 스크롤바에 연결만 한다.
+ * Firefox는 scrollbar-color/scrollbar-width, Chrome·Safari(WebKit)는
+ * ::-webkit-scrollbar 계열 — 두 표준이 겹치지 않아 같이 써야 전 브라우저에
+ * 적용된다. */
+.zt-side-wide,
+.zt-chat-log,
+.zt-modal {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line, #4a1418) var(--color-muted, #b98d8f);
+}
+.zt-side-wide::-webkit-scrollbar,
+.zt-chat-log::-webkit-scrollbar,
+.zt-modal::-webkit-scrollbar {
+  width: 8px;
+}
+.zt-side-wide::-webkit-scrollbar-track,
+.zt-chat-log::-webkit-scrollbar-track,
+.zt-modal::-webkit-scrollbar-track {
+  background: var(--color-muted, #b98d8f);
+}
+.zt-side-wide::-webkit-scrollbar-thumb,
+.zt-chat-log::-webkit-scrollbar-thumb,
+.zt-modal::-webkit-scrollbar-thumb {
+  background: var(--color-line, #4a1418);
+  border-radius: 4px;
+}
