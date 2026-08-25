@@ -4,20 +4,41 @@
  *
  * 구역
  *   1. 방이 기억하는 것          RoomInternalState · rooms
- *   2. 방이 생기고 사람이 모인다   createRoom · getRoom · joinRoom · ready 토글
+ *   2. 방이 생기고 사람이 모인다   createRoom · getRoom · listRoomSummaries · joinRoom · ready 토글
  *   3. 판이 시작된다             역할 배정 · 라벨 배정
  *   4. 판이 도는 동안            pushSystemMessage
  *   5. 방이 정리된다             removePlayerFromLobby · deleteRoom
  */
-import { InternalPlayer, Phase, Message, Role } from '@zeteo/shared-types';
+import { InternalPlayer, Phase, Message, Role, RoomSummary } from '@zeteo/shared-types';
 import { logMessage } from './db/log';
 import { randomUUID } from 'crypto';
 import { clearPhaseTimer } from './timer';
 
 // ── 1. 방이 기억하는 것 ──────────────────────────────────────────────
 
+// ★ 추가 (방 목록 기능)
+// 방 정원. 프론트 apps/frontend/src/roomConfig.ts 와 반드시 같은 값이어야 한다 —
+// 어긋나면 "목록에선 들어갈 수 있어 보이는데 서버가 거절"하는, 화면에 원인이 안
+// 드러나는 상태가 된다. 공유하려고 shared-types 에 뒀다가 되돌렸다: 그 패키지는
+// 타입 전용이라 런타임 값을 넣으면 빌드된 dist 가 실행 중 죽는다(그 파일 주석 참고).
+export const MIN_PLAYERS = 4; // 봇 포함. 방장이 게임시작을 누를 수 있는 최소 인원
+export const MAX_PLAYERS = 8; // 봇 포함. 방 정원 고정값 (방장이 개별 설정하지 않음)
+
+// 닉네임 최대 글자수. 위 정원 값들과 같은 규칙으로 프론트 roomConfig.ts 와 짝을 맞춘다.
+// 화면(LandingScreen 입력창 maxLength)에서도 막지만 그건 편의일 뿐이라 — 소켓으로 직접
+// 보내면 그대로 통과한다 — index.ts 의 join 핸들러가 여기서 다시 본다.
+// 이 값이 곧 결과 화면에 뜨는 이름의 상한이라, 설문화면 우측 패널(260px)처럼 폭이 좁은
+// 자리가 이 길이를 최악의 경우로 잡고 있다. 늘리면 그쪽 줄바꿈부터 확인할 것.
+export const NAME_MAX_LENGTH = 6;
+
 export interface RoomInternalState {
   roomId: string;
+  // ★ 추가 (방 목록 기능) — 방 목록에 보여줄 제목. 방을 만들 때 받는다.
+  title: string;
+  // ★ 추가 (방 목록 기능) — 방을 만든 사람의 playerId. 게임시작 권한 판정의 유일한
+  // 근거다. 방이 만들어지는 시점엔 아직 아무도 join 하기 전이라 빈 문자열로 두고,
+  // 첫 사람이 들어올 때 index.ts case 'join' 이 채운다.
+  hostId: string;
   phase: Phase;
   round: number; // 라운드
   players: InternalPlayer[];
@@ -59,9 +80,13 @@ const rooms = new Map<string, RoomInternalState>();
 
 let idCounter = 0;
 
-export function createRoom(roomId: string): RoomInternalState {
+// title 은 ★ 추가 (방 목록 기능) — 안 넘기면 방 목록에서 구분이 안 되므로 방번호로
+// 대신 채운다(방번호 직접입력으로 들어와 방이 새로 생기는 경로가 있어 필요하다).
+export function createRoom(roomId: string, title?: string): RoomInternalState {
   const room: RoomInternalState = {
     roomId,
+    title: title ?? `${roomId}번 방`,
+    hostId: '',
     phase: 'lobby',
     round: 1,
     players: [],
@@ -95,6 +120,29 @@ export function createRoom(roomId: string): RoomInternalState {
 
 export function getRoom(roomId: string): RoomInternalState | undefined {
   return rooms.get(roomId);
+}
+
+// ★ 추가 (방 목록 기능)
+// 방 목록 화면에 뿌릴 요약. rooms 맵은 이 파일 밖으로 안 내보내므로(외부에서 통째로
+// 만지면 생성·삭제 경로가 흩어진다) 요약본만 만들어 준다.
+// 사람 없이 봇만 남은 방은 거른다 — 방을 만든 사람이 로비에서 나가면 removePlayerFromLobby
+// 가 방을 지우지만, 그 전까지 잠깐 봇만 있는 상태가 목록에 뜨는 걸 막는다.
+export function listRoomSummaries(): RoomSummary[] {
+  return [...rooms.values()]
+    .filter((room) => room.players.some((p) => !p.isBot))
+    .map((room) => ({
+      roomId: room.roomId,
+      title: room.title,
+      hostName: room.players.find((p) => p.id === room.hostId)?.name ?? '?',
+      count: room.players.length,
+      // 진행 중인 방은 애초에 못 들어가므로 정원보다 phase 를 먼저 본다.
+      status:
+        room.phase !== 'lobby'
+          ? 'playing'
+          : room.players.length >= MAX_PLAYERS
+            ? 'full'
+            : 'open',
+    }));
 }
 
 export function joinRoom(roomId: string, name: string, isBot = false): InternalPlayer {
@@ -165,14 +213,17 @@ export function assignLabels(room: RoomInternalState) {
 let systemMsgCounter = 0;
 // 메시지 추가
 export function pushSystemMessage(room: RoomInternalState, text: string) {
+  // id 를 변수로 빼는 이유: 같은 값을 화면(room.messages)과 DB(logMessage) 양쪽에 넣어야
+  // 나중에 "이 발언"으로 서로를 찾을 수 있다.
+  const id = `sys${Date.now()}_${++systemMsgCounter}`;
   room.messages.push({
-    id: `sys${Date.now()}_${++systemMsgCounter}`,
+    id,
     speakerId: 'system',
     text,
     phase: room.phase,
     at: Date.now(),
   });
-  void logMessage(room, null, 'system', null, text);
+  void logMessage(room, id, null, 'system', null, text);
 }
 
 // ── 5. 방이 정리된다 ─────────────────────────────────────────────────

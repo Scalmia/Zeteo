@@ -44,6 +44,24 @@ export interface SurveyReason {
   label: string;
 }
 
+// ★ 추가 (방 목록 기능) ─────────────────────────────────────────────
+// 방 정원(MIN_PLAYERS·MAX_PLAYERS)은 여기 두지 않는다. 이 패키지는 package.json 의
+// main 이 src/index.ts 를 그대로 가리키는 타입 전용 패키지라, 오가는 게 타입뿐일 때만
+// 성립한다 — 타입 import 는 컴파일 때 통째로 사라지지만, 런타임 값(const)을 넣으면
+// 빌드된 apps/backend/dist 가 실행 중 require('@zeteo/shared-types') 를 시도하고
+// Node 가 .ts 를 못 읽어 그 자리에서 죽는다(실측). 정원 값은 서버는 room.ts,
+// 프론트는 roomConfig.ts 에 각각 두고 주석으로 서로를 가리킨다.
+
+/** 방 목록 화면이 방 하나를 그리는 데 필요한 것만 담는다 (listRooms 응답).
+ *  status는 서버가 phase·인원으로 계산해서 내려준다 — 클라이언트가 판단하지 않는다. */
+export interface RoomSummary {
+  roomId: string;
+  title: string;
+  hostName: string;
+  count: number; // 봇 포함 현재 인원
+  status: 'open' | 'full' | 'playing';
+}
+
 /** 서버가 각 플레이어에게 개별 생성해 보내는 상태 */
 export interface GameState {
   roomId: string;
@@ -73,24 +91,41 @@ export interface GameState {
   revealedNames: Record<string, string> | null; // S7 playerId → 실명 (result 이전엔 null)
   botVoteResults: Record<string, string> | null; // S7 투표자 → 지목 대상 (result 이전엔 null)
   reasons: SurveyReason[]; // S7 "왜 봇이라 생각했나" 설문 선택지
+  // ★ 추가 (방 목록 기능) — 이 방을 만든 사람인지. 대기실 게임시작 버튼 노출 기준이다.
+  // 클라이언트가 "내가 방을 만들었다"고 기억하는 값은 새로고침하면 날아가고 위조도
+  // 되므로, 판단 근거는 서버가 쥔 room.hostId 하나로 통일한다.
+  isHost: boolean;
 }
 
 // 클라이언트 → 서버
 export type ClientEvent =
-  | { t: 'join'; roomId: string; name: string }
+  // title은 ★ 추가 (방 목록 기능) — 방을 새로 만들 때만 보낸다. 이미 있는 방에
+  // 들어갈 땐 생략하며 서버도 무시한다. 방 만들기를 별도 이벤트로 안 쪼갠 건,
+  // 프론트가 "방 만들기"와 "방 클릭 입장"을 둘 다 join 하나로 보내고 있어서다.
+  | { t: 'join'; roomId: string; name: string; title?: string }
   | { t: 'ready' }
+  | { t: 'listRooms' } // ★ 추가 (방 목록 기능) — 응답은 ServerEvent 'roomList'
+  // ★ 추가 (방 목록 기능) — 방장이 누르는 게임시작. 방장 여부·최소 인원은 서버가
+  // 다시 검증한다(클라이언트의 버튼 비활성화는 UI 편의일 뿐 방어 수단이 아니다).
+  | { t: 'startGame' }
   | { t: 'describe'; text: string }
   | { t: 'chat'; text: string }
   | { t: 'vote'; targetId: string | null } // null = 기권
   | { t: 'lifeVote'; kill: boolean }
   | { t: 'guessWord'; word: string }
   | { t: 'botVote'; targetId: string }
-  | { t: 'survey'; reasonIds: number[]; freeText: string };
+  // pickedMessageId: "가장 봇 같았던 발언"으로 고른 Message.id(런타임 id 그대로).
+  // 안 고르고 낼 수 있어서 optional 이다 — 필수로 만들면 이 하나 때문에 설문 전체가
+  // 안 들어오는 길이 생긴다. 시스템 메시지는 고를 대상이 아니라 서버가 걸러낸다.
+  | { t: 'survey'; reasonIds: number[]; freeText: string; pickedMessageId?: string };
 
 // 서버 → 클라이언트
 export type ServerEvent =
   | { t: 'state'; state: GameState } // 변화 시마다 전체 전송
-  | { t: 'error'; reason: string };
+  | { t: 'error'; reason: string }
+  // ★ 추가 (방 목록 기능) — listRooms 요청에 대한 응답. state와 달리 아직 방에
+  // 안 들어간 사람에게도 보내야 해서 별도 이벤트다.
+  | { t: 'roomList'; rooms: RoomSummary[] };
 
 // 파트 A ↔ 파트 B 계약 (파트 C는 사용하지 않음)
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { socket, sendAction, onServerEvent } from '../net/socket';
-import type { ClientEvent, GameState } from '@zeteo/shared-types';
+import type { ClientEvent, GameState, RoomSummary } from '@zeteo/shared-types';
 
 // 화면(App.tsx)이 소켓을 직접 만지지 않아도 되게 감싸주는 훅.
 // state는 검증 없이 서버가 보낸 그대로 저장한다 — 필드 누락 방어는
@@ -9,6 +9,9 @@ export function useGameState() {
   const [state, setState] = useState<GameState | null>(null); // null = 아직 방에 안 들어감(랜딩 화면)
   const [connected, setConnected] = useState(socket.connected);
   const [error, setError] = useState<string | null>(null);
+  // ★ 추가 (방 목록 기능) — 방 목록은 아직 방에 안 들어간 상태에서 받는 값이라
+  // GameState 안에 못 넣는다(그건 방 참가자에게만 오는 것). 그래서 따로 들고 있는다.
+  const [rooms, setRooms] = useState<RoomSummary[]>([]);
 
   useEffect(() => {
     const handleConnect = () => setConnected(true);
@@ -24,6 +27,12 @@ export function useGameState() {
         setError(null);
       } else if (e.t === 'error') {
         setError(e.reason);
+      } else if (e.t === 'roomList') {
+        setRooms(e.rooms); // ★ 추가 (방 목록 기능) — listRooms 요청에 대한 응답
+        // join 실패('없는 방입니다' 등)는 방에 못 들어간 것이라 state 가 영영 안 오고,
+        // 그러면 위 분기로는 error 가 안 지워져 빨간 배너가 화면에 계속 남는다. 목록이
+        // 새로 왔다는 건 사용자가 이 화면에서 다시 움직였다는 뜻이라 여기서 같이 지운다.
+        setError(null);
       }
     });
 
@@ -51,5 +60,5 @@ export function useGameState() {
     socket.connect();
   }, []);
 
-  return { state, onEvent, connected, error, leaveToLanding };
+  return { state, rooms, onEvent, connected, error, leaveToLanding };
 }

@@ -64,7 +64,10 @@ ${formatTranscript(ctx)}
 ${
   isFirst
     ? '당신이 첫 순서입니다. 주제 안의 무엇에든 적용될 만큼 넓게 말하되, 너무 뻔하면 의심받습니다.'
-    : '앞사람들의 묘사에서 제시어를 추측하고, 아는 것처럼 자연스럽게 묘사하세요. 앞사람 말을 그대로 반복하면 의심받습니다.'
+    : `앞사람들의 묘사에서 제시어를 추측해 보세요. 짐작이 가더라도 그것만 가리키는 구체적인 말은 쓰면 안 됩니다.
+당신은 제시어를 모르는 사람입니다. 아는 사람만 쓸 수 있는 말(도구·부속·전문 용어·정확한 동작 등)을 쓰는 순간,
+모를 리 없는 것을 알고 있다는 뜻이 되어 들킵니다.
+앞사람들이 말한 만큼만, 또는 그보다 덜 구체적으로 말하세요. 앞사람 말을 그대로 반복하는 것도 의심받습니다.`
 }
 
 한 문장으로 묘사하세요.`;
@@ -133,24 +136,74 @@ const DEBATE_MOVES = [
   '자기 발언을 해명하세요. 제시어를 좁혀주는 새 정보는 보태지 말고, 이미 나온 말 안에서 풀거나 왜 더 말할 수 없는지를 이유로 대세요.',
 ];
 
-export function debatePrompt(ctx: BotContext): string {
+/**
+ * 지금 누구 쪽에 서 있는지 알려준다.
+ *
+ * 예전에는 ctx.myVote가 있을 때만 "말을 바꾸지 마세요"를 붙였다. 그런데 서버는 동점이 나면
+ * room.votes를 통째로 비우고 재투표를 돌린다(stateMachine.ts). 그 순간 myVote가 null이 되면서
+ * 이 문장이 프롬프트에서 통째로 사라지고, 봇은 방금 자기가 누구를 지목했는지 모르는 상태가 된다.
+ *
+ * 1판 실측(0820): 재투표 12초 뒤 "Q가 제일 걸림" → 49초 뒤 "A가 제일 걸림"으로 갈아탔고,
+ * 그 사이에 "난 그대로 갈게"와 "고민중"이 같이 나왔다. 설문에 "상황을 이해못함",
+ * "눈치가 없고 멍청함"으로 적혔다.
+ *
+ * 그래서 기준을 표가 아니라 입으로 한 말에 둔다. 표는 서버가 지우지만 한 말은 안 지워진다.
+ * declared는 index.ts가 lastTargets에서 꺼내 넘겨준다 — 모델이 이미 고른 대상을 주워 쓰는 것이라
+ * 판단 로직이 늘지 않는다.
+ *
+ * 문구도 바꿨다. "바꾸지 마세요"는 사람의 행동이 아니다. 사람도 마음을 바꾸고, 다만 바꿀 때
+ * 이유를 댄다. 금지해두면 "난 그대로 갈게" 같은 선언만 늘고 정작 바꿀 때는 그냥 바꾼다.
+ * 금지가 아니라 값을 붙인다.
+ *
+ * "다시 선언할 필요 없다"가 같이 들어가는 이유는, 첫 판본에서 이 문장이 앵무새를 만들었기 때문이다.
+ * 재현 실험 5회에서 "Q라니까" "Q지 아까 말했잖아" "그대로 Q"가 잇달아 나왔다.
+ * 입장을 유지하는 것과 입장을 반복해 말하는 것은 다른데, 그 구분이 없으면 모델은
+ * 아래의 "짧은 반응 한마디로 끝내세요"를 지키면서 그 반응을 입장 재선언으로 채운다.
+ * 바로 아래 "이름은 꼭 필요할 때만 부르세요"와도 정면으로 부딪혔다.
+ */
+function stanceRule(ctx: BotContext, declared: string | null): string {
+  const standing = ctx.myVote ? labelOf(ctx.players, ctx.myVote) : declared;
+  if (standing === null) return '';
+  return `\n\n당신은 지금 ${standing} 쪽으로 기울어 있습니다. 이미 그렇게 말해뒀으니 다시 선언하지는 마세요. 다른 사람으로 옮길 거면 왜 바뀌었는지 한마디 붙이세요. 이유 없이 옮기면 부자연스럽습니다.`;
+}
+
+/**
+ * 몰렸을 때만 고르는 것들. DEBATE_MOVES에 섞어두지 않고 따로 두는 이유는, 일곱 개 중 방어에
+ * 해당하는 것이 둘뿐이라 몰린 자리에서도 5/7 확률로 남을 파고들었기 때문이다. 이 자리에서
+ * 할 일은 하나뿐이므로 후보를 그것만 남긴다.
+ *
+ * 그래도 셋을 두는 것은, 한 문장으로 고정하면 몰릴 때마다 똑같은 말이 나오기 때문이다.
+ * 앞서 입장 문구를 한 줄로 박았을 때 "Q라니까"가 되풀이된 적이 있다.
+ */
+const DEFEND_MOVES = [
+  '지금 표가 당신에게 몰려 있습니다. 남을 새로 지목하지 말고, 자기 묘사가 왜 그랬는지 짧게 해명하세요.',
+  '지금 몰린 것은 당신입니다. 억울하면 억울하다고 하되, 근거를 길게 대지 말고 한마디로 받아치세요.',
+  '당신을 의심하는 사람에게 되물으세요. 화제를 딴 사람에게 돌리지 말고 그 의심 자체를 다루세요.',
+];
+
+export function debatePrompt(
+  ctx: BotContext,
+  declared: string | null = null,
+  pressured = false,
+): string {
   const votes = Object.entries(ctx.voteCounts)
     .filter(([, n]) => n > 0)
     .map(([id, n]) => `${labelOf(ctx.players, id)} ${n}표`)
     .join(', ');
 
-  const myVote = ctx.myVote
-    ? `\n\n당신은 이미 ${labelOf(ctx.players, ctx.myVote)}에게 투표했습니다. 말을 바꾸지 마세요.`
-    : '';
+  const myVote = stanceRule(ctx, declared);
 
   // 토론이 막 시작돼 아무도 입을 열지 않은 상태. 여기서 바로 남을 몰아붙이면
   // 매판 가장 먼저 공격을 시작하는 사람이 되어 그 자체로 패턴이 된다.
   const isFirstToSpeak =
     ctx.transcript.filter((m) => m.phase === 'debate' && m.speakerId !== 'system').length === 0;
 
-  const move = isFirstToSpeak
-    ? '아직 아무도 말을 꺼내지 않았습니다. 남을 지목하지 말고, 가볍게 운을 떼거나 짧게 되묻기만 하세요.'
-    : DEBATE_MOVES[Math.floor(Math.random() * DEBATE_MOVES.length)]!;
+  // 몰린 상황이 먼저다. 그 자리에서는 무엇을 할지 고를 여지가 없다.
+  const move = pressured
+    ? DEFEND_MOVES[Math.floor(Math.random() * DEFEND_MOVES.length)]!
+    : isFirstToSpeak
+      ? '아직 아무도 말을 꺼내지 않았습니다. 남을 지목하지 말고, 가볍게 운을 떼거나 짧게 되묻기만 하세요.'
+      : DEBATE_MOVES[Math.floor(Math.random() * DEBATE_MOVES.length)]!;
 
   return `지금까지의 대화입니다.
 ${formatTranscript(ctx)}${votes ? `\n\n현재 득표: ${votes}` : ''}${myVote}
@@ -190,15 +243,32 @@ const FINAL_DEFENSE_MOVES = [
  * 최후 변론은 토론과 상황이 다르다. 지목된 사람이 정해져 있고 그 사람의 생사만 다룬다.
  * 토론 프롬프트를 그대로 쓰면 봇이 피고인을 모른 채 엉뚱한 사람을 심문한다(1판 실측).
  */
-export function finalDefensePrompt(ctx: BotContext): string {
+export function finalDefensePrompt(ctx: BotContext, askedMe = false, cleared = false): string {
   const accused = ctx.accusedId === null ? null : labelOf(ctx.players, ctx.accusedId);
   const isMe = ctx.accusedId === ctx.selfId;
 
   const who = accused ?? '지목된 사람';
 
-  const stance = isMe
-    ? `지목된 사람은 당신입니다. 여기서 밀리면 끝입니다. 억울함을 짧게 호소하거나 자기 묘사를 해명하세요.`
-    : `지목된 사람은 ${who}입니다. 지금은 ${who} 한 사람만 다루는 시간이니 다른 사람을 새로 추궁하지 마세요.
+  /**
+   * 나에게 직접 물어온 경우에는 무브를 주지 않는다.
+   *
+   * 실측(0028 6:46:54) F가 "B가 뭘 줬는데?"라고 물었는데 봇은 딴소리를 했다. 발화 확률 때문에
+   * 입을 다무는 줄 알고 그것부터 고쳤더니, 이번에는 말을 하면서도 답을 안 했다.
+   * 프롬프트를 찍어 보니 원인이 분명했다 — "G 한 사람만 다루세요" + 무작위로 뽑힌
+   * "판단을 미루는 티를 내세요"가 나가고 있었다. 봇은 지시를 어긴 게 아니라 지킨 것이다.
+   *
+   * GPT-5.6에서 이 문제가 더 크게 나왔다. 8번 중 8번이 "그러게" "애매하네" "좀 더 봐야겠다"였고,
+   * 같은 자리에서 qwen은 "내가 뭘" "그럼 내거 뭐라고"처럼 답을 했다. 지시를 충실히 따르는
+   * 모델일수록 안 맞는 지시에 더 크게 휘둘린다. 그래서 이 자리에서는 상황만 알려주고
+   * 무엇을 할지는 모델이 정하게 둔다.
+   */
+  const stance = askedMe
+    ? `지목된 사람은 ${who}입니다. 그런데 방금 누군가 당신에게 직접 물었습니다. 그 말에 먼저 답하세요.`
+    : cleared
+      ? `지목된 사람은 ${who}입니다. 그런데 다른 사람들이 ${who}는 아닌 것 같다는 쪽으로 기울었습니다. 그 흐름을 보고 판단하세요.`
+      : isMe
+      ? `지목된 사람은 당신입니다. 여기서 밀리면 끝입니다. 억울함을 짧게 호소하거나 자기 묘사를 해명하세요.`
+      : `지목된 사람은 ${who}입니다. 지금은 ${who} 한 사람만 다루는 시간이니 다른 사람을 새로 추궁하지 마세요.
 
 아래 중 하나만 고르세요.
 ${FINAL_DEFENSE_MOVES[Math.floor(Math.random() * FINAL_DEFENSE_MOVES.length)]!.replace(/\{누구\}/g, who)}`;

@@ -3,6 +3,10 @@ import { RoomInternalState } from '../room';
 
 export async function logMessage(
   room: RoomInternalState,
+  // 런타임 Message.id (m{ts}_{rand} / sys{ts}_{n}). 이 값이 있어야 "화면에서 고른 그 발언"을
+  // DB 행으로 되짚을 수 있다 — game_messages.id 는 insert 때 DB 가 새로 만든 uuid 라
+  // 클라이언트가 들고 있는 id 와 아예 다른 값이었다.
+  runtimeId: string,
   speakerLabel: string | null,
   speakerType: 'human' | 'bot' | 'system',
   role: 'liar' | 'citizen' | null,
@@ -12,6 +16,7 @@ export async function logMessage(
   if (!room.dbGameId) return;
   const { error } = await supabase.from('game_messages').insert({
     game_id: room.dbGameId,
+    runtime_id: runtimeId,
     speaker_label: speakerLabel,
     speaker_type: speakerType,
     role,
