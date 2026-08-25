@@ -2,13 +2,14 @@ import { useState } from 'react';
 import type { ClientEvent, GameState } from '@zeteo/shared-types';
 import type { ResultPlayer } from '../types';
 import LandingScreen from '../LandingScreen';
+import RoomListScreen from '../RoomListScreen';
 import LobbyScreen from '../LobbyScreen';
 import ResultScreen from '../ResultScreen';
 import SurveyScreen from '../SurveyScreen';
 import { GameScreen } from '../screens/GameScreen';
 import { GameScreenTest } from './GameScreenTest';
 import { Ambience } from '../components/Ambience';
-import { GAME_TEST_KEY, LANDING_KEY, MOCK_KEYS, MOCK_STATES } from './states';
+import { GAME_TEST_KEY, LANDING_KEY, MOCK_KEYS, MOCK_ROOMS, MOCK_STATES, ROOM_LIST_KEY } from './states';
 
 /**
  * 서버 없이 화면을 확인하는 개발용 하네스.
@@ -34,7 +35,10 @@ export function MockHarness() {
   );
 
   const known =
-    key === GAME_TEST_KEY || key === LANDING_KEY || (key !== null && key in MOCK_STATES);
+    key === GAME_TEST_KEY ||
+    key === LANDING_KEY ||
+    key === ROOM_LIST_KEY ||
+    (key !== null && key in MOCK_STATES);
   if (!known) {
     return (
       <>
@@ -82,6 +86,25 @@ export function MockHarness() {
       <>
         <Ambience />
         <LandingScreen onNext={(name) => console.log('[mock] next', { name })} />
+      </>
+    );
+  }
+
+  // 방목록도 랜딩과 같은 사정(위 states.ts ROOM_LIST_KEY 주석 참고) — GameState 밖에서
+  // rooms 만 따로 받는 화면이라 정적 목업 데이터를 그대로 넘긴다. error 는 항상 null —
+  // "없는 방입니다" 팝업까지 훑어보려면 RoomListScreen.tsx 의 errorOpen 초기값을 잠깐
+  // 바꾸거나, 실제 흐름(랜딩→서버 연결)에서 확인한다.
+  if (key === ROOM_LIST_KEY) {
+    return (
+      <>
+        <Ambience />
+        <RoomListScreen
+          rooms={MOCK_ROOMS}
+          error={null}
+          onRefresh={() => console.log('[mock] refresh rooms')}
+          onBack={() => console.log('[mock] back to landing')}
+          onJoinRoom={(roomId, title) => console.log('[mock] join room', { roomId, title })}
+        />
       </>
     );
   }
