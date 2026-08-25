@@ -194,11 +194,16 @@ export default function RoomListScreen({ onBack, onJoinRoom, rooms, onRefresh }:
           </button>
         ) : (
           <div style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-4)" }}>
+            {/* 방번호는 항상 숫자다(위 createRoom 이 1000~9999 에서 뽑는다). 글자가 섞이면
+                맞는 방이 있을 수 없어 서버까지 갔다가 "없는 방입니다" 로만 돌아오므로
+                입력 단계에서 떨군다. onChange 에서 거르면 붙여넣기도 같이 걸린다.
+                inputMode 는 폰에서 숫자 키패드가 바로 뜨게 하는 힌트다. */}
             <input
               className="input"
               style={{ flex: 1 }}
               value={manualRoomId}
-              onChange={(e) => setManualRoomId(e.target.value)}
+              inputMode="numeric"
+              onChange={(e) => setManualRoomId(e.target.value.replace(/\D/g, ""))}
               placeholder="방번호 입력"
             />
             <Button disabled={!manualRoomId.trim()} onClick={() => onJoinRoom(manualRoomId.trim())}>

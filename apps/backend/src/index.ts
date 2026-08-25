@@ -25,6 +25,7 @@ import {
   listRoomSummaries, // ★ 추가 (방 목록 기능)
   MIN_PLAYERS, // ★ 추가 (방 목록 기능)
   MAX_PLAYERS, // ★ 추가 (방 목록 기능)
+  NAME_MAX_LENGTH,
   RoomInternalState,
 } from './room';
 import { buildGameStateFor } from './view';
@@ -333,15 +334,18 @@ function isVotingComplete(room: RoomInternalState): boolean {
 
 function recordSpeak(room: RoomInternalState, playerId: string, text: string) {
   const player = room.players.find((p) => p.id === playerId);
+  // 같은 id 를 화면(room.messages)과 DB(logMessage) 양쪽에 넣는다 — 그래야 나중에
+  // "화면에서 고른 그 발언"을 DB 행으로 되짚을 수 있다.
+  const id = `m${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
   room.messages.push({
-    id: `m${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+    id,
     speakerId: playerId,
     text,
     phase: room.phase,
     at: Date.now(),
   });
   room.currentTurnIndex += 1;
-  if (player) void logMessage(room, player.label, player.isBot ? 'bot' : 'human', player.role, text);
+  if (player) void logMessage(room, id, player.label, player.isBot ? 'bot' : 'human', player.role, text);
 }
 
 function isDescribeComplete(room: RoomInternalState): boolean {
@@ -436,14 +440,16 @@ async function maybeTriggerBot(room: RoomInternalState) {
     return;
   }
   if (action.t === 'chat') {
+    // id 를 변수로 빼는 이유는 recordSpeak 주석 참고.
+    const id = `m${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     room.messages.push({
-      id: `m${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      id,
       speakerId: bot.id,
       text: action.text,
       phase: room.phase,
       at: Date.now(),
     });
-    void logMessage(room, bot.label, 'bot', bot.role, action.text);
+    void logMessage(room, id, bot.label, 'bot', bot.role, action.text);
     broadcastRoom(room.roomId);
     void maybeTriggerBot(room);
     return;
@@ -509,6 +515,12 @@ io.on('connection', (socket) => {
     try {
       switch (action.t) {
         case 'join': {
+          // 방을 만들기 전에 먼저 본다. 아래 createRoom 뒤에서 던지면 아무도 들어올 수
+          // 없는 빈 방만 남는다 — 방 목록에 그대로 뜨고, 사람 소켓이 없어 disconnect 로
+          // 지워지는 경로에도 안 걸린다.
+          if (action.name.length > NAME_MAX_LENGTH) {
+            throw new Error(`닉네임은 ${NAME_MAX_LENGTH}글자 이하여야 합니다`);
+          }
           let room = getRoom(action.roomId);
           const isNewRoom = !room; // ★ 추가 (방 목록 기능) — 아래 방장 지정·정원 검사에 쓴다
           if (!room) {
@@ -543,14 +555,16 @@ io.on('connection', (socket) => {
           const room = getRoom(meta.roomId);
           if (!room) throw new Error('room not found');
           const player = room.players.find((p) => p.id === meta.playerId);
+          // id 를 변수로 빼는 이유는 recordSpeak 주석 참고.
+          const id = `m${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
           room.messages.push({
-            id: `m${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            id,
             speakerId: meta.playerId,
             text: action.text,
             phase: room.phase,
             at: Date.now(),
           });
-          if (player) void logMessage(room, player.label, player.isBot ? 'bot' : 'human', player.role, action.text);
+          if (player) void logMessage(room, id, player.label, player.isBot ? 'bot' : 'human', player.role, action.text);
           break;
         }
         case 'describe': {

@@ -2,20 +2,26 @@ import { supabase } from './supabase';
 import { SurveyReason } from '@zeteo/shared-types';
 import { RoomInternalState } from '../room';
 
-const SURVEY_QUESTION_CODE = 'bot_reason';
-
 // survey_reasons는 게임 도중 안 바뀌는 정적 데이터라, 브로드캐스트마다(=survey를 보는
 // 인원수만큼) 매번 다시 쿼리할 필요가 없다. 최초 성공 시에만 캐싱한다 — 에러로 실패한
 // 경우엔 캐시하지 않고 다음 호출에서 재시도되게 둔다.
+//
+// ⚠️ 이 캐시는 프로세스가 사는 동안 안 풀린다. 문항 세대를 바꿔도(아래 is_active 전환)
+// 화면은 서버가 재시작할 때까지 옛 문구를 보여준다 — "DB만 살짝 고치기"는 안 통한다.
+// 개선 루프가 PR → 머지 → Railway 리빌드라 어차피 재시작이 껴서 그대로 뒀다.
 let cachedReasons: SurveyReason[] | null = null;
 
 export async function fetchSurveyReasons(): Promise<SurveyReason[]> {
   if (cachedReasons) return cachedReasons;
 
+  // 문항을 code 상수로 고르지 않고 is_active 로 고른다 — 5판마다 문항을 갈아끼우는데
+  // 상수면 그때마다 코드 수정·배포가 필요해서, 새 세대를 INSERT 만으로 올린다는 목적이
+  // 무너진다. 활성 행이 항상 최대 1개인 건 DB 쪽 부분 유니크 인덱스가 보장한다
+  // (sql/2026-08-25_bot-loop-schema.sql) — 둘이 켜지면 single() 이 에러로 떨어진다.
   const { data: question, error: questionErr } = await supabase
     .from('survey_questions')
     .select('id')
-    .eq('code', SURVEY_QUESTION_CODE)
+    .eq('is_active', true)
     .single();
   if (questionErr || !question) {
     console.error('설문 질문 조회 실패:', questionErr?.message);
@@ -47,19 +53,26 @@ export async function submitSurveyResponse(
   if (!voter) return;
 
   // botVote 단계엔 20초 타이머가 있다(index.ts PHASE_DURATIONS.botVote) — 그 안에 지목을
-  // 못 했으면 room.botVotes에 이 사람 항목 자체가 없다. 그런 채로 survey까지 왔을 수
-  // 있으므로, 지목 대상이 없으면(=guessedTarget이 없으면) 응답을 남기지 않고 건너뛴다.
+  // 못 했으면 room.botVotes에 이 사람 항목 자체가 없다.
+  //
+  // 예전엔 그 경우 여기서 return 해서 설문을 통째로 버렸다. 지목과 설문은 별개 정보인데
+  // 하나가 다른 하나를 막고 있던 것이라, 성실히 쓴 사유·자유서술까지 같이 사라졌다
+  // (실측 판의 44%가 설문 0건이었고 원인의 일부로 보고 있다). 이제 두 칸을 null 로 두고
+  // 설문 본문은 남긴다 — "지목 안 함"과 "지목했는데 틀림"은 DB 에서 구분된다
+  // (전자는 guessed_bot_label IS NULL, 후자는 guessed_correctly = false).
+  //
+  // ⚠️ 두 칸의 NOT NULL 을 먼저 풀어야 한다(sql/2026-08-25_bot-loop-schema.sql).
+  // 안 풀린 상태면 이 insert 가 실패하는데, 잃는 데이터는 예전과 같고 에러 로그만 더 남는다.
   const guessedTargetId = room.botVotes[voterId];
   const guessedTarget = room.players.find((p) => p.id === guessedTargetId);
-  if (!guessedTarget) return;
 
   const { data: response, error: respErr } = await supabase
     .from('survey_responses')
     .insert({
       game_id: room.dbGameId,
       voter_label: voter.label,
-      guessed_bot_label: guessedTarget.label,
-      guessed_correctly: guessedTarget.isBot,
+      guessed_bot_label: guessedTarget?.label ?? null,
+      guessed_correctly: guessedTarget?.isBot ?? null,
       free_text: freeText || null,
     })
     .select('id')
