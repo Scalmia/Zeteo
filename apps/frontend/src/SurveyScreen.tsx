@@ -114,10 +114,10 @@ export default function SurveyScreen({
     ? stripParticipantPrefix(resultPlayers.find((p) => p.id === revealedBotId)?.label ?? revealedBotId)
     : null;
 
-  // 8/25: 적중한 사람의 지목 대상은 정의상 항상 봇이라, 행에 적어도 위 "봇의 정체"
-  // 줄에서 그대로 유도되는 값이다 — 정보가 없어서 눈에 안 걸린다. 그래서 적중은
-  // "성공"으로만 적고, 빗나간 사람만 누구를 의심했는지 낸다. 봇이 아닌 사람을 누가
-  // 의심했는지는 이 목록에만 남아 있어, 빼면 화면 어디에서도 알 수 없다.
+  // 이 사람이 봇을 맞혔는지. 쓰이는 곳은 행 글자색 하나뿐이다 — 맞으면 초록
+  // (--color-ok), 틀리면 빨강(--color-danger), 투표를 안 했으면 색을 안 준다.
+  // 지목 대상(→ E)은 맞고 틀림과 무관하게 투표한 모든 행에 적는다: 행마다 그 칸이
+  // 비었다 차 있었다 하는 것보다 늘 같은 자리에 있는 편이 훑기 쉬웠다.
   //
   // votedFor는 id가 아니라 라벨 문자열이다(App.tsx buildResultPlayers의 labelOf).
   // revealedBotLabel은 이미 접두어가 떼어져 있어 이쪽도 떼고 맞춘다 — 한쪽만
