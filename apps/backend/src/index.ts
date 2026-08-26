@@ -1,3 +1,14 @@
+/**
+ * 서버 진입점. 소켓 이벤트를 받아 방 상태(room.ts)를 바꾸고, 바뀐 상태를
+ * 참가자 각자에게 다시 보낸다 — 클라이언트는 상태를 소유하지 않는다(README 설계 원칙 1).
+ *
+ * 구역
+ *   1. 서버가 켜진다        Express · Socket.IO · 상수
+ *   2. 판정과 기록          누가 이겼나 · 다 됐나 판정 + 로그/리포트
+ *   3. 페이즈가 넘어간다     enterPhase · advancePhase (서로를 부른다 — 아래 참고)
+ *   4. 봇이 움직인다        maybeTriggerBot
+ *   5. 사람이 보내는 이벤트  io.on('connection') — 실제 소켓 핸들러
+ */
 import { supabase } from './db/supabase';
 import express from 'express';
 import { createServer } from 'http';
@@ -34,6 +45,8 @@ import { nextPhase } from './stateMachine';
 import { decideBotAction } from './bot';
 import { providerAdminRoute, providerStatusRoute } from './bot/admin-route';
 
+// ── 1. 서버가 켜진다 ─────────────────────────────────────────────────
+
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, { cors: { origin: '*' } }); // 개발 중엔 전체 허용, 나중에 좁힘
@@ -58,50 +71,100 @@ const PHASE_DURATIONS: Partial<Record<Phase, number>> = {
   guessWord: 40000,
   botVote: 20000,
 };
+
 // describe 턴 하나당 제한시간. LLM 응답 6~13초 + 사람 타이핑 여유를 감안한 상한.
 // 20~25초 사이에서 우선 20초로 잡음 — 필요하면 이 값만 조정하면 됨.
 const DESCRIBE_TURN_DURATION = 20000;
-// 현재 phase에 맞는 타이머를 건다 + 봇 차례인지 체크
-function enterPhase(room: RoomInternalState) {
-  if (room.phase === 'describe') {
-    if (isDescribeComplete(room)) {
-      // 정상 흐름에서는 발생하지 않지만(턴 0명 등) 방어적으로 처리
-      advancePhase(room);
-      return;
-    }
-    startDescribeTurnTimer(room);
-    return;
-  }
 
-  const duration = PHASE_DURATIONS[room.phase];
-  if (duration) {
-    setPhaseTimer(room, duration, () => {
-      if (room.phase === 'guessWord' && room.pendingLiarGameResult === null) {
-        room.pendingLiarGameResult = 'citizenWin'; // 시간 초과 = 추측 실패
-        room.liarGameResult = room.pendingLiarGameResult;
-      }
-      advancePhase(room);
-    });
-  } else {
-    // 타이머 없는 phase(lobby, result 등) 진입 시, clearPhaseTimer는 deadlineAt을
-    // 안 지워주므로 직전 phase/턴의 deadline이 잔상으로 남는 걸 막아준다.
-    room.deadlineAt = null;
+// ── 2. 판정과 기록 ───────────────────────────────────────────────────
+
+// 이름은 broadcast지만 방 전체에 같은 값 하나를 뿌리지 않는다 — buildGameStateFor가
+// playerId별로 다른 GameState를 만든다(라이어에겐 word를 숨기고, myVote/myId도
+// 사람마다 다르다). 그래서 소켓 하나하나를 돌며 각자에게 맞는 state를 따로 계산해 보낸다.
+async function broadcastRoom(roomId: string) {
+  const room = getRoom(roomId);
+  if (!room) return;
+
+  const socketsInRoom = io.sockets.adapter.rooms.get(roomId);
+  if (!socketsInRoom) return;
+
+  for (const socketId of socketsInRoom) {
+    const meta = socketMeta.get(socketId);
+    if (!meta) continue;
+    const event: ServerEvent = { t: 'state', state: await buildGameStateFor(room, meta.playerId) };
+    io.to(socketId).emit('event', event);
   }
-  void maybeTriggerBot(room);
 }
 
-// 팀 피드백: 게임이 끝난 시점(result 진입)에 전체 대화 로그를 터미널에 띄워달라는 요청.
-// 친구들과 테스트할 때나 나중에 대화 흐름을 복기할 때 유용하도록,
-// (1) 서버 콘솔에 한 번에(증분 아님) 출력하고 (2) apps/backend/logs/ 에 md 형식으로도 남긴다.
-// isBot/role은 클라이언트로는 절대 안 나가지만, 이건 서버 터미널/로컬 파일 전용이라
-// 팀이 직접 복기할 때 누가 봇이었는지 바로 보이도록 표시해준다.
-const LOG_DIR = path.join(__dirname, '../logs');
+function recordSpeak(room: RoomInternalState, playerId: string, text: string) {
+  const player = room.players.find((p) => p.id === playerId);
+  // 같은 id 를 화면(room.messages)과 DB(logMessage) 양쪽에 넣는다 — 그래야 나중에
+  // "화면에서 고른 그 발언"을 DB 행으로 되짚을 수 있다.
+  const id = `m${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  room.messages.push({
+    id,
+    speakerId: playerId,
+    text,
+    phase: room.phase,
+    at: Date.now(),
+  });
+  room.currentTurnIndex += 1;
+  if (player) void logMessage(room, id, player.label, player.isBot ? 'bot' : 'human', player.role, text);
+}
 
 function describePlayer(room: RoomInternalState, id: string): string {
   if (id === 'system') return '[시스템]';
   const p = room.players.find((pl) => pl.id === id);
   if (!p) return id;
   return `${p.name}(${p.label}${p.isBot ? ' · 봇' : ''}${p.role === 'liar' ? ' · 라이어' : ''})`;
+}
+
+function isDescribeComplete(room: RoomInternalState): boolean {
+  return room.currentTurnIndex >= room.turnOrder.length;
+}
+
+// 생사투표 도중, 아직 투표 안 한 사람이 남아있어도 결과가 이미 확정된 경우를 판정.
+// (kill이 남은 인원 전부 spare로 던져도 못 뒤집을 만큼 앞섰거나, 반대로 spare가
+// 남은 인원 전부 kill로 던져도 방어되는 경우) 이럴 땐 전원 투표를 기다리지 않는다.
+function isLifeVoteDecided(room: RoomInternalState): boolean {
+  const alive = room.players.filter((p) => p.isAlive && p.id !== room.accusedId);  let kill = 0;
+  let spare = 0;
+  for (const p of alive) {
+    const v = room.lifeVotes[p.id];
+    if (v === undefined) continue;
+    if (v) kill++;
+    else spare++;
+  }
+  const remaining = alive.length - (kill + spare);
+  return kill > spare + remaining || spare >= kill + remaining;
+}
+
+// debate/lifeVote/botVote에서 전원 투표했는지 판정 (사람 케이스 + 봇 케이스 공용)
+function isVotingComplete(room: RoomInternalState): boolean {
+  const alive = room.players.filter((p) => p.isAlive);
+  if (room.phase === 'debate') return alive.every((p) => room.votes[p.id] !== undefined);
+  if (room.phase === 'lifeVote') {
+    const eligible = alive.filter((p) => p.id !== room.accusedId);
+    return eligible.every((p) => room.lifeVotes[p.id] !== undefined);
+  }
+  if (room.phase === 'botVote') {
+    const humans = room.players.filter((p) => !p.isBot); // 봇 제외, 죽은 사람도 포함
+    return humans.every((p) => room.botVotes[p.id] !== undefined);
+  }
+  return false;
+}
+
+// 응답을 기다리는 사이에 phase나(describe라면) turn이 이미 넘어갔는지 확인.
+// 턴제 타이머로 바뀌면서 phase만 검사하는 걸로는 "타임아웃으로 다음 턴 넘어간 뒤
+// 늦게 도착한 봇 응답이 남의 턴에 끼어드는" 케이스를 못 걸러서 turn까지 같이 본다.
+function isStaleBotAction(
+  room: RoomInternalState,
+  phaseWhenAsked: Phase,
+  turnWhenAsked: number,
+): boolean {
+  if (room.phase !== phaseWhenAsked) return true;
+  if (room.phase === 'describe' && room.currentTurnIndex !== turnWhenAsked) return true;
+  return false;
 }
 
 // 설문 응답(surveyRows)은 result 진입 시점엔 아직 없을 수 있어서 매개변수로 받는다.
@@ -161,6 +224,13 @@ function buildTranscriptMarkdown(room: RoomInternalState, surveyRows: SurveyResp
   return [...summaryLines, ...botVoteLines, ...surveyLines, ...chatLines].join('\n');
 }
 
+// 팀 피드백: 게임이 끝난 시점(result 진입)에 전체 대화 로그를 터미널에 띄워달라는 요청.
+// 친구들과 테스트할 때나 나중에 대화 흐름을 복기할 때 유용하도록,
+// (1) 서버 콘솔에 한 번에(증분 아님) 출력하고 (2) apps/backend/logs/ 에 md 형식으로도 남긴다.
+// isBot/role은 클라이언트로는 절대 안 나가지만, 이건 서버 터미널/로컬 파일 전용이라
+// 팀이 직접 복기할 때 누가 봇이었는지 바로 보이도록 표시해준다.
+const LOG_DIR = path.join(__dirname, '../logs');
+
 // result 진입 즉시 남기는 로컬 백업/콘솔용. 이 시점엔 설문이 아직 없으니 빈 배열로 만든다.
 function logTranscript(room: RoomInternalState) {
   const plainLines = room.messages.map((m) => {
@@ -209,6 +279,41 @@ async function finalizeSurveyIfDone(room: RoomInternalState) {
   // room.players 명단이 아직 온전할 때(먼저 낸 사람도 안 지워진 상태) 리포트부터 만든다.
   await sendFinalReportToDiscord(room);
   deleteRoom(room.roomId);
+}
+
+// ── 3. 페이즈가 넘어간다 (enterPhase · advancePhase 는 서로를 부른다) ──
+
+// enterPhase 는 advancePhase 를 부르고(타이머 만료 시) advancePhase 는 항상
+// enterPhase 로 끝난다 — 페이즈 전이 자체가 두 함수가 번갈아 도는 루프라서,
+// 어느 쪽을 먼저 둬도 한쪽은 상대를 앞서 참조하게 된다. 아래에서 enterPhase 를
+// 먼저 두고 advancePhase 가 그걸 참조하는 방향으로 고정했다.
+// 현재 phase에 맞는 타이머를 건다 + 봇 차례인지 체크
+function enterPhase(room: RoomInternalState) {
+  if (room.phase === 'describe') {
+    if (isDescribeComplete(room)) {
+      // 정상 흐름에서는 발생하지 않지만(턴 0명 등) 방어적으로 처리
+      advancePhase(room);
+      return;
+    }
+    startDescribeTurnTimer(room);
+    return;
+  }
+
+  const duration = PHASE_DURATIONS[room.phase];
+  if (duration) {
+    setPhaseTimer(room, duration, () => {
+      if (room.phase === 'guessWord' && room.pendingLiarGameResult === null) {
+        room.pendingLiarGameResult = 'citizenWin'; // 시간 초과 = 추측 실패
+        room.liarGameResult = room.pendingLiarGameResult;
+      }
+      advancePhase(room);
+    });
+  } else {
+    // 타이머 없는 phase(lobby, result 등) 진입 시, clearPhaseTimer는 deadlineAt을
+    // 안 지워주므로 직전 phase/턴의 deadline이 잔상으로 남는 걸 막아준다.
+    room.deadlineAt = null;
+  }
+  void maybeTriggerBot(room);
 }
 
 // stateMachine으로 다음 phase 계산 → 필요한 부수효과 처리 → 다음 타이머 설정 → 브로드캐스트
@@ -301,69 +406,7 @@ function skipDescribeTurn(room: RoomInternalState) {
   advanceDescribeTurn(room);
 }
 
-// 생사투표 도중, 아직 투표 안 한 사람이 남아있어도 결과가 이미 확정된 경우를 판정.
-// (kill이 남은 인원 전부 spare로 던져도 못 뒤집을 만큼 앞섰거나, 반대로 spare가
-// 남은 인원 전부 kill로 던져도 방어되는 경우) 이럴 땐 전원 투표를 기다리지 않는다.
-function isLifeVoteDecided(room: RoomInternalState): boolean {
-  const alive = room.players.filter((p) => p.isAlive && p.id !== room.accusedId);  let kill = 0;
-  let spare = 0;
-  for (const p of alive) {
-    const v = room.lifeVotes[p.id];
-    if (v === undefined) continue;
-    if (v) kill++;
-    else spare++;
-  }
-  const remaining = alive.length - (kill + spare);
-  return kill > spare + remaining || spare >= kill + remaining;
-}
-
-// debate/lifeVote/botVote에서 전원 투표했는지 판정 (사람 케이스 + 봇 케이스 공용)
-function isVotingComplete(room: RoomInternalState): boolean {
-  const alive = room.players.filter((p) => p.isAlive);
-  if (room.phase === 'debate') return alive.every((p) => room.votes[p.id] !== undefined);
-  if (room.phase === 'lifeVote') {
-    const eligible = alive.filter((p) => p.id !== room.accusedId);
-    return eligible.every((p) => room.lifeVotes[p.id] !== undefined);
-  }
-  if (room.phase === 'botVote') {
-    const humans = room.players.filter((p) => !p.isBot); // 봇 제외, 죽은 사람도 포함
-    return humans.every((p) => room.botVotes[p.id] !== undefined);
-  }
-  return false;
-}
-
-function recordSpeak(room: RoomInternalState, playerId: string, text: string) {
-  const player = room.players.find((p) => p.id === playerId);
-  // 같은 id 를 화면(room.messages)과 DB(logMessage) 양쪽에 넣는다 — 그래야 나중에
-  // "화면에서 고른 그 발언"을 DB 행으로 되짚을 수 있다.
-  const id = `m${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-  room.messages.push({
-    id,
-    speakerId: playerId,
-    text,
-    phase: room.phase,
-    at: Date.now(),
-  });
-  room.currentTurnIndex += 1;
-  if (player) void logMessage(room, id, player.label, player.isBot ? 'bot' : 'human', player.role, text);
-}
-
-function isDescribeComplete(room: RoomInternalState): boolean {
-  return room.currentTurnIndex >= room.turnOrder.length;
-}
-
-// 응답을 기다리는 사이에 phase나(describe라면) turn이 이미 넘어갔는지 확인.
-// 턴제 타이머로 바뀌면서 phase만 검사하는 걸로는 "타임아웃으로 다음 턴 넘어간 뒤
-// 늦게 도착한 봇 응답이 남의 턴에 끼어드는" 케이스를 못 걸러서 turn까지 같이 본다.
-function isStaleBotAction(
-  room: RoomInternalState,
-  phaseWhenAsked: Phase,
-  turnWhenAsked: number,
-): boolean {
-  if (room.phase !== phaseWhenAsked) return true;
-  if (room.phase === 'describe' && room.currentTurnIndex !== turnWhenAsked) return true;
-  return false;
-}
+// ── 4. 봇이 움직인다 ─────────────────────────────────────────────────
 
 // 봇 차례 처리 (테스트용 decideBotAction 호출)
 async function maybeTriggerBot(room: RoomInternalState) {
@@ -490,23 +533,7 @@ async function maybeTriggerBot(room: RoomInternalState) {
   void maybeTriggerBot(room);
 }
 
-// 이름은 broadcast지만 방 전체에 같은 값 하나를 뿌리지 않는다 — buildGameStateFor가
-// playerId별로 다른 GameState를 만든다(라이어에겐 word를 숨기고, myVote/myId도
-// 사람마다 다르다). 그래서 소켓 하나하나를 돌며 각자에게 맞는 state를 따로 계산해 보낸다.
-async function broadcastRoom(roomId: string) {
-  const room = getRoom(roomId);
-  if (!room) return;
-
-  const socketsInRoom = io.sockets.adapter.rooms.get(roomId);
-  if (!socketsInRoom) return;
-
-  for (const socketId of socketsInRoom) {
-    const meta = socketMeta.get(socketId);
-    if (!meta) continue;
-    const event: ServerEvent = { t: 'state', state: await buildGameStateFor(room, meta.playerId) };
-    io.to(socketId).emit('event', event);
-  }
-}
+// ── 5. 사람이 보내는 이벤트 ──────────────────────────────────────────
 
 io.on('connection', (socket) => {
   console.log('connected:', socket.id);
