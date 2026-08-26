@@ -19,6 +19,10 @@ interface RoomListScreenProps {
   // ★ 추가 (방 목록 서버 연결) — 목록의 출처는 서버다. 이 화면은 받아서 그리기만 한다.
   rooms: RoomSummary[];
   onRefresh: () => void;
+  // ★ 추가 (없는 방 안내) — 서버가 join 을 거절한 사유. 방번호 직접입력에 없는 번호를
+  // 넣으면 서버가 '없는 방입니다'를 보내는데, App.tsx 상단 빨간 배너는 입력칸에서
+  // 화면 높이만큼 떨어져 있어 눈에 안 들어왔다. 그래서 이 화면이 팝업으로 받는다.
+  error: string | null;
 }
 
 const TITLE_MAX_LENGTH = 20;
@@ -40,13 +44,23 @@ const STATUS_TAG: Record<RoomStatus, { label: string; className: string }> = {
  *
  *  ⚠️ 다만 목록은 자동으로 갱신되지 않는다 — 서버가 방 변화를 밀어주는(push) 구조가
  *  아니라 요청할 때만 오므로, 진입 시 한 번과 새로고침 버튼을 누를 때만 최신이다. */
-export default function RoomListScreen({ onBack, onJoinRoom, rooms, onRefresh }: RoomListScreenProps) {
+export default function RoomListScreen({ onBack, onJoinRoom, rooms, onRefresh, error }: RoomListScreenProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [title, setTitle] = useState("");
   const [filter, setFilter] = useState<"all" | "joinable">("all");
   const [sortKey, setSortKey] = useState<"countAsc" | "countDesc" | "roomIdDesc" | "roomIdAsc">("countAsc");
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualRoomId, setManualRoomId] = useState("");
+  // ★ 추가 (없는 방 안내) — error 자체는 App 이 쥐고 있어 이 화면이 지울 수 없다.
+  // 그래서 "이 사유를 닫았다"는 것만 여기서 따로 기억하고, 새 사유가 오면 다시 연다.
+  // 렌더 중 이전 값과 비교하는 패턴은 components/Modal.tsx 와 같다(useEffect 로 하면
+  // 리렌더가 한 번 더 끼어든다).
+  const [prevError, setPrevError] = useState(error);
+  const [errorOpen, setErrorOpen] = useState(error !== null);
+  if (error !== prevError) {
+    setPrevError(error);
+    setErrorOpen(error !== null);
+  }
 
   // ★ 화면에 들어오면 한 번 목록을 받아온다 (방 목록 서버 연결).
   // onRefresh 는 App.tsx 가 매 렌더 새로 만드는 함수라 의존성에 넣으면 매번 다시 도므로
@@ -194,11 +208,16 @@ export default function RoomListScreen({ onBack, onJoinRoom, rooms, onRefresh }:
           </button>
         ) : (
           <div style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-4)" }}>
+            {/* 방번호는 항상 숫자다(위 createRoom 이 1000~9999 에서 뽑는다). 글자가 섞이면
+                맞는 방이 있을 수 없어 서버까지 갔다가 "없는 방입니다" 로만 돌아오므로
+                입력 단계에서 떨군다. onChange 에서 거르면 붙여넣기도 같이 걸린다.
+                inputMode 는 폰에서 숫자 키패드가 바로 뜨게 하는 힌트다. */}
             <input
               className="input"
               style={{ flex: 1 }}
               value={manualRoomId}
-              onChange={(e) => setManualRoomId(e.target.value)}
+              inputMode="numeric"
+              onChange={(e) => setManualRoomId(e.target.value.replace(/\D/g, ""))}
               placeholder="방번호 입력"
             />
             <Button disabled={!manualRoomId.trim()} onClick={() => onJoinRoom(manualRoomId.trim())}>
@@ -249,6 +268,39 @@ export default function RoomListScreen({ onBack, onJoinRoom, rooms, onRefresh }:
                 만들기
               </Button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {errorOpen && error && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 20,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0,0,0,0.5)"
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            style={{
+              width: "100%",
+              maxWidth: 320,
+              border: "1px solid var(--color-line)",
+              borderRadius: "var(--radius)",
+              background: "var(--color-surface)",
+              padding: "var(--space-4)",
+              textAlign: "center"
+            }}
+          >
+            <p style={{ fontSize: "var(--text-body)", marginBottom: "var(--space-4)" }}>{error}</p>
+            <Button block onClick={() => setErrorOpen(false)}>
+              확인
+            </Button>
           </div>
         </div>
       )}

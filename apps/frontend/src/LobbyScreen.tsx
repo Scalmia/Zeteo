@@ -2,18 +2,13 @@ import type { LobbyPlayer, LobbyScreenState } from "./types";
 import Avatar from "./components/Avatar";
 import Button from "./components/Button";
 import FullscreenButton from "./components/FullscreenButton";
-import { MAX_PLAYERS, MIN_PLAYERS } from "./roomConfig";
+import { MAX_PLAYERS } from "./roomConfig";
 import "./styles/tokens.css";
 
 interface LobbyScreenProps extends LobbyScreenState {
   myReady: boolean;
   onToggleReady: () => void;
   onBack: () => void;
-  /** 이 방을 만든 사람인지 — 방장만 게임시작 버튼을 본다. */
-  isHost: boolean;
-  readyCount: number;
-  /** TODO(backend): 방장 전용 게임시작 이벤트가 서버에 생기면 연결한다. */
-  onStartGame: () => void;
 }
 
 export default function LobbyScreen({
@@ -22,10 +17,7 @@ export default function LobbyScreen({
   myId,
   myReady,
   onToggleReady,
-  onBack,
-  isHost,
-  readyCount,
-  onStartGame
+  onBack
 }: LobbyScreenProps) {
   const slots: (LobbyPlayer | null)[] = Array.from({ length: MAX_PLAYERS }, (_, i) => players[i] ?? null);
 
@@ -102,17 +94,6 @@ export default function LobbyScreen({
         <Button block style={{ fontSize: "var(--text-button)" }} onClick={onToggleReady}>
           {myReady ? "준비 취소" : "준비완료"}
         </Button>
-
-        {isHost && (
-          <Button
-            block
-            disabled={readyCount < MIN_PLAYERS}
-            style={{ fontSize: "var(--text-button)", marginTop: "var(--space-2)" }}
-            onClick={onStartGame}
-          >
-            게임시작
-          </Button>
-        )}
       </div>
     </div>
   );

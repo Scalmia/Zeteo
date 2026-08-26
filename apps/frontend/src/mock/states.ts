@@ -1,4 +1,4 @@
-import type { GameState, Message, PublicPlayer } from '@zeteo/shared-types';
+import type { GameState, Message, PublicPlayer, RoomSummary } from '@zeteo/shared-types';
 
 // ⚠️ 이 파일은 파트 C·D 공동 소유. 변경 시 상대에게 알린다.
 //    키 네이밍 규칙: <phase>-<변형>
@@ -115,8 +115,9 @@ const base: GameState = {
   botVoteResults: null,
   reasons: [],
 
-  // ★ 추가 (방 목록 기능) — 대기실 게임시작 버튼 노출 기준. mock 은 true 로 둬서
-  // 그 버튼까지 눈으로 볼 수 있게 한다 (MockHarness 도 isHost 를 true 로 넘긴다).
+  // ★ 추가 (방 목록 기능) — 서버가 내려주는 방장 여부. 화면은 더 이상 쓰지 않는다
+  // (게임시작 버튼을 없애고 전원 준비완료로 시작하도록 바꿈) — GameState 필수 필드라
+  // 남겨두고, mock 은 실제 방장 시점을 재현하려고 true 로 둔다.
   isHost: true,
 };
 
@@ -324,9 +325,23 @@ export const MOCK_STATES: Record<string, GameState> = {
  *  띄우기 때문이다. MockHarness 가 이 키만 따로 처리한다. */
 export const LANDING_KEY = 'landing';
 
+/** 방목록도 랜딩과 같은 사정 — App.tsx 는 state === null && nickname !== null 일 때
+ *  RoomListScreen 을 띄우고, 방 목록 자체는 GameState 밖에서 별도로 온다(rooms prop).
+ *  실제 흐름(랜딩→방목록→대기실)과 같은 자리에 두려고 LANDING_KEY 바로 뒤, lobby보다
+ *  앞에 놓는다(아래 MOCK_KEYS). */
+export const ROOM_LIST_KEY = 'room-list';
+
+/** RoomListScreen 목업 데이터 — 필터·정렬·정원 진행바가 다 보이도록 상태를 섞는다. */
+export const MOCK_ROOMS: RoomSummary[] = [
+  { roomId: '1041', title: '초심자 환영', hostName: '참가자 A', count: 2, status: 'open' },
+  { roomId: '2288', title: '빡겜방', hostName: '참가자 C', count: 7, status: 'open' },
+  { roomId: '3005', title: '가득 찬 방', hostName: '참가자 D', count: 8, status: 'full' },
+  { roomId: '4419', title: '진행중인 방', hostName: '참가자 B', count: 5, status: 'playing' },
+];
+
 /** 실제 GameScreen(채팅+투표+팝업)을 mock 칩으로 훑어보는 테스트 화면 — 정적 상태
  *  하나가 아니라 자체 상호작용을 갖고 있어 다른 키들처럼 MOCK_STATES에 못 넣는다.
  *  MockHarness가 LANDING_KEY와 같은 방식으로 따로 처리한다. */
 export const GAME_TEST_KEY = 'game-test';
 
-export const MOCK_KEYS = [GAME_TEST_KEY, LANDING_KEY, ...Object.keys(MOCK_STATES)];
+export const MOCK_KEYS = [GAME_TEST_KEY, LANDING_KEY, ROOM_LIST_KEY, ...Object.keys(MOCK_STATES)];

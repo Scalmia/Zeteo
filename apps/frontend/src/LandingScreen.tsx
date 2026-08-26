@@ -1,6 +1,8 @@
 import { useState } from "react";
 import Button from "./components/Button";
 import FullscreenButton from "./components/FullscreenButton";
+// 서버 room.ts 의 NAME_MAX_LENGTH 와 짝인 값 — 그 파일 주석 참고.
+import { NAME_MAX_LENGTH } from "./roomConfig";
 import "./styles/tokens.css";
 
 interface LandingScreenProps {
@@ -49,8 +51,9 @@ export default function LandingScreen({ onNext }: LandingScreenProps) {
             className="input"
             style={{ fontSize: 21 }}
             value={name}
+            maxLength={NAME_MAX_LENGTH}
             onChange={(e) => setName(e.target.value)}
-            placeholder="닉네임을 입력해주세요"
+            placeholder={`닉네임 (최대 ${NAME_MAX_LENGTH}글자)`}
           />
         </div>
 
