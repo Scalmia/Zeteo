@@ -1,3 +1,14 @@
+/**
+ * 서버 진입점. 소켓 이벤트를 받아 방 상태(room.ts)를 바꾸고, 바뀐 상태를
+ * 참가자 각자에게 다시 보낸다 — 클라이언트는 상태를 소유하지 않는다(README 설계 원칙 1).
+ *
+ * 구역
+ *   1. 서버가 켜진다        Express · Socket.IO · 상수
+ *   2. 판정과 기록          누가 이겼나 · 다 됐나 판정 + 로그/리포트
+ *   3. 페이즈가 넘어간다     enterPhase · advancePhase (서로를 부른다 — 아래 참고)
+ *   4. 봇이 움직인다        maybeTriggerBot
+ *   5. 사람이 보내는 이벤트  io.on('connection') — 실제 소켓 핸들러
+ */
 import { supabase } from './db/supabase';
 import express from 'express';
 import { createServer } from 'http';
@@ -272,6 +283,10 @@ async function finalizeSurveyIfDone(room: RoomInternalState) {
 
 // ── 3. 페이즈가 넘어간다 (enterPhase · advancePhase 는 서로를 부른다) ──
 
+// enterPhase 는 advancePhase 를 부르고(타이머 만료 시) advancePhase 는 항상
+// enterPhase 로 끝난다 — 페이즈 전이 자체가 두 함수가 번갈아 도는 루프라서,
+// 어느 쪽을 먼저 둬도 한쪽은 상대를 앞서 참조하게 된다. 아래에서 enterPhase 를
+// 먼저 두고 advancePhase 가 그걸 참조하는 방향으로 고정했다.
 // 현재 phase에 맞는 타이머를 건다 + 봇 차례인지 체크
 function enterPhase(room: RoomInternalState) {
   if (room.phase === 'describe') {
