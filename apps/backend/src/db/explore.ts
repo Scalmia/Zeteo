@@ -325,19 +325,39 @@ async function gen(): Promise<void> {
 interface RefineCycle {
   ranAt: string;
   bot: { sha: string; provider: string; model: string };
-  gameIds: string[];
+  gameIds: (string | number)[];
   cases?: string[];
   pr?: number;
 }
 
-async function readRefineLog(): Promise<RefineCycle[]> {
+/**
+ * 집계에서 뺄 판. 데모·시연·중간에 깨진 판 같은 것들이다.
+ *
+ * DB 만 봐서는 이걸 가릴 수 없다. 73판은 회의실에서 심사관에게 디자인을 보여준 것인데,
+ * 기록상으로는 여느 판과 똑같이 4명이 5분 동안 35마디를 주고받은 판으로 남는다.
+ * 그걸 모르고 사례로 만들어 봇을 고칠 뻔했다.
+ *
+ * "실제로 논 판인가" 는 그 자리에 있던 사람만 아는 것이라 여기 손으로 적는다.
+ * 봇이 할 수 있는 판단을 사람이 대신하는 게 아니라, 봇이 알 수 없는 사실을 알려주는 것이다.
+ */
+interface RefineExclusion {
+  gameId: string | number;
+  why: string;
+}
+
+interface RefineLog {
+  cycles?: RefineCycle[];
+  excluded?: RefineExclusion[];
+}
+
+async function readRefineLog(): Promise<RefineLog> {
   const fs = await import('fs');
   const path = await import('path');
   try {
     const raw = fs.readFileSync(path.join(__dirname, '../bot/refine-log.json'), 'utf8');
-    return (JSON.parse(raw).cycles ?? []) as RefineCycle[];
+    return JSON.parse(raw) as RefineLog;
   } catch {
-    return []; // 아직 한 번도 안 돌았으면 없다. 정상이다.
+    return {}; // 아직 한 번도 안 돌았으면 없다. 정상이다.
   }
 }
 
@@ -349,7 +369,9 @@ async function refineCheck(arg: string | undefined): Promise<void> {
   const asJson = process.argv.includes('--json');
   const threshold = Number(arg) > 0 ? Number(arg) : 5;
 
-  const used = new Set((await readRefineLog()).flatMap((c) => c.gameIds));
+  const log = await readRefineLog();
+  const used = new Set((log.cycles ?? []).flatMap((c) => c.gameIds).map(String));
+  const skipped = new Map((log.excluded ?? []).map((e) => [String(e.gameId), e.why]));
 
   // sha 가 없는 판은 로컬 실행이라 어떤 봇이었는지 특정할 수 없다. 세지 않는다.
   const { data, error } = await supabase
@@ -367,7 +389,9 @@ async function refineCheck(arg: string | undefined): Promise<void> {
     return;
   }
 
-  const fresh = (data ?? []).filter((g) => !used.has(g.id as string));
+  const fresh = (data ?? []).filter(
+    (g) => !used.has(String(g.id)) && !skipped.has(String(g.id)),
+  );
 
   const groups = new Map<string, typeof fresh>();
   for (const g of fresh) {
@@ -400,6 +424,10 @@ async function refineCheck(arg: string | undefined): Promise<void> {
   console.log(`\n${line()}\n안 쓴 판 세기 (문턱 ${threshold})\n${line()}`);
   console.log(`  종료·sha 있는 판   ${data?.length ?? 0}개`);
   console.log(`  이미 써먹은 판      ${used.size}개`);
+  if (skipped.size > 0) {
+    console.log(`  제외한 판           ${skipped.size}개`);
+    for (const [id, why] of skipped) console.log(`      ${id}  ${why}`);
+  }
   console.log(`  안 쓴 판            ${fresh.length}개\n`);
 
   if (groups.size === 0) {
