@@ -91,13 +91,14 @@ async function games(): Promise<void> {
   if (error) return void console.error('  오류:', error.message);
   if (!data?.length) return void console.log('  (없음)');
 
-  console.log(`  ${'주제/제시어'.padEnd(20)} ${'sha'.padEnd(8)} ${'provider'.padEnd(11)} ${'적발'.padEnd(6)} 종료`);
+  console.log(`  ${'id'.padEnd(5)} ${'주제/제시어'.padEnd(20)} ${'sha'.padEnd(8)} ${'provider'.padEnd(11)} ${'적발'.padEnd(6)} 종료`);
   for (const g of data) {
     const w = `${g.category ?? '?'}/${g.word ?? '?'}`.slice(0, 19);
     const detect =
       g.bot_voter_total ? `${g.bot_detected_count ?? 0}/${g.bot_voter_total}` : '-';
+    // id 를 찍어야 `-- game <id>` 를 쓸 수 있다. 안 찍으면 id 를 알아낼 경로가 없다.
     console.log(
-      `  ${w.padEnd(20)} ${short(g.bot_commit_sha).padEnd(8)} ${String(g.bot_provider ?? '-').padEnd(11)} ${detect.padEnd(6)} ${g.ended_at ? 'O' : 'X'}`,
+      `  ${String(g.id).padEnd(5)} ${w.padEnd(20)} ${short(g.bot_commit_sha).padEnd(8)} ${String(g.bot_provider ?? '-').padEnd(11)} ${detect.padEnd(6)} ${g.ended_at ? 'O' : 'X'}`,
     );
   }
 }
@@ -154,15 +155,15 @@ async function game(id: string | undefined): Promise<void> {
 
   console.log(`\n${line()}\n판 ${id} 의 발언\n${line()}`);
   sqlNote(
-    "SELECT runtime_id, speaker_label, speaker_type, role, phase, text\nFROM game_messages WHERE game_id = '<id>' ORDER BY created_at;",
-    "supabase.from('game_messages').select('...').eq('game_id', id).order('created_at')",
+    "SELECT runtime_id, speaker_label, speaker_type, role, phase, text\nFROM game_messages WHERE game_id = '<id>' ORDER BY at;",
+    "supabase.from('game_messages').select('...').eq('game_id', id).order('at')\n  ※ 이 표의 시각 칼럼은 created_at 이 아니라 at 이다",
   );
 
   const { data, error } = await supabase
     .from('game_messages')
     .select('runtime_id, speaker_label, speaker_type, role, phase, text')
     .eq('game_id', id)
-    .order('created_at');
+    .order('at');
 
   if (error) return void console.error('  오류:', error.message);
   if (!data?.length) return void console.log('  (발언 없음 — id 가 맞는지 확인)');
