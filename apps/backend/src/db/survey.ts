@@ -17,7 +17,7 @@ export async function fetchSurveyReasons(): Promise<SurveyReason[]> {
   // 문항을 code 상수로 고르지 않고 is_active 로 고른다 — 5판마다 문항을 갈아끼우는데
   // 상수면 그때마다 코드 수정·배포가 필요해서, 새 세대를 INSERT 만으로 올린다는 목적이
   // 무너진다. 활성 행이 항상 최대 1개인 건 DB 쪽 부분 유니크 인덱스가 보장한다
-  // (uniq_survey_questions_active) — 둘이 켜지면 single() 이 에러로 떨어진다.
+  // (uniq_survey_questions_active) — 둘이 켜지면 여기 single() 이 에러로 떨어진다.
   // 문항 세대를 올리는 절차는 루트 README 의 "DB (Supabase)" 절 참고.
   const { data: question, error: questionErr } = await supabase
     .from('survey_questions')
