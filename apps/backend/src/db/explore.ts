@@ -11,6 +11,7 @@ import { supabase } from './supabase';
  *   npm run db -w backend -- picks         지목된 발언 전문   ← ② 가 사례로 만들 후보
  *   npm run db -w backend -- questions     설문 문항 세대 (is_active)
  *   npm run db -w backend -- gen           다음 세대 문항 INSERT 미리보기 (실행 안 함)
+ *   npm run db -w backend -- refine-check  안 쓴 판이 문턱을 넘었나  ← 트리거가 부르는 것
  *
  * 명령마다 "SQL 로 쓰면 이렇다"를 같이 찍는다. supabase-js 는 SQL 을 직접 쓰는 게 아니라
  * 메서드를 이어 붙이면 라이브러리가 SQL 로 번역해 보내는 방식이라, 둘을 나란히 보면
@@ -308,7 +309,124 @@ async function gen(): Promise<void> {
   console.log('  이 명령은 여기까지만 한다. 실제 쓰기는 /selfrefine 이 맡는다.');
 }
 
-// ── 실행 ─────────────────────────────────────────────────────────────
+// ── 트리거 판정 — 안 쓴 판이 몇 개인가 ────────────────────────────────
+
+/**
+ * 자가개선 루프가 이미 써먹은 판의 기록.
+ *
+ * 이 기록이 없으면 개수를 세는 조건은 물어볼 때마다 같은 답을 준다. Stop 훅은 사용자가
+ * 한 마디 할 때마다 돌아서 하루에 수십 번 묻는데, 같은 5판으로 PR 이 계속 열린다.
+ * 판을 쓰고 나면 여기 적고, 다음부터는 "전체 − 여기 적힌 것" 만 센다.
+ *
+ * DB 칼럼이 아니라 저장소 파일인 이유는 PR 에 같이 실리기 때문이다. 머지되는 순간이 곧
+ * 소진 처리라 사람이 따로 켜거나 지울 것이 없다. PR 이 기각돼도 이 브랜치에는 남으므로
+ * 같은 판으로 같은 결론을 다시 만들어 올리지 않는다 — 되살리려면 그 커밋만 revert 한다.
+ */
+interface RefineCycle {
+  ranAt: string;
+  bot: { sha: string; provider: string; model: string };
+  gameIds: string[];
+  cases?: string[];
+  pr?: number;
+}
+
+async function readRefineLog(): Promise<RefineCycle[]> {
+  const fs = await import('fs');
+  const path = await import('path');
+  try {
+    const raw = fs.readFileSync(path.join(__dirname, '../bot/refine-log.json'), 'utf8');
+    return (JSON.parse(raw).cycles ?? []) as RefineCycle[];
+  } catch {
+    return []; // 아직 한 번도 안 돌았으면 없다. 정상이다.
+  }
+}
+
+/** 같은 봇인지 가르는 열쇠. 셋 중 하나만 달라도 다른 봇이다. */
+const botKey = (sha: string | null, provider: string | null, model: string | null): string =>
+  `${sha ?? 'null'}|${provider ?? 'null'}|${model ?? 'null'}`;
+
+async function refineCheck(arg: string | undefined): Promise<void> {
+  const asJson = process.argv.includes('--json');
+  const threshold = Number(arg) > 0 ? Number(arg) : 5;
+
+  const used = new Set((await readRefineLog()).flatMap((c) => c.gameIds));
+
+  // sha 가 없는 판은 로컬 실행이라 어떤 봇이었는지 특정할 수 없다. 세지 않는다.
+  const { data, error } = await supabase
+    .from('games')
+    .select(
+      'id, category, word, bot_commit_sha, bot_provider, bot_model, bot_detected_count, bot_voter_total',
+    )
+    .not('ended_at', 'is', null)
+    .not('bot_commit_sha', 'is', null)
+    .order('ended_at');
+
+  if (error) {
+    if (asJson) console.log(JSON.stringify({ ready: false, error: error.message }));
+    else console.error('  오류:', error.message);
+    return;
+  }
+
+  const fresh = (data ?? []).filter((g) => !used.has(g.id as string));
+
+  const groups = new Map<string, typeof fresh>();
+  for (const g of fresh) {
+    const k = botKey(g.bot_commit_sha, g.bot_provider, g.bot_model);
+    groups.set(k, [...(groups.get(k) ?? []), g]);
+  }
+
+  let best: { key: string; games: typeof fresh } | null = null;
+  for (const [key, games] of groups) {
+    if (best === null || games.length > best.games.length) best = { key, games };
+  }
+
+  const count = best?.games.length ?? 0;
+  const ready = count >= threshold;
+
+  if (asJson) {
+    const [sha, provider, model] = (best?.key ?? '||').split('|');
+    console.log(
+      JSON.stringify({
+        ready,
+        threshold,
+        count,
+        bot: best ? { sha, provider, model } : null,
+        gameIds: best?.games.map((g) => g.id) ?? [],
+      }),
+    );
+    return;
+  }
+
+  console.log(`\n${line()}\n안 쓴 판 세기 (문턱 ${threshold})\n${line()}`);
+  console.log(`  종료·sha 있는 판   ${data?.length ?? 0}개`);
+  console.log(`  이미 써먹은 판      ${used.size}개`);
+  console.log(`  안 쓴 판            ${fresh.length}개\n`);
+
+  if (groups.size === 0) {
+    console.log('  (배포 서버에서 난 판이 아직 없다)\n');
+    return;
+  }
+
+  console.log('  같은 봇끼리 묶으면');
+  for (const [key, games] of [...groups].sort((a, b) => b[1].length - a[1].length)) {
+    const [sha, provider, model] = key.split('|');
+    console.log(
+      `    ${short(sha!).padEnd(9)} ${provider!.padEnd(11)} ${model!.slice(0, 15).padEnd(16)} ${String(games.length).padStart(3)}판`,
+    );
+  }
+
+  console.log(`\n  → ${ready ? '조건 충족. 돌릴 때가 됐다.' : `아직 ${threshold - count}판 부족`}`);
+
+  if (ready && best) {
+    console.log('\n  대상 판');
+    for (const g of best.games) {
+      const detect = g.bot_voter_total ? `${g.bot_detected_count ?? 0}/${g.bot_voter_total}` : '-';
+      console.log(`    ${g.id}  ${String(g.category)}/${String(g.word)}  적발 ${detect}`);
+    }
+  }
+}
+
+// ── 실행 ──────────────────────────────────────────────────────────────────────────
 
 const HELP: Record<string, string> = {
   overview: '테이블별 행 수',
@@ -319,6 +437,7 @@ const HELP: Record<string, string> = {
   picks: '"이게 봇 같았다" 고 고른 발언 전문',
   questions: '설문 문항 세대 (is_active)',
   gen: '다음 세대 문항 INSERT 미리보기 — 실행하지 않는다',
+  'refine-check [n]': '안 쓴 판이 문턱(기본 5)을 넘었나. --json 을 붙이면 기계용 출력',
 };
 
 async function main(): Promise<void> {
@@ -333,6 +452,7 @@ async function main(): Promise<void> {
     picks,
     questions,
     gen,
+    'refine-check': () => refineCheck(arg),
   };
 
   if (cmd === 'help' || cmd === '--help' || cmd === '-h') {
