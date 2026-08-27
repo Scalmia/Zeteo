@@ -535,6 +535,21 @@ function looksInvalid(text: string): boolean {
   return (text.match(/[A-Za-z]/g) ?? []).length > 8;
 }
 
+/**
+ * 생성이 몇 번이나 예외로 죽었는지. 재는 쪽에서 읽는다.
+ *
+ * 키가 만료되면 generate 가 매번 던지고 speak 는 null 을 돌려주는데, 침묵이 정답인 사례에서는
+ * 그게 "문제 0/10" 으로 찍힌다. 한 번도 안 돌았는데 통과로 보이는 것이다.
+ * 실제로 Alibaba 키가 죽었을 때 그렇게 나왔고, 로그를 안 읽었으면 못 봤다.
+ */
+let generateFailures = 0;
+
+export function takeGenerateFailures(): number {
+  const n = generateFailures;
+  generateFailures = 0;
+  return n;
+}
+
 async function generateOrEmpty(
   ctx: BotContext,
   prompt: string,
@@ -543,6 +558,7 @@ async function generateOrEmpty(
   try {
     return await generate(systemPrompt(ctx), prompt, opts);
   } catch (err) {
+    generateFailures++;
     console.error('[bot] 발화 생성 실패:', err instanceof Error ? err.message : err);
     return '';
   }
