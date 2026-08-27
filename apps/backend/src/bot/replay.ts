@@ -1,5 +1,5 @@
 import type { BotAction, BotContext, Message, PublicPlayer, Role } from '@zeteo/shared-types';
-import { decideBotAction, forgetRoom } from './index';
+import { decideBotAction, forgetRoom, takeGenerateFailures } from './index';
 
 /**
  * 실제로 있었던 순간을 얼려 두고, 같은 자리에서 봇이 몇 번이나 같은 실수를 하는지 센다.
@@ -524,6 +524,13 @@ async function runCase(c: Case, n: number): Promise<void> {
     const v = c.judge(text);
     if (v.bad) bad++;
     console.log(`  ${String(counted).padStart(2)}. ${v.bad ? '🔴' : '⬜'} ${v.note.padEnd(20)} ${text}`);
+  }
+
+  // 생성이 통째로 죽으면 봇은 늘 침묵한다. 침묵이 정답인 사례에서는 그게 만점으로 찍히므로
+  // 숫자보다 먼저 이걸 알린다. 키 만료 한 번에 "문제 0/10" 이 나온 적이 있다.
+  const failed = takeGenerateFailures();
+  if (failed > 0) {
+    console.log(`  🔴 생성 실패 ${failed}회 — 아래 숫자는 못 믿는다. 키·프로바이더를 확인할 것`);
   }
 
   const short = counted < n ? `  ⚠ ${n}개를 채우지 못함 (호출 ${drawn}회 상한)` : '';
