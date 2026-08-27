@@ -60,7 +60,6 @@ app.get('/x/status', providerStatusRoute);
 // socket.id → { roomId, playerId } 매핑
 const socketMeta = new Map<string, { roomId: string; playerId: string }>();
 
-// phase별 제한시간. TODO: Day 0에 팀이 정하기로 한 실제 값으로 교체 필요, 지금은 테스트용 임시값
 // describe는 B-7(나)로 전환하면서 턴별 타이머로 분리됨 → 아래 DESCRIBE_TURN_DURATION 참고
 const PHASE_DURATIONS: Partial<Record<Phase, number>> = {
   roleReveal: 10000,
@@ -568,11 +567,27 @@ io.on('connection', (socket) => {
             if (room.phase !== 'lobby') throw new Error('이미 시작한 방입니다');
             if (room.players.length >= MAX_PLAYERS) throw new Error('방이 가득 찼습니다');
           }
+          // 같은 방 안에서 닉네임이 겹치면 결과 화면·설문 등에서 누가 누군지 구분이
+          // 안 된다 — 방을 새로 만들 때 자동 참가하는 봇 이름('Zeteo')과 겹치는 것도 막는다.
+          if (room.players.some((p) => p.name === action.name)) {
+            throw new Error('이미 같은 닉네임을 쓰는 참가자가 있습니다');
+          }
           const player = joinRoom(action.roomId, action.name);
           // ★ 추가 (방 목록 기능) — 방을 만들면서 처음 들어온 사람이 방장이다.
           // (봇은 join 보다 먼저 들어가지만 players[0] 이 아니라 이 id 로 판정한다)
           if (isNewRoom) room.hostId = player.id;
           socketMeta.set(socket.id, { roomId: action.roomId, playerId: player.id });
+          socket.join(action.roomId);
+          break;
+        }
+        case 'rejoin': {
+          // 새로고침 복귀. disconnect 핸들러가 게임 중엔 room.players에서 안 지우므로
+          // (아래 disconnect 참고) playerId가 그대로 남아있으면 새 소켓을 그 자리에 다시 연결한다.
+          const room = getRoom(action.roomId);
+          if (!room) throw new Error('방을 찾을 수 없습니다');
+          const player = room.players.find((p) => p.id === action.playerId);
+          if (!player) throw new Error('재접속할 수 없습니다');
+          socketMeta.set(socket.id, { roomId: action.roomId, playerId: action.playerId });
           socket.join(action.roomId);
           break;
         }

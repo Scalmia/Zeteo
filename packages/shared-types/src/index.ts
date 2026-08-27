@@ -103,6 +103,9 @@ export type ClientEvent =
   // 들어갈 땐 생략하며 서버도 무시한다. 방 만들기를 별도 이벤트로 안 쪼갠 건,
   // 프론트가 "방 만들기"와 "방 클릭 입장"을 둘 다 join 하나로 보내고 있어서다.
   | { t: 'join'; roomId: string; name: string; title?: string }
+  // 새로고침 복귀 전용. join과 달리 새 플레이어를 만들지 않고, 그 playerId가 아직
+  // room.players에 남아 있으면(게임 중 disconnect는 안 지움) 소켓만 다시 연결한다.
+  | { t: 'rejoin'; roomId: string; playerId: string }
   | { t: 'ready' }
   | { t: 'listRooms' } // ★ 추가 (방 목록 기능) — 응답은 ServerEvent 'roomList'
   // ★ 추가 (방 목록 기능) — 방장이 누르는 게임시작. 방장 여부·최소 인원은 서버가

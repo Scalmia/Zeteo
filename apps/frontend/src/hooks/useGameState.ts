@@ -1,6 +1,35 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { socket, sendAction, onServerEvent } from '../net/socket';
 import type { ClientEvent, GameState, RoomSummary } from '@zeteo/shared-types';
+
+// 새로고침 복귀용 세션. sessionStorage라 탭을 닫으면 사라지고(브라우저 종료·새 탭엔
+// 안 남음), 새로고침에는 살아남는다 — "재접속"이 필요한 딱 그 상황에만 쓰려는 것.
+const SESSION_KEY = 'zeteo_session';
+
+function loadSession(): { roomId: string; playerId: string } | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSession(session: { roomId: string; playerId: string }) {
+  try {
+    sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  } catch {
+    // 프라이빗 모드 등으로 저장이 막혀도 게임 진행 자체는 지장 없어야 하므로 무시.
+  }
+}
+
+function clearSession() {
+  try {
+    sessionStorage.removeItem(SESSION_KEY);
+  } catch {
+    // 위와 동일한 이유로 무시.
+  }
+}
 
 // 화면(App.tsx)이 소켓을 직접 만지지 않아도 되게 감싸주는 훅.
 // state는 검증 없이 서버가 보낸 그대로 저장한다 — 필드 누락 방어는
@@ -12,9 +41,19 @@ export function useGameState() {
   // ★ 추가 (방 목록 기능) — 방 목록은 아직 방에 안 들어간 상태에서 받는 값이라
   // GameState 안에 못 넣는다(그건 방 참가자에게만 오는 것). 그래서 따로 들고 있는다.
   const [rooms, setRooms] = useState<RoomSummary[]>([]);
+  // rejoin 요청이 실패했을 때만 세션을 지우려고 "지금 rejoin 응답을 기다리는 중"을 표시한다.
+  const pendingRejoinRef = useRef(false);
 
   useEffect(() => {
-    const handleConnect = () => setConnected(true);
+    const handleConnect = () => {
+      setConnected(true);
+      // 새로고침으로 소켓이 새로 열린 경우, 직전에 있던 방이 있으면 그 자리로 돌아간다.
+      const saved = loadSession();
+      if (saved) {
+        pendingRejoinRef.current = true;
+        sendAction({ t: 'rejoin', roomId: saved.roomId, playerId: saved.playerId });
+      }
+    };
     const handleDisconnect = () => setConnected(false);
     socket.on('connect', handleConnect);
     socket.on('disconnect', handleDisconnect);
@@ -23,9 +62,17 @@ export function useGameState() {
     // 통째로 다시 보내온다(증분 아님) — 그래서 그냥 덮어쓰기만 하면 된다.
     const off = onServerEvent((e) => {
       if (e.t === 'state') {
+        pendingRejoinRef.current = false;
         setState(e.state);
         setError(null);
+        saveSession({ roomId: e.state.roomId, playerId: e.state.myId });
       } else if (e.t === 'error') {
+        // rejoin이 실패한 경우(방이 사라졌거나 playerId가 더 이상 없음) 같은 세션으로
+        // 계속 재시도하지 않도록 지운다 — 그 외의 실패(예: 잘못된 방번호 join)엔 손대지 않는다.
+        if (pendingRejoinRef.current) {
+          pendingRejoinRef.current = false;
+          clearSession();
+        }
         setError(e.reason);
       } else if (e.t === 'roomList') {
         setRooms(e.rooms); // ★ 추가 (방 목록 기능) — listRooms 요청에 대한 응답
@@ -57,6 +104,7 @@ export function useGameState() {
     socket.disconnect();
     setState(null);
     setError(null);
+    clearSession();
     socket.connect();
   }, []);
 
