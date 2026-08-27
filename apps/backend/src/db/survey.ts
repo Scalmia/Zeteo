@@ -17,7 +17,8 @@ export async function fetchSurveyReasons(): Promise<SurveyReason[]> {
   // 문항을 code 상수로 고르지 않고 is_active 로 고른다 — 5판마다 문항을 갈아끼우는데
   // 상수면 그때마다 코드 수정·배포가 필요해서, 새 세대를 INSERT 만으로 올린다는 목적이
   // 무너진다. 활성 행이 항상 최대 1개인 건 DB 쪽 부분 유니크 인덱스가 보장한다
-  // (sql/2026-08-25_bot-loop-schema.sql) — 둘이 켜지면 single() 이 에러로 떨어진다.
+  // (uniq_survey_questions_active) — 둘이 켜지면 single() 이 에러로 떨어진다.
+  // 문항 세대를 올리는 절차는 루트 README 의 "DB (Supabase)" 절 참고.
   const { data: question, error: questionErr } = await supabase
     .from('survey_questions')
     .select('id')
@@ -62,12 +63,10 @@ export async function submitSurveyResponse(
   // (실측 판의 44%가 설문 0건이었고 원인의 일부로 보고 있다). 이제 두 칸을 null 로 두고
   // 설문 본문은 남긴다 — "지목 안 함"과 "지목했는데 틀림"은 DB 에서 구분된다
   // (전자는 guessed_bot_label IS NULL, 후자는 guessed_correctly = false).
-  //
   // (두 칸의 NOT NULL 은 2026-08-25 에 풀었다. 스키마 변경 절차는 루트 README 의
   //  "DB (Supabase)" 절 참고 — 이 저장소엔 마이그레이션 파일이 없다.)
   const guessedTargetId = room.botVotes[voterId];
   const guessedTarget = room.players.find((p) => p.id === guessedTargetId);
-
   const { data: response, error: respErr } = await supabase
     .from('survey_responses')
     .insert({
@@ -112,10 +111,13 @@ export async function submitSurveyResponse(
 
   if (reasonIds.length === 0) return;
 
-  const { data: reasonRows } = await supabase
+  const { data: reasonRows, error: reasonRowsErr } = await supabase
     .from('survey_reasons')
     .select('id, is_other')
     .in('id', reasonIds);
+  if (reasonRowsErr) {
+    console.error(`[${room.roomId}] 사유 목록 조회 실패:`, reasonRowsErr.message);
+  }
 
   const rows = reasonIds.map((reasonId) => ({
     survey_response_id: response.id,
@@ -138,13 +140,20 @@ export async function fetchSurveyResponsesForGame(gameId: string): Promise<Surve
     .from('survey_responses')
     .select('id, voter_label, free_text')
     .eq('game_id', gameId);
-  if (error || !responses?.length) return [];
+  if (error) {
+    console.error(`[game ${gameId}] 설문 응답 조회 실패:`, error.message);
+    return [];
+  }
+  if (!responses?.length) return [];
 
   const responseIds = responses.map((r) => r.id);
-  const { data: reasonRows } = await supabase
+  const { data: reasonRows, error: reasonRowsErr } = await supabase
     .from('survey_response_reasons')
     .select('survey_response_id, reason_id')
     .in('survey_response_id', responseIds);
+  if (reasonRowsErr) {
+    console.error(`[game ${gameId}] 설문 사유 조회 실패:`, reasonRowsErr.message);
+  }
 
   return responses.map((r) => ({
     voterLabel: r.voter_label,
