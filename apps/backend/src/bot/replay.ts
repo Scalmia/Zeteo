@@ -1,5 +1,5 @@
 import type { BotAction, BotContext, Message, PublicPlayer, Role } from '@zeteo/shared-types';
-import { decideBotAction, forgetRoom } from './index';
+import { decideBotAction, forgetRoom, takeGenerateFailures } from './index';
 
 /**
  * 실제로 있었던 순간을 얼려 두고, 같은 자리에서 봇이 몇 번이나 같은 실수를 하는지 센다.
@@ -441,6 +441,56 @@ const CASES: Case[] = [
   },
 
   {
+    id: 'consensus',
+    problem: '6. 대화가 끝나면 멈춘다',
+    source: '73판 — I 가 "그런듯" 으로 동의해 V 로 합의가 끝난 뒤',
+    expect: '침묵. 합의가 끝났으면 더 얹지 않는다',
+    silence: 'good', // 여기만 침묵이 정답이다
+    build: () =>
+      ctxOf({
+        labels: ['Z', 'I', 'V', 'Q'],
+        self: 'Z',
+        role: 'citizen',
+        word: '방콕',
+        category: '여행지',
+        phase: 'debate',
+        voteCounts: { V: 2 },
+        myVote: 'V',
+        transcript: [
+          m('I', '집구석', 'describe'),
+          m('Z', '잠깐만', 'describe'),
+          m('V', '구석', 'describe'),
+          m('Q', '가고싶음', 'describe'),
+          m('I', 'Z는 뭐야', 'debate'),
+          m('Z', '다들 너무 짧은데?', 'debate'),
+          m('I', 'V가 내꺼 카피한듯', 'debate'),
+          m('Z', '왜 나 의심함?', 'debate'),
+          m('I', '너 말고', 'debate'),
+          m('Z', '그냥 묘사들이 너무 짧아서 판단 안 된단 뜻이었음', 'debate'),
+          m('I', 'ㅇㅇ 근데 난 확실함', 'debate'),
+          m('system', '동점입니다. 재투표를 시작합니다.', 'debate'),
+          m('Q', '다수 따를게', 'debate'),
+          m('I', 'ㄱㄱ', 'debate'),
+          m('Z', 'V가 따라한 느낌이라 걸림', 'debate'),
+          m('I', '그런듯', 'debate'),
+        ],
+      }),
+    /**
+     * 실제로 이 자리에서 봇은 "가자" "ㅇㅇ 가자" "끝난듯" "그런듯" 을 잇달아 냈다.
+     * 넷 다 알맹이가 없고, 마지막 "그런듯" 은 바로 앞에서 I 가 한 말을 그대로 되풀이한 것이다.
+     *
+     * 판정을 "말하면 실패" 로 두는 이유는, 이 자리에서 잘한 것이 침묵 하나뿐이기 때문이다.
+     * 합의가 끝난 뒤에 얹는 말은 내용이 있든 없든 대화를 억지로 늘린다.
+     */
+    judge: (t) => {
+      const echoes = /그런듯|ㅇㅇ|가자|끝난|맞음/.test(t);
+      return echoes
+        ? { bad: true, note: '합의 뒤에 맞장구를 얹음' }
+        : { bad: true, note: '합의 뒤에 말을 얹음' };
+    },
+  },
+
+  {
     id: 'tic',
     problem: '7·8. 같은 말투를 반복하지 않는다 / 평가문보다 반응',
     source: '봇 발언 39개 중 8개(20%)가 ~긴 함 · 걸림 · 너무 셋 중 하나였다',
@@ -524,6 +574,13 @@ async function runCase(c: Case, n: number): Promise<void> {
     const v = c.judge(text);
     if (v.bad) bad++;
     console.log(`  ${String(counted).padStart(2)}. ${v.bad ? '🔴' : '⬜'} ${v.note.padEnd(20)} ${text}`);
+  }
+
+  // 생성이 통째로 죽으면 봇은 늘 침묵한다. 침묵이 정답인 사례에서는 그게 만점으로 찍히므로
+  // 숫자보다 먼저 이걸 알린다. 키 만료 한 번에 "문제 0/10" 이 나온 적이 있다.
+  const failed = takeGenerateFailures();
+  if (failed > 0) {
+    console.log(`  🔴 생성 실패 ${failed}회 — 아래 숫자는 못 믿는다. 키·프로바이더를 확인할 것`);
   }
 
   const short = counted < n ? `  ⚠ ${n}개를 채우지 못함 (호출 ${drawn}회 상한)` : '';
