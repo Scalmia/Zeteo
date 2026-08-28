@@ -1,4 +1,17 @@
 {
-  "cycles": [],
+  "cycles": [
+    {
+      "ranAt": "2026-08-27",
+      "bot": {
+        "sha": "43037cc64d42114c2bc416f00c3c0eda87f4bc10",
+        "provider": "openai",
+        "model": "openai/gpt-5.6-sol"
+      },
+      "gameIds": [1, 2, 5],
+      "cases": ["opener"],
+      "note": "문턱 3으로 손으로 돌린 첫 사이클. 프로바이더가 갈려 5판이 3+2로 쪼개졌다",
+      "pr": null
+    }
+  ],
   "excluded": []
 }
