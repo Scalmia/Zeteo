@@ -146,18 +146,34 @@ function tailDelay(): number {
  * 사람이 실제로 끊었던 자리를 흉내낸다. 로그의 세 사례가 전부 조사 뒤였다.
  *   "그건 당신이"(이) · "이란 발언은"(은) · "이 제시어 정답은"(은)
  * 연결어미도 같은 자리로 쓴다.
+ *
+ * 은/는은 여기서 뺐다. 조사로도 쓰이지만 관형형 어미로도 쓰이는데(쓴다는 · 아름답다는)
+ * endsWith 로는 둘을 못 가른다. 6판에서 "요즘 잘 안 쓴다는" / "게 좀 걸림" 으로 잘려
+ * 두 조각 다 말이 안 되는 것이 나왔다.
+ * 위 사람 사례 둘이 은 뒤였지만 그건 명사에 붙은 조사고(발언은 · 정답은),
+ * 그런 자리는 이/가/을/를 같은 남은 조사들이 대신 잡는다.
  */
 const CUT_SUFFIXES = [
-  '은', '는', '이', '가', '을', '를', '도', '만', '의', '에', '로', '와', '과', '랑',
+  '이', '가', '을', '를', '도', '만', '의', '에', '로', '와', '과', '랑',
   '에서', '으로', '이란', '라는', '부터', '까지', '처럼', '보다',
   '고', '서', '면', '는데', '니까', '지만', '다가', '거든',
 ];
 
 /**
+ * 뒤 조각이 의존명사로 시작하면 앞 단어는 명사+조사가 아니라 관형형이다.
+ *   "사진 찍을" / "때 뭐가 힘든데?"   ← 을이 조사가 아니라 어미다
+ *
+ * 은/는을 빼도 을 · ㄴ 같은 다른 어미가 같은 사고를 낸다. 앞 단어만 봐서는 못 막고
+ * 뒤 조각을 봐야 잡힌다. 뒤 붙는 조사까지 두 글자만 허용해서 "거기서" · "지금" 처럼
+ * 의존명사로 시작할 뿐인 멀쩡한 낱말은 걸리지 않게 한다.
+ */
+const BOUND_NOUN_HEAD = /^(게|것|거|수|줄|때|데|지|뿐|채|척|만큼)[은는이가을를도만의에서로야다까]{0,2}$/;
+
+/**
  * 문장을 두 조각으로 자른다. 자를 만한 자리가 없으면 null — 그때는 통째로 내보낸다.
  * 양쪽이 다 어느 정도 길이가 되는 자리 중 문장 가운데에 가장 가까운 곳을 고른다.
  */
-function splitPoint(text: string): [string, string] | null {
+export function splitPoint(text: string): [string, string] | null {
   const words = text.split(' ').filter((w) => w.length > 0);
   if (words.length < 3) return null;
 
@@ -170,6 +186,7 @@ function splitPoint(text: string): [string, string] | null {
     const head = words.slice(0, i + 1).join(' ');
     const tail = words.slice(i + 1).join(' ');
     if (head.length < 4 || tail.length < 4) continue;
+    if (BOUND_NOUN_HEAD.test(words[i + 1]!)) continue;
 
     const dist = Math.abs(head.length - mid);
     if (dist < bestDist) {
