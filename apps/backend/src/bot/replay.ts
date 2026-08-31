@@ -488,6 +488,54 @@ const CASES: Case[] = [
   },
 
   {
+    id: 'unasked',
+    problem: '4-b. 묻지 않은 것을 해명하지 않는다',
+    source: '6판 8:26:12 — 다들 W 얘기 중인데 봇이 갑자기 "맨날 잃어버려서 그랬음"',
+    expect: '아무도 자기를 안 건드렸으면 자기 묘사를 변호하지 않는다',
+    silence: 'skip',
+    build: () =>
+      ctxOf({
+        labels: ['O', 'F', 'E', 'V', 'W'],
+        self: 'O',
+        role: 'citizen',
+        word: '볼펜',
+        category: '학용품',
+        phase: 'debate',
+        voteCounts: {}, // 표 없음
+        myVote: null,
+        transcript: [
+          m('F', '난 얇은게좋아', 'describe'),
+          m('E', '한국 남성', 'describe'),
+          m('V', '귀엽다', 'describe'),
+          m('O', '급할 때 꼭 안 보여', 'describe'),
+          // 넷 다 W 얘기다. 봇(O)을 부른 사람도, 봇에게 던진 질문도 없다.
+          m('F', 'w?', 'debate'),
+          m('V', 'W어서오고', 'debate'),
+          m('E', 'W 말안함', 'debate'),
+          m('W', '하이', 'debate'),
+        ],
+      }),
+    /**
+     * 실패는 "묻지도 않았는데 자기 발언을 변호하는 것" 이다.
+     *
+     * DEFEND_MOVES 때문이 아니다. 봇 득표가 0이고 아무도 O 를 안 불러서 pressured 가 거짓이라
+     * 그 갈래에는 닿지 않는다. 범인은 DEBATE_MOVES 의 마지막 항목이다 — 조건 없이 1/7 확률로
+     * "자기 발언을 해명하세요" 가 뽑힌다. 그 무브를 고정한 채 8회 돌리니 8회 다 해명이 나왔고,
+     * 그중 여섯이 "더 말하면 티난다/좁혀진다" 였다. 아무도 안 물었는데 그러면 그 자체가 수상하다.
+     *
+     * 바로 위 5번 무브에는 "당신을 의심한 사람이 있으면" 이라는 조건이 문장 안에 박혀 있어
+     * 모델이 아무것도 안 할 수 있다. 마지막 항목만 그 앞부분이 없었다.
+     */
+    judge: (t) => {
+      const excuses = /더 말하면|더 풀면|티나|티남|좁혀|뜻인데|내 경험|말 그대로|그랬음|그런 뜻/.test(t);
+      const mine = /잃어버|안 보여|급할|찾|없어지/.test(t);
+      return excuses || mine
+        ? { bad: true, note: '묻지 않았는데 자기 변호' }
+        : { bad: false, note: '(읽고 판단)' };
+    },
+  },
+
+  {
     id: 'tic',
     problem: '7·8. 같은 말투를 반복하지 않는다 / 평가문보다 반응',
     source: '봇 발언 39개 중 8개(20%)가 ~긴 함 · 걸림 · 너무 셋 중 하나였다',
