@@ -1,28 +1,212 @@
+import { useState } from "react";
+import ResultScreen from "./ResultScreen";
+import SurveyScreen from "./SurveyScreen";
+import LandingScreen from "./LandingScreen";
+import RoomListScreen from "./RoomListScreen";
+import LobbyScreen from "./LobbyScreen";
+import { GameScreen } from "./screens/GameScreen";
+import { useGameState } from "./hooks/useGameState";
+import { Ambience } from "./components/Ambience";
+import { ParticleTrail } from "./components/ParticleTrail";
+import type { ClientEvent, GameState, RoomSummary } from "@zeteo/shared-types";
+import type { ResultPlayer } from "./types";
+
 /**
  * 파트 D 소유 — 박진
  *
- * 여기서 할 일:
- *   1. A의 net/socket.ts 로 서버에 연결하고 GameState 를 받는다
- *   2. phase 에 따라 화면을 고른다
- *        lobby / botVote / result  → D가 직접 그린다
- *        그 외 게임 페이즈          → <GameScreen state={state} onEvent={onEvent} />
+ * phase 에 따라 화면을 고른다
+ *   lobby / result / survey → D가 직접 그린다
+ *   그 외 게임 페이즈        → <GameScreen state={state} onEvent={onEvent} />
  *
- * 파트 C의 화면 6개를 알 필요가 없다. GameScreen 하나만 마운트하면 된다.
+ * botVote는 기획서 v3.0로 파트 C(GameScreen 팝업)로 이관됐다(8/11) — 예전엔 여기서
+ * VoteScreen을 직접 그렸지만, 이제 GAME_SCREEN_PHASES에 포함되어 C쪽에서 처리한다.
  *
- * 화면을 확인하려면 서버 없이도 된다 —  /?mock=  로 접속.
+ * 파트 C의 화면들을 알 필요가 없다. GameScreen 하나만 마운트하면 된다.
  */
-export function App() {
+
+// 이 페이즈들은 파트 C의 GameScreen이 그린다. 나머지(lobby/result/survey)는 D가 직접.
+const GAME_SCREEN_PHASES = new Set([
+  "roleReveal",
+  "describe",
+  "debate",
+  "finalDefense",
+  "lifeVote",
+  "reveal",
+  "guessWord",
+  "botVote",
+]);
+
+// 서버가 이 필드들을 빠뜨리고 보내면 하위 화면(state.players.find 등)이 그대로 크래시한다.
+// 각 phase로 넘어가기 직전, 그 phase가 실제로 쓰는 필드만 여기서 한 번에 확인한다 —
+// 통과하면 그 아래로는 필드가 있다고 안심하고 그대로 써도 된다.
+function MissingData({ label }: { label: string }) {
   return (
-    <div className="zt-screen zt-center">
-      <div className="zt-card">
-        <p className="zt-label">Zeteo</p>
-        <p className="zt-role">파트 D 작업 예정</p>
-        <p className="zt-muted">
-          랜딩 · 방 입장 · 봇 지목 · 최종 결과
-          <br />
-          게임 화면은 <a href="?mock=">?mock=</a> 에서 확인
-        </p>
-      </div>
+    <div style={{ textAlign: "center", padding: 32, color: "var(--color-danger)" }}>
+      {label} 정보를 받지 못했습니다. 잠시 후 다시 시도해주세요.
+    </div>
+  );
+}
+
+// result·survey 화면이 공통으로 쓰는 계산 — 8/20 설문 화면이 리플레이(기획서 v4.0)를
+// 통합하며 result의 승패/정체공개 로직을 그대로 다시 써야 해서 여기로 뽑았다.
+function winnerLabel(state: GameState): string {
+  return state.liarGameResult === "liarWin" ? "라이어 승리" : state.liarGameResult === "citizenWin" ? "시민 승리" : "";
+}
+
+function buildResultPlayers(state: GameState) {
+  const labelOf = (id: string) => state.players.find((pl) => pl.id === id)?.label ?? id;
+  return state.players.map((p) => {
+    // 봇과 라이어가 같은 사람일 수 있다(assignRoles가 봇 포함 전원 중에서 라이어를
+    // 뽑음, 제외 로직 없음) — 예전엔 3항 연산자로 봇 우선 단일 태그만 냈는데, 그러면
+    // 봇=라이어 겹침일 때 "라이어" 태그가 절대 안 뜬다(2026-08-21 발견·수정).
+    const tags: ResultPlayer["tags"] = [];
+    if (p.id === state.revealedBotId) tags.push("봇");
+    if (p.id === state.revealedLiarId) tags.push("라이어");
+    if (tags.length === 0) tags.push("시민");
+    return {
+      id: p.id,
+      label: p.label,
+      name: state.revealedNames?.[p.id] ?? null,
+      tags,
+      votedFor: state.botVoteResults?.[p.id] ? labelOf(state.botVoteResults[p.id]!) : null
+    };
+  });
+}
+
+function renderScreen(
+  state: GameState | null,
+  onEvent: (e: ClientEvent) => void,
+  onLeave: () => void,
+  nickname: string | null,
+  setNickname: (name: string | null) => void,
+  // ★ 방 목록을 서버에서 받아 넘긴다 (방 목록 서버 연결)
+  rooms: RoomSummary[],
+  // ★ 추가 (없는 방 안내) — 방 목록 화면만 이 값을 팝업으로 직접 띄운다.
+  error: string | null
+) {
+  if (!state) {
+    // 닉네임을 아직 안 정했으면 랜딩, 정했으면 방 목록 — 둘 다 서버에 방을 안 만든
+    // 상태(GameState 없음)라 이 로컬 상태로만 구분한다.
+    if (nickname === null) {
+      return <LandingScreen onNext={(name) => setNickname(name)} />;
+    }
+    return (
+      <RoomListScreen
+        rooms={rooms}
+        error={error}
+        onRefresh={() => onEvent({ t: "listRooms" })}
+        onBack={() => setNickname(null)}
+        // title 은 방을 새로 만들 때만 넘어온다 — 서버가 그때만 방 제목으로 쓴다.
+        onJoinRoom={(roomId, title) =>
+          onEvent(title === undefined ? { t: "join", roomId, name: nickname } : { t: "join", roomId, name: nickname, title })
+        }
+      />
+    );
+  }
+
+  if (state.phase === "lobby") {
+    if (!state.players) return <MissingData label="플레이어" />;
+    const me = state.players.find((p) => p.id === state.myId);
+    return (
+      <LobbyScreen
+        roomId={state.roomId}
+        players={state.players}
+        myId={state.myId}
+        myReady={me?.isReady ?? false}
+        onToggleReady={() => onEvent({ t: "ready" })}
+        onBack={onLeave}
+      />
+    );
+  }
+
+  if (GAME_SCREEN_PHASES.has(state.phase)) {
+    if (!state.players || !state.messages || !state.voteCounts || !state.lifeVoteCounts || !state.botVoteCounts) {
+      return <MissingData label="게임" />;
+    }
+    return <GameScreen state={state} onEvent={onEvent} />;
+  }
+
+  if (state.phase === "result") {
+    if (!state.players || !state.botVoteCounts) {
+      return <MissingData label="결과" />;
+    }
+
+    return (
+      <ResultScreen
+        winner={winnerLabel(state)}
+        totalVoters={state.botVoteCounts.total}
+        botVoteCorrectCount={state.botVoteCorrectCount}
+        category={state.category}
+        word={state.word}
+        guessWord={state.guessWord}
+        players={buildResultPlayers(state)}
+        onNext={() => onEvent({ t: "ready" })}
+      />
+    );
+  }
+
+  if (state.phase === "survey") {
+    // 8/20 리플레이 통합(기획서 v4.0) — 설문 화면이 플레이 화면과 같은 레이아웃(채팅
+    // 로그+결과 요약 패널)을 쓰면서, result 화면과 같은 필드(messages·players·revealed*)가
+    // 더 필요해졌다. backend/src/view.ts가 survey도 result와 같은 "게임이 끝난 뒤"로
+    // 취급해 이 필드들을 채워 보내므로(isPostGame) 여기서 그대로 꺼내 쓰면 된다.
+    if (!state.players || !state.messages || !state.botVoteCounts) {
+      return <MissingData label="설문" />;
+    }
+
+    return (
+      <SurveyScreen
+        reasons={state.reasons}
+        checkedReasonIds={[]}
+        freeText=""
+        messages={state.messages}
+        chatPlayers={state.players}
+        myId={state.myId}
+        category={state.category}
+        word={state.word}
+        nicknames={state.revealedNames}
+        winner={winnerLabel(state)}
+        totalVoters={state.botVoteCounts.total}
+        botVoteCorrectCount={state.botVoteCorrectCount}
+        guessWord={state.guessWord}
+        resultPlayers={buildResultPlayers(state)}
+        myBotVoteTargetId={state.botVoteResults?.[state.myId] ?? null}
+        revealedBotId={state.revealedBotId}
+        onSubmit={(checkedReasonIds, freeText, pickedMessageId) => {
+          onEvent({ t: "survey", reasonIds: checkedReasonIds, freeText, pickedMessageId: pickedMessageId ?? undefined });
+          onLeave();
+        }}
+      />
+    );
+  }
+
+  return <div className="text-muted" style={{ textAlign: "center", padding: 32 }}>다음 단계 준비 중…</div>;
+}
+
+export function App() {
+  // rooms 는 ★ 추가 (방 목록 서버 연결) — 아직 방에 안 들어간 상태에서 받는 값이라
+  // GameState 와 별도로 온다.
+  const { state, rooms, onEvent, connected, error, leaveToLanding } = useGameState();
+  const [nickname, setNickname] = useState<string | null>(null);
+  // ★ 추가 (없는 방 안내) — 방 목록 화면은 거절 사유를 자기 팝업으로 띄우므로, 그 화면
+  // 에서는 아래 빨간 배너를 접는다. 안 그러면 같은 문구가 두 군데 동시에 보인다.
+  const roomListShown = state === null && nickname !== null;
+
+  return (
+    <div>
+      <Ambience />
+      <ParticleTrail />
+      {!connected && (
+        <div style={{ textAlign: "center", padding: 8, color: "var(--color-danger)" }}>
+          서버와 연결이 끊겼습니다. 재연결 시도 중…
+        </div>
+      )}
+      {error && !roomListShown && (
+        <div style={{ textAlign: "center", padding: 8, color: "var(--color-danger)" }}>
+          {error}
+        </div>
+      )}
+      {renderScreen(state, onEvent, leaveToLanding, nickname, setNickname, rooms, error)}
     </div>
   );
 }

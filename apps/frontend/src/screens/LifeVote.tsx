@@ -1,8 +1,9 @@
 import type { ClientEvent, GameState } from '@zeteo/shared-types';
-import { Timer } from '../components/Timer';
 
 /** S4 생사 투표 — 투표자 뷰 / 지목자 뷰 분기.
- *  지목자 본인은 투표에서 제외되므로 버튼 자체를 렌더하지 않는다. */
+ *  지목자 본인은 투표에서 제외되므로 버튼 자체를 렌더하지 않는다.
+ *
+ *  GameScreen 이 Modal 로 감싸 메인화면 위에 띄운다 — 제목과 타이머는 Modal 이 그린다. */
 export function LifeVote({
   state,
   onEvent,
@@ -19,52 +20,39 @@ export function LifeVote({
 
   if (isAccused) {
     return (
-      <div className="zt-screen zt-center">
-        <header className="zt-head">
-          <span className="zt-sub">생사 투표</span>
-          <Timer deadlineAt={state.deadlineAt} />
-        </header>
-        <div className="zt-card">
-          <p className="zt-label">당신에 대한 투표가</p>
-          <p className="zt-role">진행 중입니다</p>
-          <p className="zt-muted">투표 불가</p>
-        </div>
-      </div>
+      <>
+        <p className="zt-label">당신에 대한 투표가</p>
+        <p className="zt-role">진행 중입니다</p>
+        <p className="zt-muted">투표 불가</p>
+      </>
     );
   }
 
   return (
-    <div className="zt-screen zt-center">
-      <header className="zt-head">
-        <span className="zt-sub">생사 투표</span>
-        <Timer deadlineAt={state.deadlineAt} />
-      </header>
+    <>
+      <p className="zt-label">대상</p>
+      <p className="zt-role">{target?.label}</p>
 
-      <div className="zt-card">
-        <p className="zt-label">대상</p>
-        <p className="zt-role">{target?.name}</p>
-
-        <div className="zt-choices">
-          <button
-            className={state.myLifeVote === true ? 'zt-choice is-mine' : 'zt-choice'}
-            onClick={() => onEvent({ t: 'lifeVote', kill: true })}
-          >
-            죽인다
-          </button>
-          <button
-            className={state.myLifeVote === false ? 'zt-choice is-mine' : 'zt-choice'}
-            onClick={() => onEvent({ t: 'lifeVote', kill: false })}
-          >
-            살린다
-          </button>
-        </div>
-
-        <p className="zt-muted">
-          진행 · 죽인다 {state.lifeVoteCounts.kill} / 살린다 {state.lifeVoteCounts.spare}
-          <br />
-          {voters}명 중 {majority}표 = 처형
-        </p>
+      <div className="zt-choices">
+        <button
+          className={state.myLifeVote === true ? 'zt-choice is-mine' : 'zt-choice'}
+          onClick={() => onEvent({ t: 'lifeVote', kill: true })}
+        >
+          죽인다
+        </button>
+        <button
+          className={state.myLifeVote === false ? 'zt-choice is-mine' : 'zt-choice'}
+          onClick={() => onEvent({ t: 'lifeVote', kill: false })}
+        >
+          살린다
+        </button>
       </div>
-    </div>
+
+      <p className="zt-muted">
+        진행 · 죽인다 {state.lifeVoteCounts.kill} / 살린다 {state.lifeVoteCounts.spare}
+        <br />
+        {voters}명 중 {majority}표 = 처형
+      </p>
+    </>
   );
 }

@@ -29,12 +29,12 @@ npm run dev -w frontend
 
 ### 파트별 첫 명령어
 
-| 파트         | 담당   | 명령어                                                |
-| ------------ | ------ | ----------------------------------------------------- |
-| A · 서버     | 유민성 | `npm run dev -w backend`                              |
-| B · 봇       | 김정현 | `npm run bot -w backend` ← 서버·화면 없이 봇만 테스트 |
-| C · 게임화면 | 이현우 | `npm run dev -w frontend` → `/?mock=`                 |
-| D · 공통     | 박진   | `npm run dev -w frontend`                             |
+| 파트         | 담당         | 명령어                                                |
+| ------------ | ------------ | ----------------------------------------------------- |
+| A · 서버     | 서버담당     | `npm run dev -w backend`                              |
+| B · 봇       | 봇담당       | `npm run bot -w backend` ← 서버·화면 없이 봇만 테스트 |
+| C · 게임화면 | 화면담당     | `npm run dev -w frontend` → `/?mock=`                 |
+| D · 공통     | 레이아웃담당 | `npm run dev -w frontend`                             |
 
 **서버가 없어도 화면을 볼 수 있다.** `http://localhost:5173/?mock=` 에 들어가면 mock 상태 목록이 나오고, `?mock=debate-voted` 처럼 지정하면 해당 화면으로 바로 진입한다.
 
@@ -101,12 +101,12 @@ import type { GameState, ClientEvent } from '@zeteo/shared-types';
 ## 브랜치
 
 ```
-main            발표·시연용. 항상 동작. 김정현만 병합
+main            발표·시연용. 항상 동작. 봇담당만 병합
  └ dev          통합. PR + 리뷰 1명 승인으로만 진입
-    ├ feat/server     유민성
-    ├ feat/bot        김정현
-    ├ feat/game-ui    이현우
-    └ feat/layout     박진
+    ├ feat/server     서버담당
+    ├ feat/bot        봇담당
+    ├ feat/game-ui    화면담당
+    └ feat/layout     레이아웃담당
 ```
 
 - `main` 직접 push 금지
@@ -115,6 +115,54 @@ main            발표·시연용. 항상 동작. 김정현만 병합
 - `packages/shared-types` 변경은 반드시 Discord 공지 후, PR 제목에 `[types]`
 
 커밋 메시지: `feat(backend): 방 입장 이벤트 처리` / `fix(ui): 투표 패널 미갱신` / `chore: prettier 설정`
+
+---
+
+## DB (Supabase)
+
+스키마는 Supabase 안에만 있다 — 레포에 마이그레이션 파일이 없다. DDL 은 SQL Editor 에서
+직접 실행하고, **무엇을 왜 바꿨는지는 PR 본문에 남긴다.** 안 남기면 어디에도 기록이 없다.
+
+### 설문 문항 세대 교체
+
+문항은 덮어쓰지 않고 세대별로 쌓는다. `survey_reasons` 를 `UPDATE` 로 갈면
+`survey_response_reasons.reason_id` 가 가리키는 뜻이 소급해서 바뀌어, 과거 응답이
+새 문항으로 읽힌다. 코드는 `is_active = true` 인 문항 하나만 읽는다
+(`db/survey.ts` 의 `fetchSurveyReasons`).
+
+```sql
+begin;
+
+-- 활성 문항은 항상 하나다(부분 유니크 인덱스 uniq_survey_questions_active).
+-- 먼저 내리지 않고 새 행을 켜면 인덱스 위반으로 통째로 실패한다.
+update survey_questions set is_active = false where is_active;
+
+insert into survey_questions (code, text, is_active)
+values ('bot_reason_v2', '왜 봇이라고 생각했나요?', true);
+
+insert into survey_reasons (question_id, code, text, is_other, sort_order)
+select q.id, v.code, v.text, v.is_other, v.sort_order
+from survey_questions q,
+  (values
+    ('too_fast',     '반응이 너무 빠름',   false, 1),
+    ('too_polished', '말투가 너무 정돈됨', false, 2),
+    ('other',        '기타',               true,  3)
+  ) as v(code, text, is_other, sort_order)
+where q.code = 'bot_reason_v2';
+
+commit;
+```
+
+**빠뜨리기 쉬운 NOT NULL** — 아래 칸들은 기본값이 없어서 안 넣으면 실패한다.
+
+| 테이블 | 반드시 넣을 것 |
+| --- | --- |
+| `survey_questions` | `code`, `text`, `is_active` |
+| `survey_reasons` | `question_id`, `code`, `text`, `is_other`, `sort_order` |
+
+**⚠️ DB 만 고치면 화면은 안 바뀐다.** `fetchSurveyReasons` 의 `cachedReasons` 가 프로세스가
+사는 동안 안 풀려서, 서버가 재시작할 때까지 옛 문구를 보여준다. PR → 머지 → Railway
+리빌드 흐름이면 재시작이 저절로 끼지만, "DB 만 살짝 고치기" 는 안 통한다.
 
 ---
 

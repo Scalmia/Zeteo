@@ -1,31 +1,126 @@
 /* 파트 D 소유 — 박진
  *
- * 파트 C의 game.css 가 이미 이 이름들을 var(--토큰, fallback) 형태로 참조하고 있다.
- * 여기에 값을 채우는 순간 13개 화면 색이 한꺼번에 잡힌다.
- * 지금은 비어 있어서 각 화면이 fallback(임시 색)으로 렌더된다.
- *
- * 아래 주석을 풀고 값만 정하면 끝. 이름은 바꾸지 말 것 — C가 참조 중이다.
+ * 파트 C의 game.css 가 이 11개 이름을 var(--토큰, fallback) 형태로 참조한다.
+ * 기획서 v2.0 §1: 테마 다크 확정. 이름은 바꾸지 말 것 — C가 참조 중이다.
+ * 색상값 — 8/11 "원본 캡처 재현" 리디자인 반영(세리프 톤, 더 쨍한 레드).
  */
 
 :root {
-  /* --color-bg:      ;  화면 배경 */
-  /* --color-surface: ;  카드·패널 배경 */
-  /* --color-line:    ;  테두리 */
-  /* --color-text:    ;  본문 */
-  /* --color-muted:   ;  보조 텍스트 */
-  /* --color-accent:  ;  강조 (타이머, 내 선택) */
-  /* --color-danger:  ;  위험 (라이어, 처형) */
+  --color-bg: radial-gradient(ellipse 900px 500px at 20% 0%, rgba(255, 20, 30, 0.1), transparent 60%),
+    radial-gradient(ellipse 900px 600px at 80% 100%, rgba(255, 20, 30, 0.08), transparent 60%), #050101;
+  --color-surface: linear-gradient(180deg, #160607, #0a0202);
+  --color-line: #4a1418;
+  --color-text: #f3e6e6;
+  --color-muted: #b98d8f;
+  --color-accent: #ff2733;
+  --color-danger: #ff5449;
+  --color-ok: #35c46a; /* 방목록 "대기중/참여가능" 상태 표시용 — 기존 11개 토큰엔 없던 성공색이라 추가 */
 
-  /* --space-2:       ;  좁은 간격 */
-  /* --space-4:       ;  기본 간격 */
-  /* --radius:        ;  모서리 */
-  /* --font-body:     ;  본문 폰트 */
+  --space-2: 8px;
+  --space-4: 16px;
+
+  --radius: 9px;
+
+  --font-body: "Hahmlet", "Noto Sans KR", serif;
+
+  /* 모바일 브레이크포인트 — 8/10 시안1 확정값(768px).
+   * CSS 미디어쿼리 조건에는 var()를 못 쓴다 — game.css 의 @media (max-width: 768px)
+   * 는 이 토큰을 참조하지 않고 리터럴 숫자를 직접 쓴다. 이 값을 바꾸면 game.css 도
+   * 같이 고쳐야 한다. (참고: origin/feat/game-ui 42ea1f3 은 900px로 임시 적용돼
+   * 있음 — 768px로 교체 필요, 이현우님께 전달됨) */
+  --bp-mobile: 768px;
+
+  /* 8/11 리디자인 — 원본엔 투표 패널 자체 배경이 없다(bar-fill 그라디언트만 있음).
+   * 그래서 용도를 "패널 배경 틴트"에서 "득표 진행률 바 채움색"으로 바꾼다. */
+  --vote-bg: linear-gradient(90deg, #c21620, var(--color-accent));
+
+  /* 발광 효과 — 8/11 리디자인 반영. 버튼·팝업·채팅버블·득표바 등에서 반복 사용. */
+  --glow: drop-shadow(0 0 6px rgba(255, 60, 70, 0.9)) drop-shadow(0 0 16px rgba(255, 39, 51, 0.8)) drop-shadow(0 0 32px rgba(255, 20, 30, 0.6));
+  --deep-shadow: 0 0 10px rgba(255, 39, 51, 0.9), 0 0 30px rgba(255, 39, 51, 0.7), 0 0 70px rgba(255, 20, 30, 0.5), inset 0 0 24px rgba(255, 39, 51, 0.12);
+  --transition-theme: 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* 텍스트 크기 규칙 — 8/12. 랜딩·대기실·결과·설문 화면에 흩어져 있던 인라인
+   * fontSize 값을 역할별로 묶었다. 값 자체는 기존과 동일, 참조 위치만 한 곳으로
+   * 모은 것 — 다음에 크기를 바꿀 때 화면마다 찾아다니지 않아도 되게 하기 위함. */
+  --text-caption: 32px;  /* 화면 상단 캡션 — GAME OVER, 대기실 */
+  --text-emphasis: 28px; /* 승패 배지 등 강조 배지 — 시민 승리 */
+  --text-body: 16px;     /* 본문 — 참가자 이름, 지목정보, 설문 항목 */
+  --text-label: 15px;    /* 설명 문구·태그·폼 라벨 */
+  --text-button: 21px;   /* 모든 버튼 */
 }
 
-* {
-  box-sizing: border-box;
-}
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; font-size: 15px; line-height: 1.55; font-weight: 400; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); }
+h1, h2, h3, h4, h5, h6 { font-family: var(--font-body); font-weight: 600; line-height: 1.15; margin: 0 0 var(--space-2); }
+h1 { font-size: 42px; }
+h2 { font-size: 32px; }
+h3 { font-size: 25px; }
+h4 { font-size: 20px; }
+p { margin: 0 0 var(--space-4); }
+a { color: var(--color-accent); text-underline-offset: 3px; }
+.text-muted { color: var(--color-muted); }
+:focus { outline: none; }
+:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
 
-body {
-  margin: 0;
+.hr { height: 1px; border: 0; margin: var(--space-4) 0; background: var(--color-line); }
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  cursor: pointer; text-decoration: none;
+  font-family: var(--font-body); font-weight: 600;
+  font-size: 14px; line-height: 1.2; color: var(--color-text);
+  background: transparent; border: 1px solid transparent;
+  padding: var(--space-2) calc(var(--space-2) * 3);
+  border-radius: var(--radius);
+  position: relative; overflow: hidden;
 }
+.btn::before {
+  content: ''; position: absolute; inset: 50% 50%; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3); opacity: 0; transition: all 0.5s ease;
+}
+.btn.btn-ripple::before { inset: -100%; opacity: 1; }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn-primary {
+  color: var(--color-text); background: var(--color-accent); border-color: var(--color-accent);
+  box-shadow: var(--deep-shadow); text-shadow: 0 2px 6px rgba(0, 0, 0, 0.9);
+}
+.btn-primary:hover { filter: brightness(1.15); }
+.btn-primary:active { filter: brightness(0.9); }
+.btn-secondary { border-color: var(--color-line); }
+.btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 8%, transparent); }
+.btn-block { width: 100%; margin-top: var(--space-2); }
+
+.field > label { display: block; font-size: 12px; margin-bottom: 5px; color: var(--color-muted); }
+.input {
+  width: 100%; min-height: 36px; padding: 6px 10px; font: inherit; font-size: 14px;
+  color: var(--color-text); caret-color: var(--color-accent); background: transparent;
+  border: 1px solid var(--color-line); border-radius: var(--radius);
+}
+.input:hover { border-color: color-mix(in srgb, var(--color-text) 45%, transparent); }
+.input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+textarea.input { min-height: 90px; resize: vertical; }
+
+.radio { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 14px; }
+
+/* 공용 아바타 — 8/10 시안1 확정. 채팅 발언자 표시와 투표 후보 버튼이 같은 이니셜
+ * 배지를 공유한다(components/Avatar.tsx). 원형/사각형 등 바깥 모양은 쓰는 쪽
+ * 맥락(모바일 투표 원형 vs 데스크톱 목록 행)에 따라 감싸는 쪽에서 결정한다 —
+ * 이 클래스는 배지 자체의 색·테두리만 담당한다. */
+.avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: none; width: 28px; height: 28px;
+  font-size: 13px; font-weight: 700;
+  color: var(--color-text); background: var(--color-surface);
+  border: 1px solid var(--color-line); border-radius: var(--radius);
+}
+.avatar-mine { border-color: var(--color-accent); border-width: 2px; filter: var(--glow); }
+
+.tag { display: inline-flex; align-items: center; font-size: 11px; letter-spacing: 0.02em; padding: 3px 10px; border-radius: calc(var(--radius) * 0.75); }
+.tag-accent { background: var(--color-accent); color: var(--color-text); box-shadow: 0 4px 12px var(--color-accent); }
+.tag-neutral { background: color-mix(in srgb, var(--color-text) 12%, transparent); color: var(--color-text); }
+.tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+.tag-danger { background: color-mix(in srgb, var(--color-danger) 20%, transparent); color: var(--color-danger); }
+.tag-ok { background: color-mix(in srgb, var(--color-ok) 18%, transparent); color: var(--color-ok); }
+
+.card-title { font-family: var(--font-body); font-weight: 600; font-size: 17px; line-height: 1.2; }

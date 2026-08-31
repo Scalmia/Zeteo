@@ -4,32 +4,150 @@ import { decideBotAction } from './index';
 /**
  * 서버도 화면도 없이 봇 발화만 확인하는 콘솔 스크립트.
  *
- *   npm run bot -w backend                    시민으로 묘사 5개
- *   npm run bot -w backend -- liar            라이어로 묘사 5개
- *   npm run bot -w backend -- citizen debate  토론 발화
- *   npm run bot -w backend -- liar debate 3   개수 지정
+ *   인자: [역할] [페이즈] [횟수] [시나리오] [피고인]
+ *
+ *   npm run bot -w backend                                     시민으로 묘사 5개
+ *   npm run bot -w backend -- liar                             라이어로 묘사 5개
+ *   npm run bot -w backend -- citizen debate 10                토론 (chat → vote → chat/silent)
+ *   npm run bot -w backend -- citizen finalDefense 8           최후 변론 (남이 몰린 상황)
+ *   npm run bot -w backend -- citizen finalDefense 8 tiger me  최후 변론 (봇이 몰린 상황)
+ *   npm run bot -w backend -- citizen lifeVote 1               생사 투표
+ *   npm run bot -w backend -- liar guessWord 1                 제시어 추측
+ *   npm run bot -w backend -- citizen describe 5 kimchi        시나리오 교체
  *
  * 기획서 "최우선 검증 1순위 — 봇 발화 품질"이 이 파일로 수행된다.
  * 여기서 나온 발화를 팀원이 직접 쓴 묘사와 섞어 블라인드 테스트한다.
+ *
+ * 실명은 서버 전용이 되었으므로 봇은 익명 라벨만 본다. 팀 규칙상 라벨은 A~Z 중
+ * 매 판 무작위로 배정되는 알파벳 한 글자라, 여기서도 실행마다 무작위로 뽑는다.
  */
 
-const [roleArg = 'citizen', phaseArg = 'describe', countArg = '5'] = process.argv.slice(2);
+const PHASES: Phase[] = [
+  'lobby',
+  'roleReveal',
+  'describe',
+  'debate',
+  'finalDefense',
+  'lifeVote',
+  'reveal',
+  'guessWord',
+  'botVote',
+  'result',
+  'survey',
+];
+const ROLES: Role[] = ['citizen', 'liar'];
+const ACCUSED_CHOICES = ['other', 'me'];
 
-const myRole = roleArg as Role;
-const phase = phaseArg as Phase;
-const count = Number(countArg) || 5;
+const [
+  roleArg = 'citizen',
+  phaseArg = 'describe',
+  countArg = '5',
+  scenarioArg = 'tiger',
+  accusedArg = 'other',
+] = process.argv.slice(2);
+
+/** 팀 규칙: A~Z 중 무작위 알파벳 하나가 라벨이 된다. 실행마다 겹치지 않게 5개를 뽑는다. */
+function randomLabels(count: number): string[] {
+  const pool = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const picked: string[] = [];
+  for (let i = 0; i < count && pool.length > 0; i++) {
+    picked.push(pool.splice(Math.floor(Math.random() * pool.length), 1)[0]!);
+  }
+  return picked;
+}
+
+const [labelP1, labelP2, labelP3, labelP4, labelP5] = randomLabels(5) as [
+  string,
+  string,
+  string,
+  string,
+  string,
+];
 
 const players: PublicPlayer[] = [
-  { id: 'p1', name: '김정현', isAlive: true },
-  { id: 'p2', name: '박진', isAlive: true },
-  { id: 'p3', name: '이현우', isAlive: true },
-  { id: 'p4', name: '유민성', isAlive: true },
-  { id: 'p5', name: '최서연', isAlive: true }, // 봇이 맡은 자리
+  { id: 'p1', label: labelP1, isAlive: true, isReady: true },
+  { id: 'p2', label: labelP2, isAlive: true, isReady: true },
+  { id: 'p3', label: labelP3, isAlive: true, isReady: true },
+  { id: 'p4', label: labelP4, isAlive: true, isReady: true },
+  { id: 'p5', label: labelP5, isAlive: true, isReady: true }, // 봇이 맡은 자리
 ];
 
 const SELF = 'p5';
-const CATEGORY = '동물';
-const WORD = '호랑이';
+/**
+ * 최후 변론에 선 사람. 다섯째 인자로 고른다.
+ *   other(기본) — 남이 몰렸을 때. 봇이 심문하는 쪽
+ *   me          — 봇이 몰렸을 때. 자기 변론 분기를 볼 수 있다
+ * 시나리오 대사의 "{ACCUSED}"는 이 사람의 라벨로 치환된다.
+ */
+const ACCUSED = accusedArg === 'me' ? SELF : 'p2';
+
+/**
+ * 제시어별 목업 상황. 새 상황을 넣으려면 여기에 항목만 추가하면 된다.
+ *   describe : 봇 차례 직전, 앞사람 넷이 마친 묘사
+ *   mine     : 묘사 단계에서 봇이 이미 했던 말 (토론 이후 단계에서만 쓰인다)
+ *   debate   : 토론에서 오간 말. "{ACCUSED}"라고 쓰면 실제 배정된 라벨로 치환된다
+ *              (라벨이 매 실행 무작위라 텍스트에 고정 이름을 박아둘 수 없다)
+ *
+ * 묘사는 "아는 사람이면 수긍할 말이되, 주제 안 다른 것 두셋에도 들어맞는" 형태로 써 둔다.
+ * 고유 특징("줄무늬가 있어")은 정답을 그대로 넘겨주고,
+ * 확인할 수 없는 사건("내가 봤는데")은 아무도 수긍할 수 없어 증명이 안 된다.
+ * 널리 공유되는 인상("난 멋있다고 봄")은 그 사이에 있어 괜찮다.
+ * 봇은 이 대사들을 보고 자기 발화 수위와 각도를 맞추므로, 목업 자체가 봇 품질을 좌우한다.
+ * 네 줄이 서로 다른 각도를 다뤄야 봇도 남은 각도를 찾아 다양하게 말한다.
+ */
+const SCENARIOS = {
+  tiger: {
+    category: '동물',
+    word: '호랑이',
+    describe: [
+      ['p1', '가까이 가면 위험하지'],
+      ['p2', '음… 도시에선 못 보고'],
+      ['p3', '새끼 때는 귀엽더라'],
+      ['p4', '난 좀 멋있다고 생각함'],
+    ],
+    mine: '무리로 다니진 않잖아',
+    debate: [
+      ['p1', '{ACCUSED} 묘사가 너무 두루뭉술한데'],
+      ['p2', '아 진짜 아니라니까'],
+      ['p4', '나도 {ACCUSED} 좀 이상했어'],
+    ],
+  },
+  kimchi: {
+    category: '음식',
+    word: '김치',
+    describe: [
+      ['p1', '밥이랑 같이 먹지'],
+      ['p2', '음 집마다 맛이 다르대'],
+      ['p3', '오래 두고 먹어도 되고'],
+      ['p4', '처음 먹는 외국인은 힘들어하더라'],
+    ],
+    mine: '식당 가면 그냥 나오잖아',
+    debate: [
+      ['p1', '{ACCUSED} 말이 너무 두루뭉술하지 않아?'],
+      ['p2', '아니 진짜 아니야'],
+      ['p4', '나도 {ACCUSED} 좀 걸리던데'],
+    ],
+  },
+  subway: {
+    category: '교통수단',
+    word: '지하철',
+    describe: [
+      ['p1', '출퇴근 시간엔 붐비지'],
+      ['p2', '음… 요금 내고 타는 거고'],
+      ['p3', '정해진 길로만 다니잖아'],
+      ['p4', '혼자 타도 어색하진 않지'],
+    ],
+    mine: '오래 타면 좀 지루하긴 해',
+    debate: [
+      ['p1', '{ACCUSED} 그건 아무거나 다 되는데'],
+      ['p2', '아 그냥 생각나는 대로 말한 건데'],
+      ['p4', '나도 {ACCUSED} 좀 이상했어'],
+    ],
+  },
+} as const;
+
+type ScenarioName = keyof typeof SCENARIOS;
+const SCENARIO_NAMES = Object.keys(SCENARIOS) as ScenarioName[];
 
 let seq = 0;
 const msg = (speakerId: string, text: string, p: Phase): Message => ({
@@ -40,35 +158,162 @@ const msg = (speakerId: string, text: string, p: Phase): Message => ({
   at: Date.now(),
 });
 
-/** 봇 차례 직전까지의 상황. 앞사람 넷이 이미 묘사를 마친 상태. */
-const describeLog: Message[] = [
-  msg('p1', '줄무늬가 있어요', 'describe'),
-  msg('p2', '음… 산에 살아요', 'describe'),
-  msg('p3', '어릴 때 동화책에서 자주 봤어요', 'describe'),
-  msg('p4', '고양잇과입니다', 'describe'),
-];
+const labelOf = (id: string): string => players.find((p) => p.id === id)?.label ?? '진행';
+const accusedLabel = labelOf(ACCUSED);
+const fillAccused = (text: string): string => text.replaceAll('{ACCUSED}', accusedLabel);
 
-const debateLog: Message[] = [
-  ...describeLog,
-  msg('p5', '한국 옛날 이야기에 많이 나오죠', 'describe'),
-  msg('system', '묘사가 한 바퀴 끝났습니다. 토론을 시작합니다.', 'debate'),
-  msg('p1', '박진님 묘사가 너무 두루뭉술한데요', 'debate'),
-  msg('p2', '아 진짜 아니라니까', 'debate'),
-  msg('p4', '저도 박진님 좀 이상했어요', 'debate'),
-];
+function buildTranscript(name: ScenarioName, p: Phase): Message[] {
+  const s = SCENARIOS[name];
+  const describeLog = s.describe.map(([id, text]) => msg(id, text, 'describe'));
+  if (p === 'describe') return describeLog;
 
+  const debateLog = [
+    ...describeLog,
+    msg(SELF, s.mine, 'describe'),
+    msg('system', '묘사가 한 바퀴 끝났습니다. 토론을 시작합니다.', 'debate'),
+    ...s.debate.map(([id, text]) => msg(id, fillAccused(text), 'debate')),
+  ];
+  if (p === 'debate') return debateLog;
+
+  // 최후 변론은 대사가 한 줄뿐이면 봇이 파고들 거리가 없어 같은 판단만 되풀이한다.
+  // 피고인이 실제로 변론하고 남들이 반응하는 상태를 만들어 준다.
+  const others = players.filter((p) => p.id !== SELF && p.id !== ACCUSED);
+  const finalDefenseLog =
+    ACCUSED === SELF
+      ? [
+          msg(others[0]!.id, `${labelOf(SELF)} 아까부터 계속 말 돌리는거 같은데`, 'finalDefense'),
+          msg(others[1]!.id, '나도 좀 그렇게 느꼈어', 'finalDefense'),
+          msg(others[2]!.id, `${labelOf(SELF)} 마지막으로 할 말 있으면 해봐`, 'finalDefense'),
+        ]
+      : [
+          msg(ACCUSED, '진짜 아니야 억울한데', 'finalDefense'),
+          msg(others[0]!.id, '그럼 왜 그렇게 말한건지 설명해봐', 'finalDefense'),
+          msg(ACCUSED, '그냥 떠오르는 대로 말한거야', 'finalDefense'),
+          msg(others[1]!.id, '그게 더 수상한데', 'finalDefense'),
+        ];
+
+  return [
+    ...debateLog,
+    msg('system', `${accusedLabel}가 지목되었습니다. 최후 변론을 시작합니다.`, 'finalDefense'),
+    ...finalDefenseLog,
+  ];
+}
+
+/** 오타를 조용히 통과시키면 default 분기로 빠져 silent만 나오고, 원인을 찾기 어렵다. */
+function parseArgs(): { myRole: Role; phase: Phase; count: number; scenario: ScenarioName } {
+  if (!ROLES.includes(roleArg as Role)) {
+    console.error(`알 수 없는 역할: "${roleArg}"\n  가능한 값: ${ROLES.join(', ')}`);
+    process.exit(1);
+  }
+  if (!PHASES.includes(phaseArg as Phase)) {
+    console.error(`알 수 없는 페이즈: "${phaseArg}"\n  가능한 값: ${PHASES.join(', ')}`);
+    process.exit(1);
+  }
+  if (!SCENARIO_NAMES.includes(scenarioArg as ScenarioName)) {
+    console.error(`알 수 없는 시나리오: "${scenarioArg}"\n  가능한 값: ${SCENARIO_NAMES.join(', ')}`);
+    process.exit(1);
+  }
+  if (!ACCUSED_CHOICES.includes(accusedArg)) {
+    console.error(`알 수 없는 피고인: "${accusedArg}"\n  가능한 값: ${ACCUSED_CHOICES.join(', ')}`);
+    process.exit(1);
+  }
+  return {
+    myRole: roleArg as Role,
+    phase: phaseArg as Phase,
+    count: Number(countArg) || 5,
+    scenario: scenarioArg as ScenarioName,
+  };
+}
+
+const { myRole, phase, count, scenario } = parseArgs();
+const { category, word } = SCENARIOS[scenario];
+
+/** 서버가 매 호출마다 새로 만들어 넘기는 스냅샷. 아래 루프가 서버 대신 갱신한다. */
 const ctx: BotContext = {
   phase,
   myRole,
-  category: CATEGORY,
-  word: myRole === 'liar' ? null : WORD, // 라이어는 제시어를 모른다
+  category,
+  word: myRole === 'liar' ? null : word, // 라이어는 제시어를 모른다
   selfId: SELF,
   players,
-  transcript: phase === 'describe' ? describeLog : debateLog,
+  transcript: buildTranscript(scenario, phase),
   voteCounts: phase === 'describe' ? {} : { p2: 2, p3: 1 },
+  accusedId: phase === 'describe' || phase === 'debate' ? null : ACCUSED,
+  myVote: null,
 };
 
-const nameOf = (id: string): string => players.find((p) => p.id === id)?.name ?? '진행';
+/**
+ * 봇은 남이 말을 얹어야 반응한다. 여기서 사람 발언을 넣어주지 않으면 한 번 말하고 계속 침묵한다.
+ *
+ * 세 갈래로 나눈 것은 각각 다른 방어를 시험하기 위해서다.
+ *   atBot — 봇을 직접 몰아붙인다. 따지지 않고 짧게 받아치는지 본다
+ *   probe — 남의 묘사가 무슨 뜻이냐고 캐묻는다. 봇이 대신 풀이해주면 제시어가 새어나간다
+ *   react — 아무나 하는 반응. 지목한 상대가 아닌 사람이 말했을 때 봇이 참는지 본다
+ */
+const HUMAN_LINES = {
+  atBot: [
+    '{BOT} 아까 그거 좀 애매하지 않았어?',
+    '{BOT} 너 아까부터 말 돌리는거 같은데',
+    '{BOT} 그럼 뭐라고 설명할건데',
+    '{BOT} 솔직히 제일 수상해',
+  ],
+  probe: [
+    '{OTHER} 그거 결국 뭐 말한거야?',
+    '{OTHER} 아까 그 표현 무슨 의미인지 아는 사람',
+    '누가 좀 풀어서 말해봐',
+  ],
+  react: [
+    '음 글쎄',
+    '난 아직 모르겠는데',
+    '그건 좀 아니지 않나?',
+    '아 그런가',
+    '다들 너무 애매하게 말하는듯',
+    '난 그냥 느낌대로 갈래',
+  ],
+} as const;
+
+const pick = <T>(xs: readonly T[]): T => xs[Math.floor(Math.random() * xs.length)]!;
+
+/**
+ * 실제 서버는 봇의 발언을 기록하고 표를 반영한 뒤 다시 물어본다.
+ * 그 갱신을 흉내내지 않으면 매 호출이 같은 상황이라 첫 분기만 반복해서 확인된다.
+ *
+ * 묘사는 1인 1회라 갱신하지 않는다. 같은 상황을 매번 새로 샘플링해야
+ * 발화가 얼마나 다양한지 볼 수 있기 때문이다.
+ */
+function applyToContext(action: Awaited<ReturnType<typeof decideBotAction>>): void {
+  if (ctx.phase !== 'debate' && ctx.phase !== 'finalDefense') return;
+
+  if (action.t === 'chat') {
+    ctx.transcript.push(msg(SELF, action.text, ctx.phase));
+  } else if (action.t === 'vote') {
+    if (ctx.myVote !== null) ctx.voteCounts[ctx.myVote] = (ctx.voteCounts[ctx.myVote] ?? 1) - 1;
+    if (action.targetId !== null) {
+      ctx.voteCounts[action.targetId] = (ctx.voteCounts[action.targetId] ?? 0) + 1;
+    }
+    ctx.myVote = action.targetId;
+  }
+
+  // 30%는 아무도 말하지 않은 채로 두어 "남을 기다리는" 분기도 확인할 수 있게 한다.
+  if (Math.random() >= 0.7) return;
+
+  const others = players.filter((p) => p.id !== SELF);
+  const who = pick(others);
+  const roll = Math.random();
+
+  let line: string;
+  if (roll < 0.3) {
+    line = pick(HUMAN_LINES.atBot).replaceAll('{BOT}', labelOf(SELF));
+  } else if (roll < 0.5) {
+    const target = pick(others.filter((p) => p.id !== who.id));
+    line = pick(HUMAN_LINES.probe).replaceAll('{OTHER}', target.label);
+  } else {
+    line = pick(HUMAN_LINES.react);
+  }
+
+  ctx.transcript.push(msg(who.id, line, ctx.phase));
+  console.log(`    ↳ (테스트용) ${who.label}: ${line}\n`);
+}
 
 /** backend 는 CommonJS 라 최상위 await 를 쓸 수 없다. 함수로 감싼다. */
 async function main(): Promise<void> {
@@ -76,10 +321,11 @@ async function main(): Promise<void> {
 
   console.log(line);
   console.log(
-    `역할 ${myRole}   페이즈 ${phase}   주제 ${CATEGORY}   제시어 ${ctx.word ?? '(모름)'}`,
+    `역할 ${myRole}   페이즈 ${phase}   주제 ${category}   제시어 ${ctx.word ?? '(모름)'}` +
+      `   시나리오 ${scenario}   나 ${labelOf(SELF)}   피고인 ${accusedLabel}`,
   );
   console.log(line);
-  console.log(ctx.transcript.map((m) => `  ${nameOf(m.speakerId)}: ${m.text}`).join('\n'));
+  console.log(ctx.transcript.map((m) => `  ${labelOf(m.speakerId)}: ${m.text}`).join('\n'));
   console.log(line);
   console.log(`봇 발화 ${count}개 생성 중…\n`);
 
@@ -89,18 +335,22 @@ async function main(): Promise<void> {
       const action = await decideBotAction(ctx);
       const elapsed = Date.now() - started;
 
-      if (action.t === 'speak') {
-        console.log(`${String(i).padStart(2)}. ${action.text}`);
-        console.log(`    응답 ${elapsed}ms · 지연 ${action.delayMs}ms · ${action.text.length}자\n`);
+      if (action.t === 'describe' || action.t === 'chat') {
+        console.log(`${String(i).padStart(2)}. [${action.t}] ${action.text}`);
+        console.log(`    응답 ${elapsed}ms · 지연 ${action.delayMs}ms · ${action.text.length}자`);
+        console.log(`    출력까지 ${elapsed + action.delayMs}ms\n`);
       } else {
-        console.log(`${String(i).padStart(2)}. [${action.t}] ${JSON.stringify(action)}\n`);
+        console.log(`${String(i).padStart(2)}. [${action.t}] ${JSON.stringify(action)}`);
+        console.log(`    응답 ${elapsed}ms\n`);
       }
+
+      applyToContext(action);
     } catch (err) {
       console.error(`\n${String(i).padStart(2)}. 실패`);
       console.error(err instanceof Error ? err.message : err);
       console.error(
         '\n확인할 것:\n' +
-          '  1. apps/backend/.env 가 있는가 (cp apps/backend/.env.example apps/backend/.env)\n' +
+          '  1. apps/backend/.env 가 있는가\n' +
           '  2. BOT_API_KEY / BOT_BASE_URL / BOT_MODEL 이 채워져 있는가\n' +
           '  3. BOT_MODEL 이 그 엔드포인트가 실제로 서빙하는 모델 이름인가\n',
       );

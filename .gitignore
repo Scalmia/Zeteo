@@ -1,3 +1,5 @@
 node_modules/
 dist/
 .env
+apps/backend/logs/
+apps/backend/.bot-provider

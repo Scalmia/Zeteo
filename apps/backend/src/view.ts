@@ -1,5 +1,15 @@
-import { GameState, PublicPlayer } from '@zeteo/shared-types';
+import { GameState, PublicPlayer, SurveyReason } from '@zeteo/shared-types';
 import { RoomInternalState } from './room';
+import { tallyBotVoteResults } from './vote';
+import { fetchSurveyReasons } from './db/survey';
+
+
+function countBotVoteProgress(room: RoomInternalState): { voted: number; total: number } {
+  // isVotingComplete(index.ts)와 같은 기준: 봇 제외, 죽은 사람도 투표 대상에 포함
+  const humans = room.players.filter((p) => !p.isBot);
+  const voted = humans.filter((p) => room.botVotes[p.id] !== undefined).length;
+  return { voted, total: humans.length };
+}
 
 // TODO(Day 4): vote.ts가 생기면 이 두 함수는 지우고 거기서 import
 function countVotes(votes: Record<string, string | null>): Record<string, number> {
@@ -20,22 +30,35 @@ function countLifeVotes(lifeVotes: Record<string, boolean>): { kill: number; spa
   return counts;
 }
 
-export function buildGameStateFor(room: RoomInternalState, playerId: string): GameState {
+export async function buildGameStateFor(room: RoomInternalState, playerId: string): Promise<GameState> {  
   const me = room.players.find((p) => p.id === playerId);
   if (!me) throw new Error(`player ${playerId} not in room`);
 
+  // B-4: survey가 result에서 분리된 별도 phase가 되면서, "게임이 끝난 뒤"를 의미하던
+  // room.phase === 'result' 체크들이 survey로 넘어가는 순간 전부 false가 되어버린다.
+  // 그러면 방금 공개됐던 봇 정체/라이어/제시어/승패가 설문 화면에서 다시 숨겨지는
+  // 회귀가 생기므로, "결과가 이미 공개된 상태"를 result·survey 둘 다로 정의한다.
+  const isPostGame = room.phase === 'result' || room.phase === 'survey';
+  // room.phase는 방 전체가 공유하는 값이지만, index.ts의 case 'ready'는 'result' 단계에서
+  // 개인별로 surveyedIds에만 추가하고 room.phase 자체는 안 건드린다("이 사람만 개인적으로
+  // survey로 이동"). 그래서 이 사람 전용 화면 phase는 room.phase와 따로 계산해야 한다 —
+  // 다른 사람이 아직 result를 보고 있어도 이 사람은 이미 survey를 봐야 하기 때문이다.
+  const myPhase = room.phase === 'result' && room.surveyedIds.has(playerId) ? 'survey' : room.phase;
   const publicPlayers: PublicPlayer[] = room.players.map((p) => ({
-    id: p.id,
-    name: p.name,
+    id: room.phase === 'lobby' ? (room.lobbyTokens.get(p.id) ?? p.id) : p.id,
+    label: room.phase === 'lobby' ? p.name : p.label,
     isAlive: p.isAlive,
+    isReady: room.readyIds.has(p.id),
   }));
 
   return {
     roomId: room.roomId,
-    phase: room.phase,
+    phase: myPhase,
     players: publicPlayers,
     category: room.category,
-    word: me.role === 'liar' ? null : room.word,
+    // ★ A-4 수정: 게임이 끝난 뒤(result·survey)엔 라이어에게도 제시어를 공개해야 한다
+    // (기존엔 phase 조건이 없어서 게임이 끝나도 라이어는 제시어를 영영 못 봤다).
+    word: me.role === 'liar' && !isPostGame ? null : room.word,
     myRole: me.role,
     turnOrder: room.turnOrder,
     currentTurn: room.turnOrder[room.currentTurnIndex] ?? null,
@@ -44,12 +67,40 @@ export function buildGameStateFor(room: RoomInternalState, playerId: string): Ga
     voteCounts: countVotes(room.votes),
     myVote: room.votes[playerId] ?? null,
     accused: room.accusedId,
-
-    myId: playerId,
+    myId: room.phase === 'lobby' ? (room.lobbyTokens.get(playerId) ?? playerId) : playerId,
     round: room.round,
     myLifeVote: room.lifeVotes[playerId] ?? null,
     lifeVoteCounts: countLifeVotes(room.lifeVotes),
     revealedRole: room.revealedRole,
+    // ★ 변경: 게임이 끝나기 전(result·survey 이전)엔 무조건 null로 감춤
+    // (내부적으론 이미 계산돼 있어도 노출 안 함)
     liarGameResult: room.liarGameResult,
+    guessWord: isPostGame ? room.guessWord : null,
+
+    // result·survey에서만 실제 값
+    // botVote 진행도는 스포일러가 아니라 언제나 실제 값 (투표 안 한 phase에선 room.botVotes가
+    // 비어있으니 자연스럽게 voted:0으로 나옴)
+    botVoteCounts: countBotVoteProgress(room),
+
+    // ★ 설계원칙 5 (봇 정보 유출 금지) — 아래 세 필드는 반드시 게임이 끝난 뒤(result·survey)에만
+    // 채운다. 한 단계라도 먼저 노출되면 개발자도구로 결과를 미리 볼 수 있게 된다.
+    botVoteCorrectCount: isPostGame
+      ? Object.values(tallyBotVoteResults(room)).filter(Boolean).length
+      : 0,
+    revealedBotId: isPostGame ? (room.players.find((p) => p.isBot)?.id ?? null) : null,
+    revealedLiarId: isPostGame ? (room.players.find((p) => p.role === 'liar')?.id ?? null) : null,
+
+    // ★ 추가
+    revealedNames: isPostGame ? Object.fromEntries(room.players.map((p) => [p.id, p.name])) : null,
+    // 봇 지목은 익명 투표다. 게임이 끝나기 전에 새면 투표 도중에 "누가 나를 찍었나"를
+    // 알게 되어 익명성이 무너진다.
+    botVoteResults: isPostGame ? { ...room.botVotes } : null,
+
+    // 설문 선택지는 survey 화면에서만 필요하다 (result·survey 공통이 아니라 survey 단독).
+    reasons: myPhase === 'survey' ? await fetchSurveyReasons() : [],
+
+    // ★ 추가 (방 목록 기능) — 대기실 게임시작 버튼 노출 기준. 봇 정보와 달리 숨길
+    // 이유가 없어서 phase 조건 없이 항상 실제 값을 보낸다.
+    isHost: playerId === room.hostId,
   };
 }

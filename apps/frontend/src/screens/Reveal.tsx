@@ -1,10 +1,13 @@
 import { useState } from 'react';
 import type { ClientEvent, GameState } from '@zeteo/shared-types';
-import { Timer } from '../components/Timer';
+import Button from '../components/Button';
 
 /** S5 정체 공개 + S5-a 제시어 추측.
  *  두 페이즈를 한 파일이 담당한다 — 룰북상 "처형자가 라이어일 때만" 추측이 붙는
- *  연속 흐름이라 화면을 쪼개면 전환이 끊겨 보인다. */
+ *  연속 흐름이라 화면을 쪼개면 전환이 끊겨 보인다.
+ *
+ *  GameScreen 이 Modal 로 감싸 메인화면 위에 띄운다 — 제목과 타이머는 Modal 이 그리고,
+ *  그 껍데기는 reveal → guessWord 사이에 마운트된 채로 유지된다. */
 export function Reveal({
   state,
   onEvent,
@@ -16,44 +19,38 @@ export function Reveal({
   const executed = state.players.find((p) => p.id === state.accused);
 
   if (state.phase === 'guessWord') {
-    // ★3 입력 권한자: 처형된 라이어 본인. A 승인 필요 (작업계획서 3절)
+    // ★3 입력 권한자: 처형된 라이어 본인. A 확인 대기 (인수인계 6절)
     const canGuess = state.myRole === 'liar' && state.accused === state.myId;
 
     return (
-      <div className="zt-screen zt-center">
-        <header className="zt-head">
-          <span className="zt-sub">제시어 추측</span>
-          <Timer deadlineAt={state.deadlineAt} />
-        </header>
+      <>
+        <span className="zt-badge">라이어 적발</span>
+        <p className="zt-role is-liar">{executed?.label}</p>
+        <p className="zt-muted">주제: {state.category}</p>
 
-        <div className="zt-card">
-          <span className="zt-badge">라이어 적발</span>
-          <p className="zt-role is-liar">{executed?.name}</p>
-          <p className="zt-muted">주제: {state.category}</p>
-
-          {canGuess ? (
-            <div className="zt-chat-input">
-              <input
-                value={guess}
-                placeholder="제시어 입력…"
-                onChange={(e) => setGuess(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && guess.trim())
-                    onEvent({ t: 'guessWord', word: guess.trim() });
-                }}
-              />
-              <button
-                disabled={!guess.trim()}
-                onClick={() => onEvent({ t: 'guessWord', word: guess.trim() })}
-              >
-                확정
-              </button>
-            </div>
-          ) : (
-            <p className="zt-muted">라이어가 제시어를 추측하는 중입니다…</p>
-          )}
-        </div>
-      </div>
+        {canGuess ? (
+          <div className="zt-chat-input">
+            <input
+              className="input"
+              value={guess}
+              placeholder="제시어 입력…"
+              onChange={(e) => setGuess(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && guess.trim()) onEvent({ t: 'guessWord', word: guess.trim() });
+              }}
+            />
+            <Button
+              disabled={!guess.trim()}
+              onClick={() => onEvent({ t: 'guessWord', word: guess.trim() })}
+              style={{ fontSize: 'var(--text-button)' }}
+            >
+              확정
+            </Button>
+          </div>
+        ) : (
+          <p className="zt-muted">라이어가 제시어를 추측하는 중입니다…</p>
+        )}
+      </>
     );
   }
 
@@ -61,25 +58,23 @@ export function Reveal({
   const wasLiar = state.revealedRole === 'liar';
 
   return (
-    <div className="zt-screen zt-center">
-      <header className="zt-head">
-        <span className="zt-sub">결과</span>
-      </header>
+    <>
+      <p className="zt-label">{executed?.label}은(는)</p>
+      <p className={wasLiar ? 'zt-role is-liar' : 'zt-role'}>
+        {state.revealedRole === 'liar' ? '라이어' : '시민'}
+      </p>
+      <p className="zt-label">이었습니다</p>
 
-      <div className="zt-card">
-        <p className="zt-label">{executed?.name}은(는)</p>
-        <p className={wasLiar ? 'zt-role is-liar' : 'zt-role'}>
-          {state.revealedRole === 'liar' ? '라이어' : '시민'}
+      {/* liarGameResult 는 reveal 에서 항상 null 이라 이 블록은 뜨지 않는다.
+          지우지 않는 이유: 라이어를 잡은 경우만 결과를 숨기면 "결과가 안 뜬다"는
+          사실 자체가 스포일러가 되므로, 두 경우를 화면에서 구분할 수 없게 서버가
+          result 직전까지 미룬다 (기획서 v2.0 §4) */}
+      {state.liarGameResult && (
+        <p className="zt-result">
+          {state.liarGameResult === 'liarWin' ? '라이어 승리' : '시민 승리'}
         </p>
-        <p className="zt-label">이었습니다</p>
-
-        {state.liarGameResult && (
-          <p className="zt-result">
-            {state.liarGameResult === 'liarWin' ? '라이어 승리' : '시민 승리'}
-          </p>
-        )}
-        {wasLiar && <p className="zt-muted">제시어 추측 단계로 넘어갑니다…</p>}
-      </div>
-    </div>
+      )}
+      {wasLiar && <p className="zt-muted">제시어 추측 단계로 넘어갑니다…</p>}
+    </>
   );
 }
