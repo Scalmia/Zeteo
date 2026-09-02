@@ -40,6 +40,9 @@ export default function LobbyScreen({
           borderRadius: "var(--radius)",
           background: "var(--color-surface)",
           padding: "var(--space-4)",
+          // position: "relative" — FullscreenButton.tsx의 position:absolute가
+          // 이 카드 기준으로 앉는다(그 파일 헤더 주석). LandingScreen.tsx의
+          // 같은 카드도 같은 이유로 이 속성을 갖는다.
           position: "relative"
         }}
       >
