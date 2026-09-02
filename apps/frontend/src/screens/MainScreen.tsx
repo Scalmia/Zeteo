@@ -111,6 +111,11 @@ export function MainScreen({
   const [chatFocused, setChatFocused] = useState(false);
   const voteVisible = chatFocused ? false : voteOpen;
 
+  // ※ 아래 상태·이펙트·토글 함수·SVG 두 개는 components/FullscreenButton.tsx와
+  // 거의 그대로 겹친다(추정: 그쪽은 헤더 없는 화면에서 position:absolute로 카드
+  // 우상단에 얹는 용도라 이 헤더의 flex 자식으로는 못 쓰고, 그래서 따로 뒀을
+  // 것으로 보인다) — 소유자 확인 필요. 재사용 여부는 이 파일 범위 밖이라 그대로 둔다.
+  //
   // 전체화면 버튼(8/14) — 모바일 주소창·하단 메뉴바가 위아래를 가리는 문제 대응.
   // document.fullscreenEnabled 로 지원 여부를 확인해, 지원 안 하는 브라우저(대표적으로
   // iOS Safari — video 제외 Fullscreen API 자체를 지원하지 않는다, game.css 8/14 주석
