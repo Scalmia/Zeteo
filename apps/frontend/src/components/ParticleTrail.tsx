@@ -15,6 +15,8 @@ export function ParticleTrail() {
       particle.style.left = `${e.clientX}px`;
       particle.style.top = `${e.clientY}px`;
       document.body.appendChild(particle);
+      // 800 은 ambience.css의 @keyframes zt-particle-fade 0.8s 와 짝이 맞아야 하는
+      // 값이다 — 애니메이션이 끝나기 전에 지우면 파티클이 눈에 띄게 뚝 끊겨 사라진다.
       setTimeout(() => particle.remove(), 800);
     };
 
