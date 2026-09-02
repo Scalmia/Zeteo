@@ -30,6 +30,30 @@ import { VotePanel } from '../components/VotePanel';
  *  문제가 이 구조 변경만으로 해결된다. 모바일에서 로그↔투표 패널↔요약탭↔입력창을
  *  order로 재배치하던 이전의 display:contents 트릭도 이제 필요 없다 — 셋이 이미
  *  DOM 순서 그대로 원하는 시각적 순서다(시안 1도 같은 DOM 순서를 쓴다). */
+
+function phaseLabel(phase: GameState['phase']): string {
+  switch (phase) {
+    case 'describe':
+      return '묘사';
+    case 'debate':
+      return '토론 · 투표 진행 중';
+    case 'finalDefense':
+      return '최후 변론';
+    case 'roleReveal':
+      return '역할 배정';
+    case 'lifeVote':
+      return '생사 투표';
+    case 'reveal':
+      return '결과';
+    case 'guessWord':
+      return '제시어 추측';
+    case 'botVote':
+      return '봇 지목';
+    default:
+      return ''; // lobby·result·survey 는 파트 D 담당이라 여기 오지 않는다
+  }
+}
+
 export function MainScreen({
   state,
   onEvent,
@@ -266,27 +290,4 @@ export function MainScreen({
       />
     </div>
   );
-}
-
-function phaseLabel(phase: GameState['phase']): string {
-  switch (phase) {
-    case 'describe':
-      return '묘사';
-    case 'debate':
-      return '토론 · 투표 진행 중';
-    case 'finalDefense':
-      return '최후 변론';
-    case 'roleReveal':
-      return '역할 배정';
-    case 'lifeVote':
-      return '생사 투표';
-    case 'reveal':
-      return '결과';
-    case 'guessWord':
-      return '제시어 추측';
-    case 'botVote':
-      return '봇 지목';
-    default:
-      return ''; // lobby·result·survey 는 파트 D 담당이라 여기 오지 않는다
-  }
 }
