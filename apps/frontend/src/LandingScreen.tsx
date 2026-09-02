@@ -36,6 +36,9 @@ export default function LandingScreen({ onNext }: LandingScreenProps) {
           borderRadius: "var(--radius)",
           background: "var(--color-surface)",
           padding: "var(--space-4)",
+          // position: "relative" — FullscreenButton.tsx의 position:absolute가
+          // 이 카드 기준으로 앉는다(그 파일 헤더 주석: "쓰는 쪽 카드에 반드시
+          // 있어야 한다"). 지우면 버튼이 뷰포트 기준으로 튀어 오른다.
           position: "relative"
         }}
       >
@@ -49,6 +52,9 @@ export default function LandingScreen({ onNext }: LandingScreenProps) {
           <label style={{ fontSize: "var(--text-label)", fontWeight: 600 }}>닉네임</label>
           <input
             className="input"
+            // ※ 21은 var(--text-button)의 현재 값과 같다(tokens.css) — 토큰을 안 쓰고
+            // 리터럴로 적은 게 의도인지 그냥 값이 같아서 우연인지는 불명. 토큰이
+            // 바뀌면 이 입력창 글자 크기만 안 따라간다 — 소유자 확인 필요.
             style={{ fontSize: 21 }}
             value={name}
             maxLength={NAME_MAX_LENGTH}
