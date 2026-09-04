@@ -30,6 +30,30 @@ import { VotePanel } from '../components/VotePanel';
  *  문제가 이 구조 변경만으로 해결된다. 모바일에서 로그↔투표 패널↔요약탭↔입력창을
  *  order로 재배치하던 이전의 display:contents 트릭도 이제 필요 없다 — 셋이 이미
  *  DOM 순서 그대로 원하는 시각적 순서다(시안 1도 같은 DOM 순서를 쓴다). */
+
+function phaseLabel(phase: GameState['phase']): string {
+  switch (phase) {
+    case 'describe':
+      return '묘사';
+    case 'debate':
+      return '토론 · 투표 진행 중';
+    case 'finalDefense':
+      return '최후 변론';
+    case 'roleReveal':
+      return '역할 배정';
+    case 'lifeVote':
+      return '생사 투표';
+    case 'reveal':
+      return '결과';
+    case 'guessWord':
+      return '제시어 추측';
+    case 'botVote':
+      return '봇 지목';
+    default:
+      return ''; // lobby·result·survey 는 파트 D 담당이라 여기 오지 않는다
+  }
+}
+
 export function MainScreen({
   state,
   onEvent,
@@ -87,6 +111,11 @@ export function MainScreen({
   const [chatFocused, setChatFocused] = useState(false);
   const voteVisible = chatFocused ? false : voteOpen;
 
+  // ※ 아래 상태·이펙트·토글 함수·SVG 두 개는 components/FullscreenButton.tsx와
+  // 거의 그대로 겹친다(추정: 그쪽은 헤더 없는 화면에서 position:absolute로 카드
+  // 우상단에 얹는 용도라 이 헤더의 flex 자식으로는 못 쓰고, 그래서 따로 뒀을
+  // 것으로 보인다) — 소유자 확인 필요. 재사용 여부는 이 파일 범위 밖이라 그대로 둔다.
+  //
   // 전체화면 버튼(8/14) — 모바일 주소창·하단 메뉴바가 위아래를 가리는 문제 대응.
   // document.fullscreenEnabled 로 지원 여부를 확인해, 지원 안 하는 브라우저(대표적으로
   // iOS Safari — video 제외 Fullscreen API 자체를 지원하지 않는다, game.css 8/14 주석
@@ -266,27 +295,4 @@ export function MainScreen({
       />
     </div>
   );
-}
-
-function phaseLabel(phase: GameState['phase']): string {
-  switch (phase) {
-    case 'describe':
-      return '묘사';
-    case 'debate':
-      return '토론 · 투표 진행 중';
-    case 'finalDefense':
-      return '최후 변론';
-    case 'roleReveal':
-      return '역할 배정';
-    case 'lifeVote':
-      return '생사 투표';
-    case 'reveal':
-      return '결과';
-    case 'guessWord':
-      return '제시어 추측';
-    case 'botVote':
-      return '봇 지목';
-    default:
-      return ''; // lobby·result·survey 는 파트 D 담당이라 여기 오지 않는다
-  }
 }
