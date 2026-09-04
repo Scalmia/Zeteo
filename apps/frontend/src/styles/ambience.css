@@ -1,7 +1,9 @@
 /* 파트 D 소유 — 박진
  *
- * Blood Moon 장식 레이어(피 방울). Ambience.tsx가 마운트하는
- * 마크업을 스타일링한다. 클릭을 막지 않도록 전부 pointer-events:none.
+ * 화면 장식 레이어 둘을 담당한다 — Ambience.tsx(Blood Moon 핏방울, 아래
+ * .blood-drop*)와 ParticleTrail.tsx(마우스 트레일, 아래 .zt-particle). 헤더에
+ * Ambience.tsx만 적혀 있었는데 zt-particle도 이 파일 소관이라 같이 밝혀둔다.
+ * 둘 다 클릭을 막지 않도록 pointer-events:none.
  * prefers-reduced-motion 사용자는 애니메이션을 끈다.
  *
  * ⚠️ .blood-drops는 z-index:-1(2026-08-21 수정, 이전엔 0이었음) —
