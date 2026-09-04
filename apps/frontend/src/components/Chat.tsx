@@ -10,6 +10,8 @@ import Button from './Button';
  *  같이 들어있으면 MainScreen이 이 둘을 서로 다른 폭의 레이아웃에 따로 배치할 수 없어서,
  *  ChatLog(로그만)와 ChatInputBar(입력창만)로 나눠 MainScreen이 각자 원하는 자리에 꽂는다. */
 
+// ── 1. 채팅 로그 ─────────────────────────────────────────────────────
+
 interface LogProps {
   messages: Message[];
   players: PublicPlayer[];
@@ -202,6 +204,8 @@ export function ChatLog({
     </div>
   );
 }
+
+// ── 2. 채팅 입력창 ────────────────────────────────────────────────────
 
 interface InputProps {
   /** 잠금 여부는 화면이 판단해서 내려준다. 이 컴포넌트가 스스로 규칙을 알지 않는다. */
