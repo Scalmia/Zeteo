@@ -60,6 +60,11 @@ export default function LandingScreen({ onNext }: LandingScreenProps) {
         <Button block disabled={!canNext} style={{ fontSize: "var(--text-button)" }} onClick={() => canNext && onNext(name.trim())}>
           시작
         </Button>
+
+        <div style={{ display: "flex", justifyContent: "center", gap: "var(--space-4)", marginTop: "var(--space-4)" }}>
+          <a href="/about.html" style={{ color: "var(--color-muted)", fontSize: 12 }}>소개 및 이용방법</a>
+          <a href="/privacy.html" style={{ color: "var(--color-muted)", fontSize: 12 }}>개인정보처리방침</a>
+        </div>
       </div>
     </div>
   );
