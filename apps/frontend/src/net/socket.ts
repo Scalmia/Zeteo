@@ -5,6 +5,11 @@ import type { ClientEvent, ServerEvent } from '@zeteo/shared-types';
 // → dev: vite.config.ts의 /socket.io 프록시(localhost:3000)를 그대로 타고
 // → prod: 백엔드가 프론트 정적 파일까지 같이 서빙하므로 자동으로 같은 서버로 붙음
 // 즉 환경변수로 서버 주소를 따로 관리할 필요가 없음
+//
+// ※ autoConnect: false — useGameState.ts가 'connect' 핸들러를 등록한 뒤에 직접
+// socket.connect()를 불러야 재접속(rejoin) 판단을 놓치지 않는다(추정: true였다면
+// 모듈이 로드되는 순간 연결이 시작돼, React 이펙트가 핸들러를 등록하기 전에 최초
+// connect 이벤트가 지나가 버릴 수 있다) — 소유자 확인 필요.
 export const socket: Socket = io({ autoConnect: false });
 
 // 화면 → 서버. 'action'이라는 이벤트 이름 하나에 ClientEvent(join/vote/chat 등)를
